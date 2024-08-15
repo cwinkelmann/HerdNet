@@ -1,0 +1,28 @@
+15-08-2024 08:48:41 - test [  1/258] eta: 0:21:35 n: 1 recall: 1.0 precision: 0.09 f1-score: 0.17 MAE: 10.0 MSE: 100.0 RMSE: 10.0 time: 5.0202 data: 0.6553 max mem: 7669
+15-08-2024 08:49:28 - test [ 11/258] eta: 0:19:37 n: 1 recall: 1.0 precision: 0.1 f1-score: 0.18 MAE: 9.0 MSE: 81.0 RMSE: 9.0 time: 4.7471 data: 0.5361 max mem: 7669
+15-08-2024 08:50:16 - test [ 21/258] eta: 0:18:51 n: 1 recall: 1.0 precision: 0.08 f1-score: 0.15 MAE: 11.0 MSE: 121.0 RMSE: 11.0 time: 4.7394 data: 0.5263 max mem: 7669
+15-08-2024 08:51:04 - test [ 31/258] eta: 0:18:06 n: 36 recall: 0.94 precision: 0.77 f1-score: 0.85 MAE: 8.0 MSE: 64.0 RMSE: 8.0 time: 4.7786 data: 0.5283 max mem: 7669
+15-08-2024 08:51:53 - test [ 41/258] eta: 0:17:27 n: 1 recall: 1.0 precision: 0.12 f1-score: 0.22 MAE: 7.0 MSE: 49.0 RMSE: 7.0 time: 4.8627 data: 0.5484 max mem: 7669
+15-08-2024 08:52:43 - test [ 51/258] eta: 0:16:45 n: 6 recall: 1.0 precision: 0.46 f1-score: 0.63 MAE: 7.0 MSE: 49.0 RMSE: 7.0 time: 4.9326 data: 0.5689 max mem: 7669
+15-08-2024 08:53:32 - test [ 61/258] eta: 0:16:01 n: 2 recall: 1.0 precision: 1.0 f1-score: 1.0 MAE: 0.0 MSE: 0.0 RMSE: 0.0 time: 4.9538 data: 0.5820 max mem: 7669
+15-08-2024 08:54:22 - test [ 71/258] eta: 0:15:16 n: 1 recall: 1.0 precision: 0.17 f1-score: 0.29 MAE: 5.0 MSE: 25.0 RMSE: 5.0 time: 4.9755 data: 0.6016 max mem: 7669
+15-08-2024 08:55:12 - test [ 81/258] eta: 0:14:29 n: 2 recall: 1.0 precision: 1.0 f1-score: 1.0 MAE: 0.0 MSE: 0.0 RMSE: 0.0 time: 4.9703 data: 0.5962 max mem: 7669
+15-08-2024 08:56:01 - test [ 91/258] eta: 0:13:42 n: 5 recall: 1.0 precision: 0.62 f1-score: 0.77 MAE: 3.0 MSE: 9.0 RMSE: 3.0 time: 4.9732 data: 0.5861 max mem: 7669
+15-08-2024 08:56:51 - test [101/258] eta: 0:12:54 n: 2 recall: 1.0 precision: 0.33 f1-score: 0.5 MAE: 4.0 MSE: 16.0 RMSE: 4.0 time: 4.9799 data: 0.5822 max mem: 7669
+15-08-2024 08:57:41 - test [111/258] eta: 0:12:06 n: 5 recall: 0.8 precision: 0.5 f1-score: 0.62 MAE: 3.0 MSE: 9.0 RMSE: 3.0 time: 4.9790 data: 0.5838 max mem: 7669
+15-08-2024 08:58:31 - test [121/258] eta: 0:11:18 n: 1 recall: 1.0 precision: 0.5 f1-score: 0.67 MAE: 1.0 MSE: 1.0 RMSE: 1.0 time: 4.9745 data: 0.5886 max mem: 7669
+15-08-2024 08:59:20 - test [131/258] eta: 0:10:29 n: 17 recall: 1.0 precision: 0.89 f1-score: 0.94 MAE: 2.0 MSE: 4.0 RMSE: 2.0 time: 4.9703 data: 0.5865 max mem: 7669
+15-08-2024 09:00:10 - test [141/258] eta: 0:09:40 n: 1 recall: 1.0 precision: 0.12 f1-score: 0.22 MAE: 7.0 MSE: 49.0 RMSE: 7.0 time: 4.9747 data: 0.5851 max mem: 7669
+15-08-2024 09:01:00 - test [151/258] eta: 0:08:51 n: 1 recall: 1.0 precision: 0.2 f1-score: 0.33 MAE: 4.0 MSE: 16.0 RMSE: 4.0 time: 4.9678 data: 0.5790 max mem: 7669
+15-08-2024 09:01:48 - test [161/258] eta: 0:08:01 n: 1 recall: 1.0 precision: 0.02 f1-score: 0.03 MAE: 56.0 MSE: 3136.0 RMSE: 56.0 time: 4.8658 data: 0.5703 max mem: 7669
+15-08-2024 09:02:30 - test [171/258] eta: 0:07:09 n: 11 recall: 0.91 precision: 0.14 f1-score: 0.24 MAE: 60.0 MSE: 3600.0 RMSE: 60.0 time: 4.5134 data: 0.5442 max mem: 7669
+15-08-2024 09:03:14 - test [181/258] eta: 0:06:18 n: 14 recall: 0.86 precision: 0.71 f1-score: 0.77 MAE: 3.0 MSE: 9.0 RMSE: 3.0 time: 4.3113 data: 0.5309 max mem: 7669
+15-08-2024 09:03:57 - test [191/258] eta: 0:05:27 n: 1 recall: 1.0 precision: 0.12 f1-score: 0.22 MAE: 7.0 MSE: 49.0 RMSE: 7.0 time: 4.3495 data: 0.5285 max mem: 7669
+15-08-2024 09:04:41 - test [201/258] eta: 0:04:38 n: 1 recall: 1.0 precision: 0.03 f1-score: 0.06 MAE: 29.0 MSE: 841.0 RMSE: 29.0 time: 4.3407 data: 0.5117 max mem: 7669
+15-08-2024 09:05:23 - test [211/258] eta: 0:03:49 n: 3 recall: 1.0 precision: 0.38 f1-score: 0.55 MAE: 5.0 MSE: 25.0 RMSE: 5.0 time: 4.3078 data: 0.5003 max mem: 7669
+15-08-2024 09:06:06 - test [221/258] eta: 0:03:00 n: 2 recall: 1.0 precision: 0.18 f1-score: 0.31 MAE: 9.0 MSE: 81.0 RMSE: 9.0 time: 4.2655 data: 0.5118 max mem: 7669
+15-08-2024 09:06:49 - test [231/258] eta: 0:02:12 n: 7 recall: 0.86 precision: 0.11 f1-score: 0.19 MAE: 48.0 MSE: 2304.0 RMSE: 48.0 time: 4.2723 data: 0.5301 max mem: 7669
+15-08-2024 09:07:32 - test [241/258] eta: 0:01:24 n: 13 recall: 0.62 precision: 0.44 f1-score: 0.52 MAE: 5.0 MSE: 25.0 RMSE: 5.0 time: 4.2924 data: 0.5127 max mem: 7669
+15-08-2024 09:08:15 - test [251/258] eta: 0:00:37 n: 2 recall: 1.0 precision: 0.25 f1-score: 0.4 MAE: 6.0 MSE: 36.0 RMSE: 6.0 time: 4.3214 data: 0.4932 max mem: 7669
+15-08-2024 09:08:45 - test [258/258] eta: 0:00:04 n: 3 recall: 1.0 precision: 0.09 f1-score: 0.17 MAE: 30.0 MSE: 900.0 RMSE: 30.0 time: 4.3297 data: 0.5131 max mem: 7669
+15-08-2024 09:08:45 - test Total time: 0:20:09 (4.6870 s / it)
