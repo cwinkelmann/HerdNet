@@ -265,7 +265,8 @@ class AnnotationsFromCSV(Annotations):
         if isinstance(csv, str):
             data_df = pandas.read_csv(csv)
 
-        assert {'images','labels'}.issubset(data_df.columns), \
+        # FIXME should it be species or labels???
+        assert {'images', 'labels'}.issubset(data_df.columns), \
             'File must contain at least images and labels columns name'
         
         images = list(data_df['images'])

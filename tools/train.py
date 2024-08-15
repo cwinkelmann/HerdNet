@@ -35,6 +35,7 @@ from animaloc.utils.seed import set_seed
 from animaloc.utils.useful_funcs import current_date
 
 def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
+    # FIXME 'species' is not in train_patches.csv
     assert 'species' in df.columns
     cls_dict = dict(map(reversed, cls_dict.items()))
     df['labels'] = df['species'].map(cls_dict)
