@@ -1,5 +1,5 @@
-wandb_project: 'Sample project'
-wandb_entity: 'youraccountname'
+wandb_project: 'herdnet'
+wandb_entity: Null
 wandb_run: 'myrun'
 seed: 1
 device_name: 'cuda'
@@ -26,6 +26,7 @@ losses:
     kwargs:
       reduction: 'mean'
       normalize: False
+
   CrossEntropyLoss:
     print_name: 'ce_loss'
     from_torch: True
@@ -34,23 +35,28 @@ losses:
     lambda_const: 1.0
     kwargs:
       reduction: 'mean'
-      weight: [0.1,5.,15.,1.]
+      weight: [0.1, 5., 15., 1., 1.0, 1.0, 1.0] # One weight for each class including the background
 
 datasets:
   img_size: [512,512]
   anno_type: 'point'
-  num_classes: 4 
+  num_classes: 7
   collate_fn: null
 
   class_def:
-    1: 'camel'
-    2: 'donkey'
-    3: 'sheep/goat'
+    1: 'Hartebeest'
+    2: 'Buffalo'
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+
+
   
   train:
     name: 'CSVDataset'
-    csv_file: '/path/to/your/file.csv'
-    root_dir: '/path/to/your/images/folder'
+    csv_file: '/home/christian/hnee/HerdNet/data/train_patches.csv'
+    root_dir: '/home/christian/hnee/HerdNet/data/train_patches'
     
     sampler: null
 
@@ -75,8 +81,8 @@ datasets:
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/path/to/your/file.csv'
-    root_dir: '/path/to/your/images/folder'
+    csv_file: '/home/christian/hnee/HerdNet/data/val_patches.csv'
+    root_dir: '/home/christian/hnee/HerdNet/data/val_patches'
 
     albu_transforms:
       Normalize:
@@ -89,9 +95,9 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  valid_freq: 1
+  valid_freq: 5
   print_freq: 100
-  batch_size: 4
+  batch_size: 15
   optimizer: 'adam'
   lr: 1e-4
   weight_decay: 0.0005

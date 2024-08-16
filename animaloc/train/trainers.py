@@ -267,7 +267,7 @@ class Trainer:
         if wandb_flag:
             wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
 
-        for epoch in range(1,self.epochs + 1):
+        for epoch in range(1, self.epochs + 1):
 
             # training
             train_output = self._train(epoch, warmup_iters, wandb_flag)
