@@ -61,7 +61,11 @@ def draw_text(
     )-> PIL.Image.Image:
 
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype("segoeui.ttf", size=font_size)
+    # see https://github.com/Alexandre-Delplanque/HerdNet/pull/8/files
+    try:
+        font = ImageFont.truetype("segoeui.ttf", size=font_size)
+    except IOError:
+        font = ImageFont.load_default()
 
     l, t, r, b = draw.textbbox(position, text, font=font)
     draw.rectangle((l-5, t-5, r+5, b+5), fill='white')
