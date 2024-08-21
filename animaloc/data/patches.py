@@ -15,6 +15,8 @@ __version__ = "0.2.1"
 
 
 import os
+from pathlib import Path
+
 import PIL
 import torch
 import pandas
@@ -50,8 +52,11 @@ def save_batch_images(
         basename (str) : parent image name, with extension
         dest_folder (str): destination folder path
     '''
+    # FIXME this is not a good idea as there can be a '.' somewhere else in the name
+    # base_wo_extension, extension = basename.split('.')[0], basename.split('.')[1]
 
-    base_wo_extension, extension = basename.split('.')[0], basename.split('.')[1]
+    base_wo_extension = Path(basename).stem
+    extension = Path(basename).suffix.lstrip('.')
     for i, b in enumerate(range(batch.shape[0])):
         full_path = '_'.join([base_wo_extension, str(i) + '.']) + extension
         save_path = os.path.join(dest_folder, full_path)
@@ -304,8 +309,13 @@ class AnnotatedImageToPatches(ImageToPatches):
                     new_anno_dict = dict_from_objects([new_anno.shift(limit)])[0]
 
                     # link all the remaining information
-                    img_name , img_ext = tuple(anno_dict['images'].split('.'))
-                    for key in ['annos','images']:
+                    # FIXME this is not a good idea as there can be a '.' somewhere else in the name
+                    # img_name , img_ext = tuple(anno_dict['images'].split('.'))
+
+
+                    img_name = Path(anno_dict['images']).stem
+                    img_ext = Path(anno_dict['images']).suffix.lstrip('.')
+                    for key in ['annos', 'images']:
                         anno_dict.pop(key)
 
                     all_new_annos.append(dict(

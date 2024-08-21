@@ -390,12 +390,13 @@ def main(cfg: DictConfig) -> None:
             validate_on = validate_on, 
             wandb_flag = True
             )
-    
+
+    # FIXME : Add information in .pth files correctly, this does not work
     # Add information in .pth files
     for pth_name in ['best_model.pth', 'latest_model.pth']:
         path = os.path.join(os.curdir, pth_name)
         pth_file = torch.load(path)
-        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
+        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1] ### the norm_trans is not always the last transform
         pth_file['classes'] = dict(cfg.datasets.class_def)
         pth_file['mean'] =  list(norm_trans.mean)
         pth_file['std'] = list(norm_trans.std)

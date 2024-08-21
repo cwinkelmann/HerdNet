@@ -1,6 +1,6 @@
 wandb_project: 'herdnet'
 wandb_entity: Null
-wandb_run: 'myrun'
+wandb_run: 'iguana_run'
 seed: 1
 device_name: 'cuda'
 
@@ -36,28 +36,31 @@ losses:
     kwargs:
       reduction: 'mean'
       # weight: [0.1, 5., 15., 1., 1.0, 1.0, 1.0] # One weight for each class including the background
-      weight: [0.1, 1.0, 2.0, 1.0, 6.0, 12.0, 1.0] # From the notebook
+      weight: [0.1, 1.0] # From the notebook
 
 datasets:
   img_size: [512,512]
   anno_type: 'point'
-  num_classes: 7
+  num_classes: 2
   collate_fn: null
 
   class_def:
-    1: 'Hartebeest'
-    2: 'Buffalo'
-    3: 'Kob'
-    4: 'Warthog'
-    5: 'Waterbuck'
-    6: 'Elephant'
+#    1: 'Hartebeest'
+#    2: 'Buffalo'
+#    3: 'Kob'
+#    4: 'Warthog'
+#    5: 'Waterbuck'
+#    6: 'Elephant'
+#    7: 'Impala'
+    1: 'iguana'
+
 
 
   
   train:
     name: 'CSVDataset'
-    csv_file: '/home/christian/hnee/HerdNet/data/train_patches.csv'
-    root_dir: '/home/christian/hnee/HerdNet/data/train_patches'
+    csv_file: '/home/christian/hnee/HerdNet/data_iguana/train_patches/gt.csv'
+    root_dir: '/home/christian/hnee/HerdNet/data_iguana/train_patches'
     
     sampler: null
 
@@ -94,8 +97,8 @@ datasets:
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/home/christian/hnee/HerdNet/data/val_patches.csv'
-    root_dir: '/home/christian/hnee/HerdNet/data/val_patches'
+    csv_file: '/home/christian/hnee/HerdNet/data_iguana/val_patches/gt.csv'
+    root_dir: '/home/christian/hnee/HerdNet/data_iguana/val_patches'
 
     albu_transforms:
       Normalize:
@@ -110,13 +113,13 @@ training_settings:
   trainer: 'Trainer'
   valid_freq: 5
   print_freq: 100
-  batch_size: 8
+  batch_size: 16
   optimizer: 'adam'
   lr: 1e-4
   weight_decay: 0.0005
   auto_lr:
     mode: 'max'
-    patience: 10
+    patience: 50
     threshold: 1e-4
     threshold_mode: 'rel'
     cooldown: 10
@@ -124,7 +127,7 @@ training_settings:
     verbose: True
   warmup_iters: 100
   vizual_fn: null
-  epochs: 100
+  epochs: 5000
   evaluator: 
     name: 'HerdNetEvaluator'
     threshold: 5

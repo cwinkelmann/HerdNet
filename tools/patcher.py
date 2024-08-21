@@ -80,7 +80,7 @@ def main():
                     value= 0
                     )
                 img_ptch_df = patches_buffer[patches_buffer['base_images']==img_name]
-                for row in img_ptch_df[['images','limits']].to_numpy().tolist():
+                for row in img_ptch_df[['images', 'limits']].to_numpy().tolist():
                     ptch_name, limits = row[0], row[1]
                     cropped_img = numpy.array(pil_img.crop(limits.get_tuple))
                     padded_img = PIL.Image.fromarray(padder(image = cropped_img)['image'])
