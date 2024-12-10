@@ -225,5 +225,8 @@ def main(cfg: DictConfig) -> None:
     detections['species'] = detections['labels'].map(cls_dict)
     detections.to_csv(os.path.join(os.getcwd(), 'detections.csv'), index=False)
 
+    # plot only false positves
+    fp = detections[detections['FP'] == 1]
+
 if __name__ == '__main__':
     main()

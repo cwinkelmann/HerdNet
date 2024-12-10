@@ -81,16 +81,18 @@ def main():
     checkpoint = torch.load(args.pth, map_location=map_location)
     # classes = checkpoint['classes']
 
-    classes = {1: 'Hartebeest',
-               2: 'Buffalo',
-               3: 'Kob',
-               4: 'Warthog',
-               5: 'Waterbuck',
-               6: 'Elephant'}
+    classes = {
+        1: 'iguana',
+               # 2: 'Buffalo',
+               # 3: 'Kob',
+               # 4: 'Warthog',
+               # 5: 'Waterbuck',
+               # 6: 'Elephant'
+               }
 
     num_classes = len(classes) + 1
 
-    # Fixme this is not persisted in training
+    # Fixme this is not persisted in training, have a look at the README and why
     # img_mean = checkpoint['mean']
     # img_std = checkpoint['std']
 
@@ -152,7 +154,7 @@ def main():
 
     # Start inference
     print('Starting inference ...')
-    out = evaluator.evaluate(wandb_flag=False, viz=False, log_meters=False)
+    out = evaluator.evaluate(wandb_flag=False, viz=True, log_meters=False)
 
     # Save the detections
     print('Saving the detections ...')

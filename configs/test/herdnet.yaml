@@ -1,35 +1,35 @@
 wandb_project: 'Herdnet_Test'
-wandb_entity: Null
+wandb_entity: 'karisu'
 wandb_run: 'myrun'
 device_name: 'cuda'
 
 model: 
   name: 'HerdNet'
   from_torchvision: False
-  pth_file: '/home/christian/hnee/HerdNet/tools/outputs/2024-08-16/11-34-13/best_model.pth'
+  pth_file: '/home/christian/hnee/HerdNet/trained_models/2024-08-22/17-11-16/best_model.pth'
   kwargs:
     num_layers: 34
     pretrained: False
-    down_ratio: 1 # was two before
+    down_ratio: 2 # was two before
     head_conv: 64
 
 dataset:
   img_size: [512, 512]
   anno_type: 'point'
-  num_classes: 7
+  num_classes: 2
   collate_fn: null
 
   class_def:
-    1: 'Hartebeest'
-    2: 'Buffalo'
-    3: 'Kob'
-    4: 'Warthog'
-    5: 'Waterbuck'
-    6: 'Elephant'
+    1: 'iguana'
+#    2: 'Buffalo'
+#    3: 'Kob'
+#    4: 'Warthog'
+#    5: 'Waterbuck'
+#    6: 'Elephant'
 
   name: 'CSVDataset'
-  csv_file: '/home/christian/hnee/HerdNet/data/val_patches.csv'
-  root_dir: '/home/christian/hnee/HerdNet/data/val_patches'
+  csv_file: '/home/christian/hnee/HerdNet/data_iguana/train/herdnet_format.csv'
+  root_dir: '/home/christian/hnee/HerdNet/data_iguana/train/Default'
 
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]

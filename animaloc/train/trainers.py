@@ -284,10 +284,17 @@ class Trainer:
                     if wandb_flag: viz = True
                     self._prepare_evaluator('validation', epoch)
                     val_output = self.evaluator.evaluate(returns=validate_on, viz=viz)
+
                     print(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
+                        wandb.log({"recall": self.evaluator.metrics.recall(), 'epoch': epoch})
+                        wandb.log({"precision": self.evaluator.metrics.precision(), 'epoch': epoch})
+                        wandb.log({"mse": self.evaluator.metrics.mse(), 'epoch': epoch})
+                        wandb.log({"rmse": self.evaluator.metrics.rmse(), 'epoch': epoch})
+                        wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
+
 
                 elif self.val_dataloader is not None:
                     val_flag = True

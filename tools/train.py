@@ -219,7 +219,7 @@ def _define_evaluator(
 
     return evaluator
 
-@hydra.main(config_path='../configs', config_name="config")
+@hydra.main(config_path='../configs', config_name="config_2024_12_09")
 def main(cfg: DictConfig) -> None:
 
     cfg = cfg.train
@@ -372,7 +372,7 @@ def main(cfg: DictConfig) -> None:
         print_freq = cfg.training_settings.print_freq,
         valid_freq = cfg.training_settings.valid_freq,
         )
-    
+
     if cfg.model.resume_from is not None:
         print(f'Resuming training from \'{cfg.model.resume_from}\' ...')
         trainer.resume(
@@ -396,7 +396,7 @@ def main(cfg: DictConfig) -> None:
     for pth_name in ['best_model.pth', 'latest_model.pth']:
         path = os.path.join(os.curdir, pth_name)
         pth_file = torch.load(path)
-        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1] ### the norm_trans is not always the last transform
+        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1] ### FIXME the norm_trans is not always the last transform
         pth_file['classes'] = dict(cfg.datasets.class_def)
         pth_file['mean'] =  list(norm_trans.mean)
         pth_file['std'] = list(norm_trans.std)
