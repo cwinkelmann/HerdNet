@@ -13,8 +13,8 @@ model:
   # resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-07/23-11-21/latest_model.pth"
   resume_from: null
   kwargs:
-    num_layers: 34
-    pretrained: True
+    num_layers: 60
+    pretrained: null
     down_ratio: 2
     head_conv: 64
   freeze: null
@@ -150,10 +150,10 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  epochs: 2000
+  epochs: 10000
   valid_freq: 5
   print_freq: 100
-  batch_size: 18
+  batch_size: 10
   optimizer: 'adam'
   lr: 1e-4
   weight_decay: 0.0005

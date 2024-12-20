@@ -219,7 +219,7 @@ def _define_evaluator(
 
     return evaluator
 
-@hydra.main(config_path='../configs', config_name="config_2024_12_09")
+# @hydra.main(config_path='../configs', config_name="config_2024_12_19")
 def main(cfg: DictConfig) -> None:
 
     cfg = cfg.train
@@ -301,7 +301,9 @@ def main(cfg: DictConfig) -> None:
     
     date = current_date()
     wandb.run.name = f'{date}_' + cfg.wandb_run + f'_RUN_{wandb.run.id}'
-    
+
+
+
     # Build the model
     print('Building the model ...')
     model = _build_model(cfg)
@@ -396,11 +398,14 @@ def main(cfg: DictConfig) -> None:
     for pth_name in ['best_model.pth', 'latest_model.pth']:
         path = os.path.join(os.curdir, pth_name)
         pth_file = torch.load(path)
-        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1] ### FIXME the norm_trans is not always the last transform
+        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
         pth_file['classes'] = dict(cfg.datasets.class_def)
         pth_file['mean'] =  list(norm_trans.mean)
         pth_file['std'] = list(norm_trans.std)
         torch.save(pth_file, path)
 
+
 if __name__ == '__main__':
-    main()
+    hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
+    cfg = hydra.compose(config_name="config_2024_12_20")
+    main(cfg)
