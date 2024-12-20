@@ -1,5 +1,5 @@
 # Experiment configuration file
 
 defaults:
-  - train: herdnet_2024_12_20_dla60
+  - train: herdnet_2024_12_10_remote
   - test: herdnet

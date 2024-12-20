@@ -1,5 +1,5 @@
 # Base image with CUDA 11.3, cuDNN 8, and Python 3.9
-FROM nvidia/cuda:12.5.1-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:11.3.1-cudnn8-runtime-ubuntu20.04
 
 # Set environment variables to prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -56,7 +56,7 @@ COPY tools tools
 
 # Add Conda and WORKDIR to PATH and PYTHONPATH
 ENV PATH="/opt/conda/bin:$PATH"
-# ENV PYTHONPATH="/app:$PYTHONPATH"
+ENV PYTHONPATH="/app:$PYTHONPATH"
 
 # Default command to start Jupyter Lab
 CMD ["conda", "run", "-n", "herdnet", "jupyter-lab", "--ip=0.0.0.0", "--allow-root", "--no-browser"]

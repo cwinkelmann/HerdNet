@@ -1,14 +1,15 @@
 
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
-wandb_run: 'FMO03_02_05'
+wandb_run: 'remote_FMO03_02_05'
 seed: 1
-device_name: 'cuda'
+device_name: 'cuda:1'
 
 model: 
   name: 'HerdNet'
   from_torchvision: False
   # load_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-09/13-28-39/best_model.pth"
+  # load_from: "/home/cwinkelmann/work/HerdNet/20220413_HerdNet_General_dataset_2022.pth"
   load_from: null
   # resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-07/23-11-21/latest_model.pth"
   resume_from: null
@@ -68,8 +69,8 @@ datasets:
   
   train:
     name: 'CSVDataset'
-    csv_file: '/home/christian/Downloads/2024_12_09/train/crops_512/herdnet_format.csv'
-    root_dir: '/home/christian/Downloads/2024_12_09/train/crops_512'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/train/crops_512/herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/train/crops_512'
 
     
     sampler: null
@@ -125,15 +126,15 @@ datasets:
           num_classes: ${train.datasets.num_classes}
           down_ratio: ${train.model.kwargs.down_ratio}
         PointsToMask:
-          radius: 2
+          radius: 5
           num_classes: ${train.datasets.num_classes}
           squeeze: True
           down_ratio: 32
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/home/christian/Downloads/2024_12_09/val/crops_512/herdnet_format.csv'
-    root_dir: '/home/christian/Downloads/2024_12_09/val/crops_512'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/val/crops_512/herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/val/crops_512'
 
     albu_transforms:
 #      RandomCrop:
@@ -150,16 +151,16 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  epochs: 2
+  epochs: 5000
   valid_freq: 5
   print_freq: 100
-  batch_size: 10
+  batch_size: 48
   optimizer: 'adam'
-  lr: 1e-4
+  lr: 1e-3
   weight_decay: 0.0005
   auto_lr:
     mode: 'max'
-    patience: 10
+    patience: 50
     threshold: 1e-4
     threshold_mode: 'rel'
     cooldown: 10
@@ -169,7 +170,7 @@ training_settings:
   vizual_fn: null
   evaluator:
     name: 'HerdNetEvaluator'
-    threshold: 5
+    threshold: 50
     select_mode: 'max'
     validate_on: 'f1_score'
     kwargs:
