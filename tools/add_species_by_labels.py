@@ -1,4 +1,7 @@
-# snippet to modify training data so it conforms with the data pipeline
+"""
+snippet to modify training data so it conforms with the data pipeline
+if only labels are present and species is not, then map the labels to species and add the species column
+"""
 import pandas as pd
 
 import pandas
@@ -23,7 +26,6 @@ def _set_labels_species(cls_dict: dict, df: pandas.DataFrame) -> None:
     """
 
     assert 'labels' in df.columns and 'species' not in df.columns, "Species column must not be present and labels column must be present"
-    # cls_dict = dict(map(reversed, cls_dict.items()))
     df['species'] = df['labels'].map(cls_dict)
 
 if __name__ == "__main__":
