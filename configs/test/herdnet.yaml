@@ -29,7 +29,7 @@ dataset:
 
   name: 'CSVDataset'
   csv_file: '/home/christian/Downloads/2024_12_09/val/herdnet_format.csv'
-  root_dir: '/home/christian/hnee/HerdNet/data_iguana/val/Default'
+  root_dir: '/home/christian/hnee/HerdNet/data_iguana/val'
 
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]

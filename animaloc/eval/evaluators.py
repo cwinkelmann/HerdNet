@@ -325,9 +325,15 @@ class Evaluator:
 @EVALUATORS.register()
 class HerdNetEvaluator(Evaluator):
 
-    def __init__(self, model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, metrics: Metrics, 
-        lmds_kwargs: dict = {'kernel_size': (3,3)}, device_name: str = 'cuda', print_freq: int = 10, 
-        stitcher: Optional[Stitcher] = None, vizual_fn: Optional[Callable] = None, work_dir: Optional[str] = None, 
+    def __init__(self, model: torch.nn.Module,
+                 dataloader: torch.utils.data.DataLoader,
+                 metrics: Metrics,
+        lmds_kwargs: dict = {'kernel_size': (3,3)},
+                 device_name: str = 'cuda',
+                 print_freq: int = 10,
+        stitcher: Optional[Stitcher] = None,
+                 vizual_fn: Optional[Callable] = None,
+                 work_dir: Optional[str] = None,
         header: Optional[str] = None
         ) -> None:
         super().__init__(model, dataloader, metrics, device_name=device_name, print_freq=print_freq, 

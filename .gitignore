@@ -9,7 +9,6 @@ outputs/
 multirun/
 exp/
 handling/
-tests/
 scripts/
 *.code-workspace
 
