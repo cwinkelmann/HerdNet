@@ -58,7 +58,7 @@ parser.add_argument('-device', type=str, default='cuda',
 parser.add_argument('-ts', type=int, default=256,
     help='thumbnail size. Defaults to 256.')
 parser.add_argument('-pf', type=int, default=10,
-    help='print frequence. Defaults to 10.')
+    help='print frequency. Defaults to 10.')
 parser.add_argument('-rot', type=int, default=0,
     help='number of times to rotate by 90 degrees. Defaults to 0.')
 
@@ -173,13 +173,17 @@ def main():
     dest_thumb = os.path.join(dest, 'thumbnails')
     mkdir(dest_thumb)
     img_names = numpy.unique(detections['images'].values).tolist()
+
     for img_name in img_names:
         img = Image.open(os.path.join(args.root, img_name))
+
         if args.rot != 0:
             rot = args.rot * 90
             img = img.rotate(rot, expand=True)
+
         img_cpy = img.copy()
         pts = list(detections[detections['images']==img_name][['y','x']].to_records(index=False))
+
         pts = [(y, x) for y, x in pts]
         output = draw_points(img, pts, color='red', size=10)
         output.save(os.path.join(dest_plots, img_name), quality=95)

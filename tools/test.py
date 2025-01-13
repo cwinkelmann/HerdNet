@@ -13,7 +13,8 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
+import PIL
+import numpy
 import torch
 import hydra
 import wandb
@@ -33,7 +34,8 @@ from animaloc.models.utils import load_model, LossWrapper
 from animaloc.eval import Evaluator, Metrics, PointsMetrics, BoxesMetrics
 from animaloc.eval.stitchers import Stitcher
 from animaloc.utils.useful_funcs import current_date, mkdir
-from animaloc.vizual import PlotPrecisionRecall
+from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
+
 
 def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
     assert 'species' in df.columns
@@ -177,6 +179,7 @@ def main(cfg: DictConfig) -> None:
     # Build the evaluator
     print('Preparing for testing ...')
     anno_type = cfg.dataset.anno_type
+
     if anno_type == 'point':
         metrics = PointsMetrics(radius = cfg.evaluator.threshold, num_classes = cfg.dataset.num_classes)
     elif anno_type == 'bbox':
@@ -197,6 +200,7 @@ def main(cfg: DictConfig) -> None:
     plots_path = os.path.join(os.getcwd(), 'plots')
     mkdir(plots_path)
     pr_curve = PlotPrecisionRecall(legend=True)
+
     metrics = evaluator._stored_metrics
     for c in range(1, metrics.num_classes):
         rec, pre = metrics.rec_pre_lists(c)
@@ -226,7 +230,38 @@ def main(cfg: DictConfig) -> None:
     detections.to_csv(os.path.join(os.getcwd(), 'detections.csv'), index=False)
 
     # plot only false positves
-    fp = detections[detections['FP'] == 1]
+    # fp = detections[detections['FP'] == 1]
+
+    # 5) plot the detections
+    dest = os.getcwd()
+    print('Exporting plots and thumbnails ...')
+    dest_plots = os.path.join(dest, 'plots')
+    mkdir(dest_plots)
+    dest_thumb = os.path.join(dest, 'thumbnails')
+    mkdir(dest_thumb)
+    img_names = numpy.unique(detections['images'].values).tolist()
+
+    for img_name in img_names:
+        img = PIL.Image.open(os.path.join(cfg.dataset.root_dir, img_name))
+
+        img_cpy = img.copy()
+        pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
+
+        pts = [(y, x) for y, x in pts]
+        output = draw_points(img, pts, color='red', size=10)
+        output.save(os.path.join(dest_plots, img_name), quality=95)
+        ts = 256 # Thumbnail size
+        # Create and export thumbnails
+        sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
+        for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):
+            off = ts // 2
+            coords = (x - off, y - off, x + off, y + off)
+            thumbnail = img_cpy.crop(coords)
+            score = round(score * 100, 0)
+            thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
+            thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
+
+
 
 if __name__ == '__main__':
     main()

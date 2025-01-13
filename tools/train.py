@@ -248,7 +248,8 @@ def main(cfg: DictConfig) -> None:
     train_dl_kwargs = dict(
         batch_size=cfg.training_settings.batch_size,
         shuffle=True,
-        collate_fn=_get_collate_fn(cfg)
+        collate_fn=_get_collate_fn(cfg),
+        num_workers=cfg.training_settings.num_workers
         )
     
     if train_args.sampler is not None:

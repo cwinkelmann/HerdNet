@@ -157,6 +157,7 @@ training_settings:
   optimizer: 'adam'
   lr: 1e-4
   weight_decay: 0.0005
+  num_workers: 24
   auto_lr:
     mode: 'max'
     patience: 10

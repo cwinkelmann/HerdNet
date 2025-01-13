@@ -28,8 +28,8 @@ dataset:
 #    6: 'Elephant'
 
   name: 'CSVDataset'
-  csv_file: '/home/christian/hnee/HerdNet/data_iguana/train/herdnet_format.csv'
-  root_dir: '/home/christian/hnee/HerdNet/data_iguana/train/Default'
+  csv_file: '/home/christian/Downloads/2024_12_09/val/herdnet_format.csv'
+  root_dir: '/home/christian/hnee/HerdNet/data_iguana/val/Default'
 
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]
