@@ -23,6 +23,7 @@ import numpy
 import PIL
 
 import albumentations as A
+from loguru import logger
 
 from torch.utils.data import DataLoader
 from PIL import Image
@@ -70,9 +71,11 @@ def main():
     curr_date = current_date()
     dest = os.path.join(args.root, f"{curr_date}_HerdNet_results")
     mkdir(dest)
-    
+    logger.info(f"Results will be saved in {dest}")
+
+
     # Read info from PTH file
-    map_location = torch.device('cpu')
+    map_location = torch.device(args.device)
     if torch.cuda.is_available():
         map_location = torch.device('cuda')
 
@@ -83,11 +86,11 @@ def main():
 
     classes = {
         1: 'iguana',
-               # 2: 'Buffalo',
-               # 3: 'Kob',
-               # 4: 'Warthog',
-               # 5: 'Waterbuck',
-               # 6: 'Elephant'
+               2: 'Buffalo',
+               3: 'Kob',
+               4: 'Warthog',
+               5: 'Waterbuck',
+               6: 'Elephant'
                }
 
     num_classes = len(classes) + 1
@@ -105,6 +108,7 @@ def main():
     df = pandas.DataFrame(data={'images': img_names, 'x': [0]*n, 'y': [0]*n, 'labels': [1]*n})
     
     end_transforms = []
+    # TODO: Why would I want to rotate the images?
     if args.rot != 0:
         end_transforms.append(Rotate90(k=args.rot))
     end_transforms.append(DownSample(down_ratio = 2, anno_type = 'point'))
@@ -131,20 +135,20 @@ def main():
     # Build the evaluator
     stitcher = HerdNetStitcher(
             model = model,
-            size = (args.size,args.size),
+            size = (args.size, args.size),
             overlap = args.over,
             down_ratio = 2,
-            up = True, 
+            up = True, # Because of this the output is 2x the input size and the plotting works
             reduction = 'mean',
             device_name = device
             ) 
 
-    metrics = PointsMetrics(5, num_classes = num_classes)
+    metrics = PointsMetrics(radius=5, num_classes = num_classes)
     evaluator = HerdNetEvaluator(
         model = model,
         dataloader = dataloader,
         metrics = metrics,
-        lmds_kwargs = dict(kernel_size=(3,3), adapt_ts=0.2, neg_ts=0.1),
+        lmds_kwargs = dict(kernel_size=(3, 3), adapt_ts=0.2),
         device_name = device,
         print_freq = args.pf,
         stitcher = stitcher,
@@ -153,16 +157,19 @@ def main():
         )
 
     # Start inference
-    print('Starting inference ...')
+    logger.info('Starting inference ...')
     out = evaluator.evaluate(wandb_flag=False, viz=True, log_meters=False)
+    logger.info('Done inference ...')
 
     # Save the detections
     print('Saving the detections ...')
     detections = evaluator.detections
     detections.dropna(inplace=True)
+    logger.info(f"Num detections: {len(detections)}")
 
     # FIXME get this right later
     detections['species'] = detections['labels'].map(classes)
+
 
     detections.to_csv(os.path.join(dest, f'{curr_date}_detections.csv'), index=False)
 
@@ -197,6 +204,8 @@ def main():
             score = round(score * 100, 0)
             thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10,5), font_size=int(0.08*args.ts))
             thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
+
+    logger.info(f"Inference done, wrote results to: {dest}")
 
 if __name__ == '__main__':
     main()

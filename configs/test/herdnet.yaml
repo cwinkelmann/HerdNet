@@ -1,12 +1,14 @@
 wandb_project: 'Herdnet_Test'
 wandb_entity: 'karisu'
+wandb_flag: False
 wandb_run: 'myrun'
-device_name: 'cuda'
+device_name: 'mps'
 
 model: 
   name: 'HerdNet'
   from_torchvision: False
-  pth_file: '/home/christian/hnee/HerdNet/trained_models/2024-08-22/17-11-16/best_model.pth'
+  # pth_file: '/Users/christian/data/training_data/2024_12_09/2024_12_19_best_model.pth'
+  pth_file: '/Users/christian/Downloads/best_model_unknown.pth'
   kwargs:
     num_layers: 34
     pretrained: False
@@ -16,36 +18,52 @@ model:
 dataset:
   img_size: [512, 512]
   anno_type: 'point'
-  num_classes: 2
+  num_classes: 7
   collate_fn: null
 
   class_def:
-    1: 'iguana'
-#    2: 'Buffalo'
-#    3: 'Kob'
-#    4: 'Warthog'
-#    5: 'Waterbuck'
-#    6: 'Elephant'
+    1: 'iguana_point'
+    2: 'iguana'
+    3: 'Warthog'
+    4: 'Waterbuck'
+    5: 'Elephant'
+    6: 'Impala'
 
   name: 'CSVDataset'
-  csv_file: '/home/christian/Downloads/2024_12_09/val/herdnet_format.csv'
-  root_dir: '/home/christian/hnee/HerdNet/data_iguana/val'
+  ## Single Full sized image for debugging
+#  csv_file: '/Users/christian/data/training_data/2024_12_09/val/herdnet_format.csv'
+#  root_dir: '/Users/christian/data/training_data/2024_12_09/val/Default'
+
+#  # Many images
+#  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/val/herdnet_format_labels.csv'
+#  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/val/Default'
+
+  # Many images
+  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/test/herdnet_format.csv'
+  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/test/Default'
+
+  ## Tiles
+#  csv_file: '/Users/christian/data/training_data/2024_12_09/train/herdnet_format_crops_sample.csv'
+#  root_dir: '/Users/christian/data/training_data/2024_12_09/train/crops_512_num1_overlap0'
 
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]
 
 evaluator:
   name: 'HerdNetEvaluator'
-  threshold: 5
+  threshold: 15
   kwargs:
     lmds_kwargs:
-      kernel_size: [3,3]
-      adapt_ts: 0.3
+      kernel_size: [9, 9]
+      adapt_ts: 0.5
+      # neg_ts: 0.1
+
 
 stitcher:
   name: 'HerdNetStitcher'
   kwargs:
     overlap: 160
     down_ratio: ${test.model.kwargs.down_ratio}
-    up: False
+    up: False # TODO False is Default and necessary for the testing evaluation,
+    # up: True # TODO True makes the plotting work
     reduction: 'mean'

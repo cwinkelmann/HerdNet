@@ -19,6 +19,7 @@ import numpy
 import torch
 import torchvision 
 import scipy
+from loguru import logger
 
 from typing import Dict, Optional, Union, Tuple, List, Any
 
@@ -180,13 +181,13 @@ class DownSample:
 
         if isinstance(image, PIL.Image.Image):
             image = torchvision.transforms.ToTensor()(image)
-
+        logger.warning(f'Down-sampling the annotations with a ratio of {self.down_ratio}, but kept the image at {image.size(2)}', )
         if self.anno_type == 'bbox':
             
             target['boxes'] = torch.div(target['boxes'], self.down_ratio, rounding_mode='floor')
 
         elif self.anno_type == 'point':
-            
+
             target['points'] = torch.div(target['points'], self.down_ratio, rounding_mode='floor')
         
         return image, target

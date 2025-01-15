@@ -18,6 +18,7 @@ import math
 import copy
 import sklearn.neighbors
 import numpy
+from loguru import logger
 
 from sklearn.metrics import confusion_matrix
 from itertools import tee
@@ -167,7 +168,7 @@ class Metrics:
 
         self._ap_tables = self._init_attr(val=[])
 
-        self.confusion_matrix = numpy.zeros((self.num_classes-1,self.num_classes-1))
+        self.confusion_matrix = numpy.zeros((self.num_classes-1, self.num_classes-1))
         self._confusion_matrix = self.confusion_matrix
     
     def aggregate(self) -> None:
@@ -466,7 +467,12 @@ class PointsMetrics(Metrics):
         super().__init__(threshold=radius, num_classes=num_classes)
     
     def matching(self, gt: dict, preds: dict) -> None:
-        
+        """
+        Matching ground truth and predictions to determine true positives, false positives
+        """
+        assert gt.keys() == {'loc', 'labels'}
+        assert preds.keys() ==  {'loc', 'labels', 'scores', 'dscores'}
+
         # matching
         dist = sklearn.neighbors.NearestNeighbors(n_neighbors=1, metric='euclidean').fit(preds['loc'])
         dist, idx = dist.kneighbors(gt['loc'])
@@ -481,8 +487,12 @@ class PointsMetrics(Metrics):
             if k not in k_discard and i not in i_discard:
                 filter_match_gt.append((k,d,i))
                 k_discard.append(k), i_discard.append(i)
+
         # threshold
         filter_match_gt = [(k, d, i) for k, d, i in filter_match_gt if d <= self.threshold]
+
+        if len(filter_match_gt) == 0:
+            logger.error(f'NO Prediction is matched to any Ground Truth: filter_match_gt: {filter_match_gt}')
 
         # confusion matrix
         y_true = [gt['labels'][k] for k, d, i in filter_match_gt]

@@ -15,13 +15,14 @@ dependencies:
      - opencv-python==4.10.0.84
      - pandas==2.2.2
      - pillow==10.4.0
-     - scikit-image==0.18.1
+     - scikit-image
      - scikit-learn
      - scipy==1.9.3
      - wandb==0.19
      - gdown==5.2.0
      - jupyterlab==3.4.4
      - torch==2.5.1
-     - matplotlib==3.4.2
+     - matplotlib
      - torchvision==0.20.1
      - tqdm==4.66.5
+     - loguru==0.7.3

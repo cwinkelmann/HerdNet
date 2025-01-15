@@ -2,19 +2,19 @@ wandb_project: 'herdnet'
 wandb_entity: 'karisu'
 wandb_run: 'simple_FMO03'
 seed: 1
-device_name: 'cuda'
+device_name: 'mps'
 
 model: 
   name: 'HerdNet'
   from_torchvision: False
-  load_from: "/home/christian/Downloads/20220413_HerdNet_General_dataset_2022.pth"
-  # load_from: null
+  # load_from: "/home/christian/Downloads/20220413_HerdNet_General_dataset_2022.pth"
+  load_from: null
   #resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-05/12-23-34/best_model.pth"
   resume_from: null
   kwargs:
     num_layers: 34
     pretrained: True
-    down_ratio: 2
+    down_ratio: 1
     head_conv: 64
   freeze: null
 

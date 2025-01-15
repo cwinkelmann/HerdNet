@@ -1,3 +1,9 @@
+"""
+config based inference script which takes the test/herdnets.yaml configuration file, predicts instances, evalustes performances etc
+
+"""
+
+
 __copyright__ = \
     """
     Copyright (C) 2024 University of Liège, Gembloux Agro-Bio Tech, Forest Is Life
@@ -33,6 +39,7 @@ from animaloc.data.transforms import DownSample
 from animaloc.models.utils import load_model, LossWrapper
 from animaloc.eval import Evaluator, Metrics, PointsMetrics, BoxesMetrics
 from animaloc.eval.stitchers import Stitcher
+from loguru import logger
 from animaloc.utils.useful_funcs import current_date, mkdir
 from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
 
@@ -136,20 +143,21 @@ def main(cfg: DictConfig) -> None:
     if 'down_ratio' in cfg.model.kwargs.keys():
         down_ratio = cfg.model.kwargs.down_ratio
 
-    # Set up wandb
-    wandb.init(
-        project = cfg.wandb_project,
-        entity = cfg.wandb_entity,
-        config = dict(
-            model = cfg.model,
-            down_ratio = down_ratio,
-            num_classes = cfg.dataset.num_classes,
-            threshold = cfg.evaluator.threshold
+    if cfg.wandb_flag:
+        # Set up wandb
+        wandb.init(
+            project = cfg.wandb_project,
+            entity = cfg.wandb_entity,
+            config = dict(
+                model = cfg.model,
+                down_ratio = down_ratio,
+                num_classes = cfg.dataset.num_classes,
+                threshold = cfg.evaluator.threshold
+                )
             )
-        )
-    
-    date = current_date()
-    wandb.run.name = f'{date}_' + cfg.wandb_run + f'_RUN_{wandb.run.id}'
+
+        date = current_date()
+        wandb.run.name = f'{date}_' + cfg.wandb_run + f'_RUN_{wandb.run.id}'
 
     device = torch.device(cfg.device_name)
 
@@ -190,8 +198,9 @@ def main(cfg: DictConfig) -> None:
     evaluator = _define_evaluator(model, test_dataloader, metrics, cfg)
 
     # Start testing
-    print('Starting testing ...')
-    out = evaluator.evaluate(wandb_flag=True, viz=False)
+    logger.info(f'Starting testing ...')
+    out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=False)
+    logger.info(f'Done with predictions testing ...')
 
     # Save results
     print('Saving the results ...')
@@ -215,7 +224,7 @@ def main(cfg: DictConfig) -> None:
     str_cls_dict.update({'binary': 'binary'})
     res['species'] = res['class'].map(str_cls_dict)
     res = res[['class', 'species'] + cols[1:]]
-    print(res)
+    print(res[["species", "precision", "recall", "f1_score", "mae"]])
 
     res.to_csv(os.path.join(os.getcwd(), 'metrics_results.csv'), index=False)
 
@@ -226,7 +235,11 @@ def main(cfg: DictConfig) -> None:
 
     # 4) detections
     detections =  evaluator.detections
+    logger.info(f"Num detections: {len(detections)}")
     detections['species'] = detections['labels'].map(cls_dict)
+    logger.warning(f"Manually scale up the coordinates by a factor of down_ratio: {down_ratio}")
+    detections['x'] = detections['x'] * down_ratio
+    detections['y'] = detections['y'] * down_ratio
     detections.to_csv(os.path.join(os.getcwd(), 'detections.csv'), index=False)
 
     # plot only false positves
@@ -247,9 +260,11 @@ def main(cfg: DictConfig) -> None:
         img_cpy = img.copy()
         pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
 
+        logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
         pts = [(y, x) for y, x in pts]
-        output = draw_points(img, pts, color='red', size=10)
+        output = draw_points(img, pts, color='red', size=30)
         output.save(os.path.join(dest_plots, img_name), quality=95)
+
         ts = 256 # Thumbnail size
         # Create and export thumbnails
         sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
@@ -261,7 +276,7 @@ def main(cfg: DictConfig) -> None:
             thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
             thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
 
-
+    logger.info(f'Testing done, wrote results to: {os.getcwd()}')
 
 if __name__ == '__main__':
     main()

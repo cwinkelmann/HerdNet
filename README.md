@@ -290,3 +290,12 @@ Here is a [Google Colab demo](https://colab.research.google.com/github/Alexandre
 
 ## Code Versioning
 The code used in the paper is the one corresponding to the tag [`v0.1.0`](https://github.com/Alexandre-Delplanque/HerdNet/releases/tag/v0.1.0). The 'main' branch contains the latest stable version with fixed bugs and new features, it is recommended to use this branch for your development. The file [CHANGELOG.md](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/CHANGELOG.md) contains the details of the commits for each version of the code.
+
+
+## Setup Extended
+
+### Docker Training container
+```shell
+docker build -t herdnet -f Dockerfile .
+
+```

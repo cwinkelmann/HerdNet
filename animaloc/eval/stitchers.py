@@ -231,7 +231,7 @@ class HerdNetStitcher(Stitcher):
             patch = patch[0].to(self.device)
             outputs = self.model(patch)[0]
             heatmap = outputs[0]
-            scale_factor = 16
+            scale_factor = 32 // self.down_ratio
             clsmap = F.interpolate(outputs[1], scale_factor=scale_factor, mode='nearest')
             # cat
             outmaps = torch.cat([heatmap, clsmap], dim=1)

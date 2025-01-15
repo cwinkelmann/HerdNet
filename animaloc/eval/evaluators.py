@@ -201,6 +201,8 @@ class Evaluator:
 
             output = self.prepare_feeding(targets, output)
 
+            # TODO what is the format of this?
+
             iter_metrics.feed(**output)
             iter_metrics.aggregate()
             if log_meters:
@@ -328,16 +330,23 @@ class HerdNetEvaluator(Evaluator):
     def __init__(self, model: torch.nn.Module,
                  dataloader: torch.utils.data.DataLoader,
                  metrics: Metrics,
-        lmds_kwargs: dict = {'kernel_size': (3,3)},
+                 lmds_kwargs: dict = {'kernel_size': (3, 3)},
                  device_name: str = 'cuda',
                  print_freq: int = 10,
-        stitcher: Optional[Stitcher] = None,
+                 stitcher: Optional[Stitcher] = None,
                  vizual_fn: Optional[Callable] = None,
                  work_dir: Optional[str] = None,
-        header: Optional[str] = None
+                 header: Optional[str] = None
         ) -> None:
-        super().__init__(model, dataloader, metrics, device_name=device_name, print_freq=print_freq, 
-            vizual_fn=vizual_fn, stitcher=stitcher, work_dir=work_dir, header=header)
+        super().__init__(model,
+                         dataloader,
+                         metrics,
+                         device_name=device_name,
+                         print_freq=print_freq,
+            vizual_fn=vizual_fn,
+                         stitcher=stitcher,
+                         work_dir=work_dir,
+                         header=header)
 
         self.lmds_kwargs = lmds_kwargs
 

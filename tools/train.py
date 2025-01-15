@@ -408,5 +408,5 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == '__main__':
     hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
-    cfg = hydra.compose(config_name="config_2024_12_10_remote")
+    cfg = hydra.compose(config_name="config_2025_01_15_debug")
     main(cfg)
