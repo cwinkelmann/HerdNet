@@ -178,7 +178,8 @@ def main(cfg: DictConfig) -> None:
         )
     
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False,
-        sampler=torch.utils.data.SequentialSampler(test_dataset), collate_fn=_get_collate_fn(cfg))
+        sampler=torch.utils.data.SequentialSampler(test_dataset),
+                                 collate_fn=_get_collate_fn(cfg))
     
     # Build the trained model
     print('Building the trained model ...')
@@ -214,8 +215,10 @@ def main(cfg: DictConfig) -> None:
     for c in range(1, metrics.num_classes):
         rec, pre = metrics.rec_pre_lists(c)
         pr_curve.feed(rec, pre, label=cls_dict[c])
-    
-    pr_curve.save(os.path.join(plots_path, 'precision_recall_curve.png'))
+    try:
+        pr_curve.save(os.path.join(plots_path, 'precision_recall_curve.png'))
+    except IndexError:
+        logger.error('Weird index error, skipping PR curve plot')
     
     # 2) metrics per class
     res = evaluator.results

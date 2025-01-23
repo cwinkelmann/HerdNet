@@ -34,13 +34,13 @@ dataset:
 #  csv_file: '/Users/christian/data/training_data/2024_12_09/val/herdnet_format.csv'
 #  root_dir: '/Users/christian/data/training_data/2024_12_09/val/Default'
 
-#  # Many images
-#  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/val/herdnet_format_labels.csv'
-#  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/val/Default'
-
   # Many images
-  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/test/herdnet_format.csv'
-  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/test/Default'
+  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/val/herdnet_format_labels.csv'
+  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/val/Default'
+
+#  # Many images
+#  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/test/herdnet_format.csv'
+#  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/test/Default'
 
   ## Tiles
 #  csv_file: '/Users/christian/data/training_data/2024_12_09/train/herdnet_format_crops_sample.csv'
