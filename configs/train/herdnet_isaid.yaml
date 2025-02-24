@@ -1,9 +1,10 @@
+### this is supposed to compare yolo to herdnet
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
-wandb_run: 'simple_FMO03'
+wandb_run: 'ISAID'
 # /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
-device_name: 'mps'
+device_name: 'cuda:0'
 
 model: 
   name: 'HerdNet'
@@ -15,7 +16,7 @@ model:
   kwargs:
     num_layers: 34
     pretrained: True
-    down_ratio: 1
+    down_ratio: 2 # was two before
     head_conv: 64
   freeze: null
 
@@ -38,13 +39,16 @@ losses:
     lambda_const: 1.0
     kwargs:
       reduction: 'mean'
-      weight: [0.1, 5., 15., 1., 1.0, 1.0, 1.0] # One weight for each class including the background
+      weight: [
+        0.1, 5., 15., 1., 1.0, 1.0, 1.0,     0.1, 5., 15., 1., 1.0, 1.0, 1.0,    1.0, 1.0
+      ] # One weight for each class including the background
       #weight: [0.9, 0.001, 1.0] # From the notebook
-
+# {3: 1.2442610472336846, 2: 11.636568002997377, 4: 27.954995499549955, 6: 33.431646932185146, 5: 67.51739130434783, 7: 85.32417582417582, 8: 96.15479876160991, 1: 307.5049504950495, 13: 776.4499999999999, 15: 1070.9655172413793,
+# 11: 1150.2962962962963, 14: 1411.7272727272727, 10: 1941.1249999999998, 9: 6211.599999999999, 12: 31057.999999999996}
 datasets:
   img_size: [512, 512]
   anno_type: 'point'
-  num_classes: 7
+  num_classes: 16 # one more for the background
   collate_fn: null
 
   class_def:
@@ -55,21 +59,29 @@ datasets:
 #    5: 'Waterbuck'
 #    6: 'Elephant'
 #    7: 'Impala'
-    1: 'iguana'
-    2: 'hard_negative'
-    3: 'Kob'
-    4: 'Warthog'
-    5: 'Waterbuck'
-    6: 'Elephant'
-    7: 'Impala'
+    1: 'storage_tank'
+    2: 'Large_Vehicle'
+    3: 'Small_Vehicle'
+    4: 'plane'
+    5: 'ship'
+    6: 'Swimming_pool'
+    7: 'Harbor'
+    8: 'tennis_court'
+    9: 'Ground_Track_Field'
+    10: 'Soccer_ball_field'
+    11: 'baseball_diamond'
+    12: 'Bridge'
+    13: 'basketball_court'
+    14: 'Roundabout'
+    15: 'Helicopter'
 
 
 
   
   train:
     name: 'CSVDataset'
-    csv_file: '/home/christian/Downloads/crops_1280/train_split.csv'
-    root_dir: '/home/christian/Downloads/crops_1280'
+    csv_file: '/home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/train//herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/train/crops_512_num250_overlap0'
 
     
     sampler: null
@@ -132,8 +144,8 @@ datasets:
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/home/christian/Downloads/crops_1280/test_split.csv'
-    root_dir: '/home/christian/Downloads/crops_1280'
+    csv_file: '/home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/val/herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/val/crops_512_num250_overlap0'
 
     albu_transforms:
       RandomCrop:
@@ -150,16 +162,17 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  epochs: 2000
+  epochs: 500
   valid_freq: 25
-  print_freq: 100
-  batch_size: 16
+  print_freq: 50
+  batch_size: 70
   optimizer: 'adam'
-  lr: 1e-4
+  lr: 1e-3
   weight_decay: 0.0005
+  num_workers: 24
   auto_lr:
     mode: 'max'
-    patience: 10
+    patience: 60
     threshold: 1e-4
     threshold_mode: 'rel'
     cooldown: 10

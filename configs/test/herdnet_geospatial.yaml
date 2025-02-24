@@ -2,7 +2,7 @@ wandb_project: 'Herdnet_Test'
 wandb_entity: 'karisu'
 wandb_flag: False
 wandb_run: 'myrun'
-device_name: 'cpu'
+device_name: 'mps'
 
 model: 
   name: 'HerdNet'
@@ -35,18 +35,10 @@ dataset:
 #  root_dir: '/Users/christian/data/training_data/2024_12_09/val/Default'
 
   # Many images
-  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/val/herdnet_format_labels.csv'
-  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/val/Default'
-
-
-#  # Many images
-#  csv_file: '/Users/christian/data/training_data/2024_12_09_debug/test/herdnet_format.csv'
-#  root_dir: '/Users/christian/data/training_data/2024_12_09_debug/test/Default'
-
-  ## Tiles
-#  csv_file: '/Users/christian/data/training_data/2024_12_09/train/herdnet_format_crops_sample.csv'
-#  root_dir: '/Users/christian/data/training_data/2024_12_09/train/crops_512_num1_overlap0'
-
+  # csv_file: '/Users/christian/data/training_data/2024_12_09_debug/val_geospatial/herdnet_fake_sample.csv'
+  csv_file: '/Users/christian/data/training_data/2025_02_22_HIT/FMO02_full_orthophoto_tiles/herdnet_fake.csv'
+  # root_dir: '/Users/christian/data/training_data/2024_12_09_debug/val_geospatial'
+  root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/FMO02_full_orthophoto_tiles/'
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]
 
@@ -63,7 +55,7 @@ evaluator:
 stitcher:
   name: 'HerdNetStitcher'
   kwargs:
-    overlap: 160
+    overlap: 80
     down_ratio: ${test.model.kwargs.down_ratio}
     up: False # TODO False is Default and necessary for the testing evaluation,
     # up: True # TODO True makes the plotting work

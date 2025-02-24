@@ -5,6 +5,7 @@ dist/
 *.egg-info/
 build/
 images/
+data/
 outputs/
 multirun/
 exp/
@@ -12,8 +13,8 @@ handling/
 scripts/
 *.code-workspace
 
-configs/train/*
-configs/test/*
-!configs/*/faster_rcnn.yaml
-!configs/*/dla34.yaml
-!configs/*/herdnet.yaml
+#configs/train/*
+#configs/test/*
+#!configs/*/faster_rcnn.yaml
+#!configs/*/dla34.yaml
+#!configs/*/herdnet.yaml

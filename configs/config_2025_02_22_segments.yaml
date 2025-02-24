@@ -1,0 +1,11 @@
+# Experiment configuration file for the newest benchmark
+
+defaults:
+  - train: herdnet_iguana_segments_2025_02_22
+  - test: herdnet_2025_02_22_segments
+
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

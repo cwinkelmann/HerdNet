@@ -99,7 +99,7 @@ class FocalLoss(torch.nn.Module):
 
         neg_weights = torch.pow(1 - target, self.beta)
 
-        loss = torch.zeros((B,C))
+        loss = torch.zeros((B, C))
 
          # avoid NaN when net output is 1.0 or 0.0
         output = torch.clamp(output, min=self.eps, max=1-self.eps)

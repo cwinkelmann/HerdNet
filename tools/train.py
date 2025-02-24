@@ -13,6 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+from pathlib import Path
 
 import torch
 import hydra
@@ -21,7 +22,7 @@ import wandb
 import pandas
 import os
 import torchvision
-
+from loguru import logger
 import albumentations as A
 
 from torch.utils.data import DataLoader, Dataset
@@ -39,6 +40,9 @@ def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
     assert 'species' in df.columns
     cls_dict = dict(map(reversed, cls_dict.items()))
     df['labels'] = df['species'].map(cls_dict)
+
+    # assert none of the labels are None
+    assert df['labels'].isnull().any() == False
 
 def _load_albu_transforms(tr_cfg: dict) -> list:
     transforms = []
@@ -219,24 +223,30 @@ def _define_evaluator(
 
     return evaluator
 
-# @hydra.main(config_path='../configs', config_name="config_2024_12_19")
+@hydra.main(config_path='../configs', config_name="config_2025_02_22_segments")
 def main(cfg: DictConfig) -> None:
+    work_dir = None
+    # if cfg.work_dir is not None:
+    #     work_dir = Path(cfg.work_dir).resolve()
+    #     if not work_dir.exists():
+    #         work_dir.mkdir(parents=True)
 
     cfg = cfg.train
-
     # Set the seed
-    print(f'Setting the seed to {cfg.seed}')
+    logger.info(f'Setting the seed to {cfg.seed}')
     set_seed(cfg.seed)
-
+    current_directory = Path(os.curdir).resolve()
+    logger.info(f"current_directory: {current_directory}")
     # Prepare datasets and dataloaders
-    print('Building datasets ...')
+    logger.info('Building datasets ...')
     device = torch.device(cfg.device_name)
 
     train_args = cfg.datasets.train
     val_args = cfg.datasets.validate
 
     train_df = pandas.read_csv(train_args.csv_file)
-    _set_species_labels(dict(cfg.datasets.class_def), train_df)
+    # TODO I would argue, modifying the training data while training is not a good idea
+    # _set_species_labels(dict(cfg.datasets.class_def), train_df)
 
     train_dataset = animaloc.datasets.__dict__[train_args.name](
         csv_file = train_df,
@@ -258,11 +268,11 @@ def main(cfg: DictConfig) -> None:
 
     train_dataloader = DataLoader(train_dataset, **train_dl_kwargs)
     
-    val_dataloader = None
     if val_args is not None:
 
         val_df = pandas.read_csv(val_args.csv_file)
-        _set_species_labels(dict(cfg.datasets.class_def), val_df)
+        # TODO I would argue modifying data in here is not a good idea. It should immutable
+        # _set_species_labels(dict(cfg.datasets.class_def), val_df)
         
         val_dataset = animaloc.datasets.__dict__[val_args.name](
             csv_file = val_df,
@@ -272,11 +282,11 @@ def main(cfg: DictConfig) -> None:
             )
         
         val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=_get_collate_fn(cfg))
-
-    work_dir = None
+    else:
+        val_dataloader = None
 
     # Set up wandb
-    print('Connecting to Weights & Biases ...')
+    logger.info('Connecting to Weights & Biases ...')
     settings = cfg.training_settings
     losses = cfg.losses
     if losses is not None:
@@ -306,11 +316,11 @@ def main(cfg: DictConfig) -> None:
 
 
     # Build the model
-    print('Building the model ...')
+    logger.info('Building the model ...')
     model = _build_model(cfg)
 
     # Prepare for training
-    print('Preparing for training ...')
+    logger.info('Preparing for training ...')
     criterions = _load_losses(cfg)
     model = LossWrapper(model, criterions).to(device)
 
@@ -320,12 +330,18 @@ def main(cfg: DictConfig) -> None:
         if 'HerdNet' in cfg.model.name:
             if cfg.model.freeze is not None:
                 model.model.freeze(layers=list(cfg.model.freeze))
-                print(f"Layers {list(cfg.model.freeze)} freezed")
+                logger.info(f"Layers {list(cfg.model.freeze)} freezed")
     
     if cfg.training_settings.optimizer == 'adam':
         optimizer = torch.optim.Adam(
-            model.parameters(), 
-            lr = cfg.training_settings.lr, 
+            model.parameters(),
+            lr = cfg.training_settings.lr,
+            weight_decay = cfg.training_settings.weight_decay
+            )
+    elif cfg.training_settings.optimizer == 'adamW':
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr = cfg.training_settings.lr,
             weight_decay = cfg.training_settings.weight_decay
             )
     else:
@@ -338,10 +354,8 @@ def main(cfg: DictConfig) -> None:
     # Watch the model's gradients during training
     wandb.watch(model)
     
-    # Evaluator ?
-    evaluator = None
-    validate_on = 'recall'
-    select = 'min'
+
+
     if cfg.training_settings.evaluator is not None:
 
         assert val_dataloader is not None, \
@@ -350,6 +364,12 @@ def main(cfg: DictConfig) -> None:
         evaluator = _define_evaluator(model, val_dataloader, cfg)
         select = cfg.training_settings.evaluator.select_mode
         validate_on = cfg.training_settings.evaluator.validate_on
+    else:
+        # Evaluator ?
+        evaluator = None
+        validate_on = 'recall'
+        select = 'min'
+
     
     # Start training & validation
     auto_lr = cfg.training_settings.auto_lr
@@ -377,7 +397,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     if cfg.model.resume_from is not None:
-        print(f'Resuming training from \'{cfg.model.resume_from}\' ...')
+        logger.info(f'Resuming training from \'{cfg.model.resume_from}\' ...')
         trainer.resume(
             pth_path = cfg.model.resume_from, 
             select = select,
@@ -386,7 +406,7 @@ def main(cfg: DictConfig) -> None:
             wandb_flag = True
             )
     else:
-        print('Starting training ...')
+        logger.info('Starting training ...')
         trainer.start(
             cfg.training_settings.warmup_iters, 
             select = select,
@@ -397,16 +417,25 @@ def main(cfg: DictConfig) -> None:
     # FIXME : Add information in .pth files correctly, this does not work
     # Add information in .pth files
     for pth_name in ['best_model.pth', 'latest_model.pth']:
-        path = os.path.join(os.curdir, pth_name)
+        path = current_directory / pth_name
+        if not path.exists():
+            raise FileNotFoundError(f'\'{pth_name}\' not found')
+
+        # TODO add this to the training loop somehow
         pth_file = torch.load(path)
         norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
         pth_file['classes'] = dict(cfg.datasets.class_def)
         pth_file['mean'] =  list(norm_trans.mean)
         pth_file['std'] = list(norm_trans.std)
+
         torch.save(pth_file, path)
+        logger.info(f"Saved Model {pth_name} with added information in {path}")
 
 
 if __name__ == '__main__':
-    hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
-    cfg = hydra.compose(config_name="config_2025_01_15_debug")
+    # hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
+    # cfg = hydra.compose(config_name="config_2025_02_22_segments")
+    # cfg = hydra.compose(config_name="config_FMO03_02_05")
     main(cfg)
+
+    main()

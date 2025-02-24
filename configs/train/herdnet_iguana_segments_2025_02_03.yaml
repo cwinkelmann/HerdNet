@@ -1,21 +1,22 @@
-
+### this is supposed to compare yolo to herdnet
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
-wandb_run: 'FMO03_02_05'
+wandb_run: 'ig_seg_2025_03_02'
+# /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
-device_name: 'cuda:0'
+device_name: 'cuda:1'
 
-model:
+model: 
   name: 'HerdNet'
   from_torchvision: False
-  # load_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-09/13-28-39/best_model.pth"
+  # load_from: "/home/christian/Downloads/20220413_HerdNet_General_dataset_2022.pth"
   load_from: null
-  # resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-07/23-11-21/latest_model.pth"
+  #resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-05/12-23-34/best_model.pth"
   resume_from: null
   kwargs:
-    num_layers: 60
-    pretrained: null
-    down_ratio: 2
+    num_layers: 34
+    pretrained: True
+    down_ratio: 2 # was two before
     head_conv: 64
   freeze: null
 
@@ -38,7 +39,7 @@ losses:
     lambda_const: 1.0
     kwargs:
       reduction: 'mean'
-      weight: [0.1, 5., 15., 1., 1.0, 1.0, 1.0] # One weight for each class including the background
+      weight: [15., 5., 15., 1., 0.1, 0.1, 1.0] # One weight for each class including the background
       #weight: [0.9, 0.001, 1.0] # From the notebook
 
 datasets:
@@ -65,13 +66,13 @@ datasets:
 
 
 
-
+  
   train:
     name: 'CSVDataset'
-    csv_file: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/train/crops_512/herdnet_format.csv'
-    root_dir: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/train/crops_512'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/iguana_2025_02_03_segments/train/herdnet_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/iguana_2025_02_03_segments/train/crops_512_numNone_overlap0'
 
-
+    
     sampler: null
 
     albu_transforms:
@@ -83,10 +84,10 @@ datasets:
         p: 0.5
       RandomRotate90:
         p: 0.5
-      RandomBrightnessContrast:
-        brightness_limit: 0.2
-        contrast_limit: 0.2
-        p: 0.2
+#      RandomBrightnessContrast:
+#        brightness_limit: 0.2
+#        contrast_limit: 0.2
+#        p: 0.2
 #      Blur:
 #        blur_limit: 15
 #        p: 0.2
@@ -111,14 +112,14 @@ datasets:
 #      Solarize:
 #        threshold: 128
 #        p: 0.2
-      #      RandomCrop:
-      #        height: 512
-      #        width: 512
-      #        p: 1.0
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
       Normalize:
-        p: 1.0
+          p: 1.0
 
-
+    
     end_transforms:
       MultiTransformsWrapper:
         FIDT:
@@ -132,17 +133,17 @@ datasets:
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/val/crops_512/herdnet_format.csv'
-    root_dir: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/val/crops_512'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/iguana_2025_02_03_segments/val/herdnet_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/iguana_2025_02_03_segments/val/crops_512_numNone_overlap0'
 
     albu_transforms:
-#      RandomCrop:
-#        height: 512
-#        width: 512
-#        p: 1.0
+      RandomCrop:
+        height: 512
+        width: 512
+        p: 1.0
       Normalize:
         p: 1.0
-
+    
     end_transforms:
       DownSample:
         down_ratio: ${train.model.kwargs.down_ratio}
@@ -150,17 +151,17 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  epochs: 500
-  valid_freq: 5
-  print_freq: 100
-  batch_size: 40
+  epochs: 1500
+  valid_freq: 25
+  print_freq: 50
+  batch_size: 7
   optimizer: 'adam'
   lr: 1e-3
   weight_decay: 0.0005
   num_workers: 24
   auto_lr:
     mode: 'max'
-    patience: 50
+    patience: 60
     threshold: 1e-4
     threshold_mode: 'rel'
     cooldown: 10

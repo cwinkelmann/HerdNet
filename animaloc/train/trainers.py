@@ -13,6 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+from pathlib import Path
 
 import torch
 import math
@@ -24,7 +25,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 from torchvision.transforms import ToPILImage
-
+from loguru import logger
 from typing import List, Optional, Union, Callable, Any
 
 from ..utils.torchvision_utils import SmoothedValue, reduce_dict
@@ -303,11 +304,15 @@ class Trainer:
                         wandb.log({'val_loss': val_output, 'epoch': epoch})
             
                 # save checkpoint(s)
-                if val_flag and checkpoints =='best' and self._is_best(val_output, mode = select):
-                    print('Best model saved - Epoch {} - Validation value: {:.6f}'.format(epoch, val_output))
-                    self._save_checkpoint(epoch, checkpoints)
+                if val_flag and checkpoints == 'best' and self._is_best(val_output, mode = select):
+                    model_checkpoint_path = self._save_checkpoint(epoch, checkpoints)
+                    logger.info('Best model saved - Epoch {} - Validation value: {:.6f}, path: {}'.format(epoch, val_output, model_checkpoint_path))
+                    artifact = wandb.Artifact(name=checkpoints, type="model")
+                    artifact.add_file(model_checkpoint_path)  # Add a file
+                    wandb.log_artifact(artifact)
                 elif checkpoints == 'all':
                     self._save_checkpoint(epoch, checkpoints)
+
             
             self._save_checkpoint(epoch, 'latest')
 
@@ -421,8 +426,11 @@ class Trainer:
                 
                 # save checkpoint(s)
                 if val_flag and checkpoints =='best' and self._is_best(val_output, mode = select):
-                    print('Best model saved - Epoch {} - Validation value: {:.6f}'.format(epoch, val_output))
-                    self._save_checkpoint(epoch, checkpoints)
+                    model_checkpoint_path = self._save_checkpoint(epoch, checkpoints)
+                    logger.info('Best model saved - Epoch {} - Validation value: {:.6f}, path: {}'.format(epoch, val_output, model_checkpoint_path))
+                    artifact = wandb.Artifact(name=checkpoints, type="model")
+                    artifact.add_file(model_checkpoint_path)  # Add a file
+                    wandb.log_artifact(artifact)
                 elif checkpoints == 'all':
                     self._save_checkpoint(epoch, checkpoints)
             
@@ -612,7 +620,7 @@ class Trainer:
             else:
                 return False
     
-    def _save_checkpoint(self, epoch: int, mode: str) -> None:
+    def _save_checkpoint(self, epoch: int, mode: str) -> Path:
         ''' Method to save checkpoints '''
 
         check_dir = self.work_dir
@@ -623,7 +631,8 @@ class Trainer:
             outpath = os.path.join(check_dir,'best_model.pth')
         elif mode == 'latest':
             outpath = os.path.join(check_dir,'latest_model.pth')
-
+        else:
+            raise ValueError("wrong mode, should be 'all', 'best', 'latest'")
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
@@ -631,6 +640,8 @@ class Trainer:
             'loss': self.losses ,
             'best_val': self.best_val
             }, outpath)
+
+        return outpath
     
     def _vizual(self, image: Any, target: Any, output: Any):
         fig = self.vizual_fn(image=image, target=target, output=output)

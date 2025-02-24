@@ -21,6 +21,7 @@ __version__ = "0.2.1"
 
 import PIL
 import numpy
+import numpy as np
 import torch
 import hydra
 import wandb
@@ -42,6 +43,9 @@ from animaloc.eval.stitchers import Stitcher
 from loguru import logger
 from animaloc.utils.useful_funcs import current_date, mkdir
 from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
+
+from PIL import Image
+Image.MAX_IMAGE_PIXELS = None  # Disable the limit
 
 
 def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
@@ -140,6 +144,7 @@ def main(cfg: DictConfig) -> None:
     cfg = cfg.test
 
     down_ratio = 1
+    plain_inference = False
     if 'down_ratio' in cfg.model.kwargs.keys():
         down_ratio = cfg.model.kwargs.down_ratio
 
@@ -169,6 +174,13 @@ def main(cfg: DictConfig) -> None:
 
     test_df = pandas.read_csv(cfg.dataset.csv_file)
     _set_species_labels(cls_dict, df = test_df)
+
+    # Code for the case of doing just inference
+    if plain_inference:
+        test_df["x"] = 0
+        test_df["y"] = 1
+        test_df["labels"] = 1
+        test_df["species"] = "species"
 
     test_dataset = animaloc.datasets.__dict__[cfg.dataset.name](
         csv_file = test_df,
@@ -201,15 +213,17 @@ def main(cfg: DictConfig) -> None:
     # Start testing
     logger.info(f'Starting testing ...')
     out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=False)
-    logger.info(f'Done with predictions testing ...')
+    logger.info(f'Done with predictions ...')
 
     # Save results
-    print('Saving the results ...')
+
     
      # 1) PR curves
     plots_path = os.path.join(os.getcwd(), 'plots')
     mkdir(plots_path)
     pr_curve = PlotPrecisionRecall(legend=True)
+
+    print(f"Saving the results ..., plots: {plots_path}")
 
     metrics = evaluator._stored_metrics
     for c in range(1, metrics.num_classes):
@@ -220,7 +234,7 @@ def main(cfg: DictConfig) -> None:
     except IndexError:
         logger.error('Weird index error, skipping PR curve plot')
     
-    # 2) metrics per class
+    logger.info(" 2) metrics per class")
     res = evaluator.results
     cols = res.columns.tolist()
     str_cls_dict = {str(k): v for k,v in cls_dict.items()}
@@ -231,12 +245,12 @@ def main(cfg: DictConfig) -> None:
 
     res.to_csv(os.path.join(os.getcwd(), 'metrics_results.csv'), index=False)
 
-    # 3) confusion matrix
+    logger.info(" 3) confusion matrix")
     cm = pandas.DataFrame(metrics.confusion_matrix, columns=cls_names, index=cls_names)
     cm.to_csv(os.path.join(os.getcwd(), 'confusion_matrix.csv'))
     print(cm)
 
-    # 4) detections
+    logger.info("4) detections")
     detections =  evaluator.detections
     logger.info(f"Num detections: {len(detections)}")
     detections['species'] = detections['labels'].map(cls_dict)
@@ -248,7 +262,7 @@ def main(cfg: DictConfig) -> None:
     # plot only false positves
     # fp = detections[detections['FP'] == 1]
 
-    # 5) plot the detections
+    logger.info("5) plot the detections")
     dest = os.getcwd()
     print('Exporting plots and thumbnails ...')
     dest_plots = os.path.join(dest, 'plots')
@@ -259,6 +273,9 @@ def main(cfg: DictConfig) -> None:
 
     for img_name in img_names:
         img = PIL.Image.open(os.path.join(cfg.dataset.root_dir, img_name))
+        if img.format != 'JPEG':
+            img = img.convert("RGB")
+
 
         img_cpy = img.copy()
         pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
@@ -266,14 +283,18 @@ def main(cfg: DictConfig) -> None:
         logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
         pts = [(y, x) for y, x in pts]
         output = draw_points(img, pts, color='red', size=30)
-        output.save(os.path.join(dest_plots, img_name), quality=95)
+        output.save(os.path.join(dest_plots, img_name), format="JPEG", quality=95)
 
         ts = 256 # Thumbnail size
         # Create and export thumbnails
         sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
         for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):
             off = ts // 2
+            # TODO the fact this fails if an image is empty shows the code was never evaluated with empty images/or never predicted nothing even if the image was empty
             coords = (x - off, y - off, x + off, y + off)
+            if all(np.isnan(coords)):
+                logger.warning(f"Coords are all NaN: {coords}, skipping")
+                continue
             thumbnail = img_cpy.crop(coords)
             score = round(score * 100, 0)
             thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
