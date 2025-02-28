@@ -313,6 +313,7 @@ def main(cfg: DictConfig) -> None:
     date = current_date()
     wandb.run.name = f'{date}_' + cfg.wandb_run + f'_RUN_{wandb.run.id}'
 
+    # TODO this is the time to upload metrics about the data
 
 
     # Build the model
@@ -419,7 +420,7 @@ def main(cfg: DictConfig) -> None:
     for pth_name in ['best_model.pth', 'latest_model.pth']:
         path = current_directory / pth_name
         if not path.exists():
-            raise FileNotFoundError(f'\'{pth_name}\' not found')
+            raise FileNotFoundError(f'\'{pth_name}\' not found in {current_directory}')
 
         # TODO add this to the training loop somehow
         pth_file = torch.load(path)
@@ -436,6 +437,6 @@ if __name__ == '__main__':
     # hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
     # cfg = hydra.compose(config_name="config_2025_02_22_segments")
     # cfg = hydra.compose(config_name="config_FMO03_02_05")
-    main(cfg)
+    # main(cfg)
 
     main()

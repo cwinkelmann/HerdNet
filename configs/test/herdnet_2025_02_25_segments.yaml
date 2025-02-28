@@ -1,7 +1,7 @@
 wandb_project: 'Herdnet_Test'
 wandb_entity: 'karisu'
-wandb_flag: False
-wandb_run: 'myrun'
+wandb_flag: True
+wandb_run: 'test_2025-02-25'
 device_name: 'mps'
 
 model: 
@@ -18,7 +18,7 @@ model:
 dataset:
   img_size: [512, 512]
   anno_type: 'point'
-  num_classes: 7
+  num_classes: 7 # one more than list of class_def, 1 for background
   collate_fn: null
 
 
@@ -29,12 +29,12 @@ dataset:
     4: 'Warthog'
     5: 'Waterbuck'
     6: 'Elephant'
-    7: 'Impala'
+
 
   name: 'CSVDataset'
   # Many images
-  csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/01_segment_pretraining/test/herdnet_format.csv'
-  root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/01_segment_pretraining/test/Default'
+  csv_file: '/Users/christian/data/training_data/2025_02_22_HIT/01_segment_pretraining/segments_12/test/herdnet_format.csv'
+  root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/01_segment_pretraining/segments_12/test/Default'
 
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]

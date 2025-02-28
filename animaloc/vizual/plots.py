@@ -13,6 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+from pathlib import Path
 
 import torch
 import matplotlib.pyplot as plt 
@@ -73,7 +74,7 @@ class PlotPrecisionRecall:
         
         self.fig = fig
     
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         if 'fig' not in self.__dict__:
             self.plot()
 

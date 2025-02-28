@@ -19,6 +19,8 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+from pathlib import Path
+
 import PIL
 import numpy
 import numpy as np
@@ -138,10 +140,14 @@ def _define_evaluator(
     return evaluator
 
 
-@hydra.main(config_path='../configs', config_name="config")
+@hydra.main(config_path='../configs', config_name="config_2025_02_27_segments")
 def main(cfg: DictConfig) -> None:
 
+    # retrieving the test part of the config
     cfg = cfg.test
+
+    current_directory = Path(os.getcwd())
+    logger.info(f"Current directory: {current_directory}")
 
     down_ratio = 1
     plain_inference = False
@@ -182,6 +188,7 @@ def main(cfg: DictConfig) -> None:
         test_df["labels"] = 1
         test_df["species"] = "species"
 
+    # TODO why is this definehere and the config is not used?
     test_dataset = animaloc.datasets.__dict__[cfg.dataset.name](
         csv_file = test_df,
         root_dir = cfg.dataset.root_dir,
@@ -219,8 +226,8 @@ def main(cfg: DictConfig) -> None:
 
     
      # 1) PR curves
-    plots_path = os.path.join(os.getcwd(), 'plots')
-    mkdir(plots_path)
+    plots_path = current_directory / 'plots'
+    plots_path.mkdir(exist_ok=True, parents=True)
     pr_curve = PlotPrecisionRecall(legend=True)
 
     print(f"Saving the results ..., plots: {plots_path}")
@@ -230,24 +237,24 @@ def main(cfg: DictConfig) -> None:
         rec, pre = metrics.rec_pre_lists(c)
         pr_curve.feed(rec, pre, label=cls_dict[c])
     try:
-        pr_curve.save(os.path.join(plots_path, 'precision_recall_curve.png'))
+        pr_curve.save(plots_path / 'precision_recall_curve.png')
     except IndexError:
         logger.error('Weird index error, skipping PR curve plot')
     
     logger.info(" 2) metrics per class")
-    res = evaluator.results
-    cols = res.columns.tolist()
+    df_res = evaluator.results
+    cols = df_res.columns.tolist()
     str_cls_dict = {str(k): v for k,v in cls_dict.items()}
     str_cls_dict.update({'binary': 'binary'})
-    res['species'] = res['class'].map(str_cls_dict)
-    res = res[['class', 'species'] + cols[1:]]
-    print(res[["species", "precision", "recall", "f1_score", "mae"]])
+    df_res['species'] = df_res['class'].map(str_cls_dict)
+    df_res = df_res[['class', 'species'] + cols[1:]]
+    print(df_res[["species", "precision", "recall", "f1_score", "mae"]])
 
-    res.to_csv(os.path.join(os.getcwd(), 'metrics_results.csv'), index=False)
+    df_res.to_csv(current_directory / 'metrics_results.csv', index=False)
 
     logger.info(" 3) confusion matrix")
     cm = pandas.DataFrame(metrics.confusion_matrix, columns=cls_names, index=cls_names)
-    cm.to_csv(os.path.join(os.getcwd(), 'confusion_matrix.csv'))
+    cm.to_csv(current_directory / 'confusion_matrix.csv')
     print(cm)
 
     logger.info("4) detections")
@@ -257,18 +264,17 @@ def main(cfg: DictConfig) -> None:
     logger.warning(f"Manually scale up the coordinates by a factor of down_ratio: {down_ratio}")
     detections['x'] = detections['x'] * down_ratio
     detections['y'] = detections['y'] * down_ratio
-    detections.to_csv(os.path.join(os.getcwd(), 'detections.csv'), index=False)
+    detections.to_csv(current_directory / 'detections.csv', index=False)
 
     # plot only false positves
     # fp = detections[detections['FP'] == 1]
 
     logger.info("5) plot the detections")
-    dest = os.getcwd()
     print('Exporting plots and thumbnails ...')
-    dest_plots = os.path.join(dest, 'plots')
+    dest_plots = plots_path
     mkdir(dest_plots)
-    dest_thumb = os.path.join(dest, 'thumbnails')
-    mkdir(dest_thumb)
+    dest_thumb = current_directory / 'thumbnails'
+    dest_thumb.mkdir(exist_ok=True, parents=True)
     img_names = numpy.unique(detections['images'].values).tolist()
 
     for img_name in img_names:
