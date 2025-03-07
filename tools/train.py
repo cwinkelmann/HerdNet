@@ -267,7 +267,7 @@ def main(cfg: DictConfig) -> None:
             dataset=train_dataset)
 
     train_dataloader = DataLoader(train_dataset, **train_dl_kwargs)
-    
+
     if val_args is not None:
 
         val_df = pandas.read_csv(val_args.csv_file)
@@ -371,7 +371,7 @@ def main(cfg: DictConfig) -> None:
         validate_on = 'recall'
         select = 'min'
 
-    
+
     # Start training & validation
     auto_lr = cfg.training_settings.auto_lr
     if auto_lr:
