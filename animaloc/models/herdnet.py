@@ -19,8 +19,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torchvision.transforms as T
+import torchvision.models as models
 
-from typing import Optional
+from typing import Optional, List
 
 from .register import MODELS
 
@@ -37,20 +38,23 @@ class HerdNet(nn.Module):
         num_classes: int = 2,
         pretrained: bool = True, 
         down_ratio: Optional[int] = 2, 
-        head_conv: int = 64
+        head_conv: int = 64,
+        backbone: str = 'resnet'
         ):
         '''
         Args:
-            num_layers (int, optional): number of layers of DLA. Defaults to 34.
+            num_layers (int, optional): number of layers of backbone. Defaults to 34.
             num_classes (int, optional): number of output classes, background included. 
                 Defaults to 2.
-            pretrained (bool, optional): set False to disable pretrained DLA encoder parameters
+            pretrained (bool, optional): set False to disable pretrained backbone encoder parameters
                 from ImageNet. Defaults to True.
             down_ratio (int, optional): downsample ratio. Possible values are 1, 2, 4, 8, or 16. 
                 Set to 1 to get output of the same size as input (i.e. no downsample).
                 Defaults to 2.
             head_conv (int, optional): number of supplementary convolutional layers at the end 
                 of decoder. Defaults to 64.
+            backbone (str, optional): backbone architecture to use. Options are 'dla' or 'resnet'.
+                Defaults to 'resnet'.
         '''
 
         super(HerdNet, self).__init__()
@@ -58,24 +62,55 @@ class HerdNet(nn.Module):
         assert down_ratio in [1, 2, 4, 8, 16], \
             f'Downsample ratio possible values are 1, 2, 4, 8 or 16, got {down_ratio}'
         
-        base_name = 'dla{}'.format(num_layers)
-
         self.down_ratio = down_ratio
         self.num_classes = num_classes
         self.head_conv = head_conv
+        self.backbone_type = backbone
 
         self.first_level = int(np.log2(down_ratio))
 
-        # backbone
-        base = dla_modules.__dict__[base_name](pretrained=pretrained, return_levels=True)
-        setattr(self, 'base_0', base)
-        setattr(self, 'channels_0', base.channels)
-
-        channels = self.channels_0
-
-        scales = [2 ** i for i in range(len(channels[self.first_level:]))]
-        self.dla_up = dla_modules.DLAUp(channels[self.first_level:], scales=scales)
-        # self.cls_dla_up = dla_modules.DLAUp(channels[-3:], scales=scales[:3])
+        # Initialize backbone
+        if backbone == 'dla':
+            base_name = f'dla{num_layers}'
+            base = dla_modules.__dict__[base_name](pretrained=pretrained, return_levels=True)
+            setattr(self, 'base_0', base)
+            setattr(self, 'channels_0', base.channels)
+            channels = self.channels_0
+            
+            # DLA specific upsampling
+            scales = [2 ** i for i in range(len(channels[self.first_level:]))]
+            self.dla_up = dla_modules.DLAUp(channels[self.first_level:], scales=scales)
+            
+        elif backbone == 'resnet':
+            # Use ResNet from torchvision
+            resnet_name = f'resnet{num_layers}'
+            weights = 'IMAGENET1K_V1' if pretrained else None
+            base = getattr(models, resnet_name)(weights=weights)
+            
+            # Remove the final layers (avgpool and fc)
+            self.base_0 = nn.Sequential(
+                base.conv1,
+                base.bn1,
+                base.relu,
+                base.maxpool,
+                base.layer1,  # 1/4
+                base.layer2,  # 1/8
+                base.layer3,  # 1/16
+                base.layer4,  # 1/32
+            )
+            
+            # Define channels for ResNet
+            if num_layers <= 34:  # ResNet18 and ResNet34 use BasicBlock
+                self.channels_0 = [64, 64, 128, 256, 512]
+            else:  # ResNet50, 101, 152 use Bottleneck with expansion=4
+                self.channels_0 = [64, 256, 512, 1024, 2048]
+                
+            channels = self.channels_0
+            
+            # Create upsampling layers for ResNet
+            self.resnet_up = self._make_resnet_upsampling(channels[self.first_level:])
+        else:
+            raise ValueError(f"Unsupported backbone: {backbone}. Choose 'dla' or 'resnet'")
 
         # bottleneck conv
         self.bottleneck_conv = nn.Conv2d(
@@ -112,19 +147,71 @@ class HerdNet(nn.Module):
             )
 
         self.cls_head[-1].bias.data.fill_(0.00)
+    
+    def _make_resnet_upsampling(self, channels: List[int]):
+        """Create upsampling layers for ResNet backbone"""
+        layers = nn.ModuleList()
+        
+        for i in range(len(channels) - 1):
+            in_channels = channels[i + 1]
+            out_channels = channels[i]
+            
+            up_layer = nn.Sequential(
+                nn.ConvTranspose2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(out_channels),
+                nn.ReLU(inplace=True)
+            )
+            
+            layers.append(up_layer)
+            
+        return layers
         
     def forward(self, input: torch.Tensor):
-
-        encode = self.base_0(input)    
-        bottleneck = self.bottleneck_conv(encode[-1])
-        encode[-1] = bottleneck
-
-        decode_hm = self.dla_up(encode[self.first_level:])
-        # decode_cls = self.cls_dla_up(encode[-3:])
+        if self.backbone_type == 'dla':
+            encode = self.base_0(input)    
+            bottleneck = self.bottleneck_conv(encode[-1])
+            encode[-1] = bottleneck
+            decode_hm = self.dla_up(encode[self.first_level:])
+            
+        elif self.backbone_type == 'resnet':
+            # Extract features from ResNet
+            features = []
+            x = input
+            
+            # Extract features at different levels
+            x = self.base_0[0](x)  # conv1
+            x = self.base_0[1](x)  # bn1
+            x = self.base_0[2](x)  # relu
+            features.append(x)     # 1/2 resolution
+            
+            x = self.base_0[3](x)  # maxpool
+            x = self.base_0[4](x)  # layer1
+            features.append(x)     # 1/4 resolution
+            
+            x = self.base_0[5](x)  # layer2
+            features.append(x)     # 1/8 resolution
+            
+            x = self.base_0[6](x)  # layer3
+            features.append(x)     # 1/16 resolution
+            
+            x = self.base_0[7](x)  # layer4
+            features.append(x)     # 1/32 resolution
+            
+            # Apply bottleneck to the last feature
+            bottleneck = self.bottleneck_conv(features[-1])
+            features[-1] = bottleneck
+            
+            # Upsample features
+            decode_features = [features[self.first_level + len(self.resnet_up)]]
+            
+            for i, up_layer in enumerate(self.resnet_up):
+                src_idx = len(features) - 2 - i
+                decode_features.append(up_layer(decode_features[-1]) + features[src_idx])
+                
+            decode_hm = decode_features[-1]
 
         heatmap = self.loc_head(decode_hm)
         clsmap = self.cls_head(bottleneck)
-        # clsmap = self.cls_head(decode_cls)
 
         return heatmap, clsmap
     
