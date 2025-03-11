@@ -223,7 +223,7 @@ def _define_evaluator(
 
     return evaluator
 
-@hydra.main(config_path='../configs', config_name="config_local")
+@hydra.main(config_path='../configs', config_name="config_2025_03_10_segments")
 def main(cfg: DictConfig) -> None:
     work_dir = None
     # if cfg.work_dir is not None:
@@ -438,5 +438,4 @@ if __name__ == '__main__':
     # cfg = hydra.compose(config_name="config_2025_02_22_segments")
     # cfg = hydra.compose(config_name="config_FMO03_02_05")
     # main(cfg)
-
     main()

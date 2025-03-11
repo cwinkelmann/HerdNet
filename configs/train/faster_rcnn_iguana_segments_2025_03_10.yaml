@@ -1,0 +1,141 @@
+wandb_project: 'herdnet'
+wandb_entity: 'karisu'
+wandb_run: 'ig_seg_box_many_2025_03_10'
+# /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
+seed: 1
+device_name: 'cuda:1'
+
+model:
+  #
+  name: 'FasterRCNNResNetFPN'
+  from_torchvision: False
+  load_from: '/home/cwinkelmann/work/HerdNet/tools/outputs/2025-03-10/18-24-44/best_model.pth'
+  resume_from: null
+  kwargs:
+    architecture: 'resnet34'
+    num_classes: ${train.datasets.num_classes}
+    pretrained_backbone: True
+    trainable_backbone_layers: 5
+    class_weights: [0.9, 5., 15., 1., 0.1, 0.1, 1.0, 0.1]
+    min_size: 1024
+    max_size: 1024
+
+losses: null
+
+datasets:
+  img_size: [1024, 1024]
+  anno_type: 'bbox'
+  num_classes: 8
+  collate_fn: 'collate_fn'
+
+  class_def:
+    1: 'iguana'
+    2: 'hard_negative'
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+    7: 'Impala'
+  
+  train:
+    name: 'CSVDataset'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/herdnet_boxes_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/crops_1024_numNone_overlap300'
+
+# /Users/christian/PycharmProjects/hnee/HerdNet/data/2025_02_22_HIT/segments_12_box_1024
+    sampler: null
+
+    albu_transforms:
+      HorizontalFlip:
+        p: 0.5
+      VerticalFlip:
+        p: 0.5
+      MotionBlur:
+        p: 0.5
+      RandomRotate90:
+        p: 0.5
+      RandomBrightnessContrast:
+        brightness_limit: 0.2
+        contrast_limit: 0.2
+        p: 0.1
+      Blur:
+        blur_limit: 15
+        p: 0.1
+      ToGray:
+        p: 0.1
+      #      ShiftScaleRotate:
+      #        shift_limit: 0.0625
+      #        scale_limit: 0.1
+      #        rotate_limit: 45
+      #        p: 0.5
+      #      Perspective:
+      #        scale: 0.05
+      #        p: 0.3
+#      HueSaturationValue:
+#        hue_shift_limit: 20
+#        sat_shift_limit: 30
+#        val_shift_limit: 20
+#        p: 0.1
+#      CLAHE:
+#        clip_limit: 2.0
+#        p: 0.1
+      #      Solarize:
+      #        threshold: 128
+      #        p: 0.2
+      #      RandomCrop:
+      #        height: 512
+      #        width: 512
+      #        p: 1.0
+      Normalize:
+        p: 1.0
+    
+    end_transforms: null
+
+  validate:
+    name: 'CSVDataset'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/herdnet_boxes_format_crops.csv' # train==val debug to see if it is learnable
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/crops_1024_numNone_overlap300'
+
+    albu_transforms:
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+      Normalize:
+        p: 1.0
+    
+    end_transforms: null
+
+training_settings:
+  trainer: 'FasterRCNNTrainer'
+  valid_freq: 25
+  print_freq: 100
+  batch_size: 30
+  optimizer: 'adamW'
+  lr: 1e-3
+  weight_decay: 0.0005
+  num_workers: 12
+
+  auto_lr:
+    mode: 'max'
+    patience: 250
+    threshold: 1e-5
+    threshold_mode: 'rel'
+    cooldown: 20
+    min_lr: 1e-6
+    verbose: True
+  warmup_iters: 100
+  vizual_fn: null
+  epochs: 1500
+  evaluator: 
+    name: 'FasterRCNNEvaluator'
+    threshold: 0.3
+    select_mode: 'max'
+    validate_on: 'f1_score'
+    kwargs:
+      print_freq: 10 
+  stitcher:
+    name: 'FasterRCNNStitcher'
+    kwargs:
+      overlap: 0
+      nms_threshold: 0.5

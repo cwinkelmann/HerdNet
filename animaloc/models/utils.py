@@ -112,9 +112,23 @@ class LossWrapper(torch.nn.Module):
         '''
 
         try:
+            # FIXME this is are weird way to handle the forward pass
             output = self.model(x)
         except ValueError:
             output = self.model(x, target)
+
+        except RuntimeError as e:
+            """ This is necessary because torchivision throws not a Value Error anymore """
+            if "targets should not be none" in str(e):
+                output = self.model(x, target)
+            else:
+                raise ValueError(e)
+        except AssertionError as e:
+            """ This is necessary because torchivision throws not a Value Error anymore """
+            if "targets should not be none" in str(e):
+                output = self.model(x, target)
+            else:
+                raise ValueError(e)
 
         output_used = output
         if isinstance(output, torch.Tensor):
