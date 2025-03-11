@@ -223,7 +223,7 @@ def _define_evaluator(
 
     return evaluator
 
-@hydra.main(config_path='../configs', config_name="config_2025_02_22_segments")
+@hydra.main(config_path='../configs', config_name="config_local")
 def main(cfg: DictConfig) -> None:
     work_dir = None
     # if cfg.work_dir is not None:
