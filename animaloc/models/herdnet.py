@@ -17,11 +17,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torchvision.transforms as T
-import torchvision.models as models
 import torch.nn.functional as F
 import math
 import timm  # Import timm for models
-
 
 from typing import Optional, List
 
@@ -86,24 +84,24 @@ class HerdNet(nn.Module):
             self.dla_up = dla_modules.DLAUp(channels[self.first_level:], scales=scales)
 
         elif backbone == 'resnet':
-            # Use ResNet from torchvision
+            # Use ResNet from timm instead of torchvision
             resnet_name = f'resnet{num_layers}'
-            weights = 'IMAGENET1K_V1' if pretrained else None
-            base = getattr(models, resnet_name)(weights=weights)
 
-            # Remove the final layers (avgpool and fc)
-            self.base_0 = nn.Sequential(
-                base.conv1,
-                base.bn1,
-                base.relu,
-                base.maxpool,
-                base.layer1,  # 1/4
-                base.layer2,  # 1/8
-                base.layer3,  # 1/16
-                base.layer4,  # 1/32
-            )
+            # Create a timm model with pretrained weights if requested
+            pretrained_str = 'imagenet' if pretrained else None
+            base = timm.create_model(resnet_name, pretrained=pretrained_str)
 
-            # Define channels for ResNet
+            # For ResNet from timm, we need to manually construct the feature extraction layers
+            # similar to how it was done with torchvision
+            self.base_0 = nn.ModuleList([
+                nn.Sequential(base.conv1, base.bn1, base.act1, base.maxpool),  # stem
+                base.layer1,  # layer1
+                base.layer2,  # layer2
+                base.layer3,  # layer3
+                base.layer4,  # layer4
+            ])
+
+            # Define channels based on model type, just like in original code
             if num_layers <= 34:  # ResNet18 and ResNet34 use BasicBlock
                 self.channels_0 = [64, 64, 128, 256, 512]
             else:  # ResNet50, 101, 152 use Bottleneck with expansion=4
@@ -117,30 +115,6 @@ class HerdNet(nn.Module):
 
             # Create fusion nodes for each level
             self.fusion_nodes = self._make_fusion_nodes(channels[self.first_level:])
-
-        elif backbone == 'resnet':
-            # Use ResNet from timm instead of torchvision
-            resnet_name = f'resnet{num_layers}'
-            base = timm.create_model(resnet_name, pretrained=pretrained, features_only=True)
-
-            # Store the base model
-            self.base_0 = base
-
-            # Get feature channel information from timm model
-            feature_info = base.feature_info.get_dicts()
-            channels = [info['num_chs'] for info in feature_info]
-
-            # Add input channels (64) at the beginning
-            channels = [64] + channels
-            self.channels_0 = channels
-
-            # Create lateral connections and upsampling layers for FPN-style
-            self.lateral_connections = self._make_lateral_connections(channels[self.first_level:])
-            self.resnet_up = self._make_resnet_upsampling(channels[self.first_level:])
-
-            # Create fusion nodes for each level
-            self.fusion_nodes = self._make_fusion_nodes(channels[self.first_level:])
-
         else:
             raise ValueError(f"Unsupported backbone: {backbone}. Choose 'dla' or 'resnet'")
 
@@ -294,28 +268,14 @@ class HerdNet(nn.Module):
             decode_hm = self.dla_up(encode[self.first_level:])
 
         elif self.backbone_type == 'resnet':
-            # Extract features from ResNet
+            # Extract features from timm ResNet using our modular approach
             features = []
             x = input
 
-            # Extract features at different levels
-            x = self.base_0[0](x)  # conv1
-            x = self.base_0[1](x)  # bn1
-            x = self.base_0[2](x)  # relu
-            features.append(x)  # 1/2 resolution
-
-            x = self.base_0[3](x)  # maxpool
-            x = self.base_0[4](x)  # layer1
-            features.append(x)  # 1/4 resolution
-
-            x = self.base_0[5](x)  # layer2
-            features.append(x)  # 1/8 resolution
-
-            x = self.base_0[6](x)  # layer3
-            features.append(x)  # 1/16 resolution
-
-            x = self.base_0[7](x)  # layer4
-            features.append(x)  # 1/32 resolution
+            # Process through each stage of the backbone
+            for i, layer in enumerate(self.base_0):
+                x = layer(x)
+                features.append(x)
 
             # Get the features we need for upsampling based on first_level
             features_for_upsampling = features[self.first_level:]
@@ -360,10 +320,6 @@ class HerdNet(nn.Module):
             # Transform channel dimension for localization head if needed
             if self.final_proj is not None:
                 decode_hm = self.final_proj(decode_hm)
-
-
-        elif self.backbone_type == 'resnet_timm':
-
 
         # Generate heatmap and clsmap
         heatmap = self.loc_head(decode_hm)

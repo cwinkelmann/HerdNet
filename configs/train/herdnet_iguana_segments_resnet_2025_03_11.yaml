@@ -7,7 +7,7 @@ wandb_entity: 'karisu'
 wandb_run: 'ig_seg_point_many_2025_03_10'
 # /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
-device_name: 'cuda:1'
+device_name: 'cuda:0'
 
 model: 
   name: 'HerdNet'
@@ -160,7 +160,7 @@ training_settings:
   epochs: 500
   valid_freq: 10
   print_freq: 50
-  batch_size: 20
+  batch_size: 15
   optimizer: 'adamW'
   lr: 1e-3
   weight_decay: 0.0005
