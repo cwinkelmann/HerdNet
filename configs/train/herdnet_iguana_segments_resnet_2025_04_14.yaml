@@ -48,7 +48,7 @@ losses:
       #weight: [0.9, 0.001, 1.0] # From the notebook
 
 datasets:
-  img_size: [1024, 1024]
+  img_size: [512, 512]
   anno_type: 'point'
   num_classes: 8
   collate_fn: null
@@ -74,10 +74,8 @@ datasets:
   
   train:
     name: 'CSVDataset'
-
-    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/herdnet_format_crops.csv'
-    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/crops_1024_numNone_overlap300'
-
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/herdnet_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
     
     sampler: null
 
@@ -139,8 +137,8 @@ datasets:
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/herdnet_format_crops.csv'
-    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/crops_1024_numNone_overlap300'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/herdnet_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
 
     albu_transforms:
 #      RandomCrop:

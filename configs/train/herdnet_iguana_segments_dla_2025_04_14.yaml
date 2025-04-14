@@ -4,10 +4,10 @@
 #
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
-wandb_run: 'seg_point_many_2025_04_14_resnet'
+wandb_run: 'seg_point_many_2025_04_14_dla'
 # /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
-device_name: 'cuda:1'
+device_name: 'cuda:0'
 
 model: 
   name: 'HerdNet'
@@ -19,7 +19,7 @@ model:
   resume_from: null
   kwargs:
     num_layers: 34
-    backbone: 'resnet'
+    backbone: 'dla'
     pretrained: True
     down_ratio: 2  # was two before
     head_conv: 64 # was 64
@@ -48,7 +48,7 @@ losses:
       #weight: [0.9, 0.001, 1.0] # From the notebook
 
 datasets:
-  img_size: [1024, 1024]
+  img_size: [512, 512]
   anno_type: 'point'
   num_classes: 8
   collate_fn: null
@@ -75,8 +75,8 @@ datasets:
   train:
     name: 'CSVDataset'
 
-    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/herdnet_format_crops.csv'
-    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/crops_1024_numNone_overlap300'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/herdnet_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
 
     
     sampler: null
@@ -139,8 +139,8 @@ datasets:
 
   validate:
     name: 'CSVDataset'
-    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/herdnet_format_crops.csv'
-    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_12_box_1024/train/crops_1024_numNone_overlap300'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/herdnet_format_crops.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
 
     albu_transforms:
 #      RandomCrop:
@@ -160,7 +160,7 @@ training_settings:
   epochs: 500
   valid_freq: 10
   print_freq: 50
-  batch_size: 15
+  batch_size: 8
   optimizer: 'adamW'
   lr: 1e-3
   weight_decay: 0.0005

@@ -39,7 +39,7 @@ class HerdNet(nn.Module):
             num_layers: int = 34,
             num_classes: int = 2,
             pretrained: bool = True,
-            down_ratio: Optional[int] = 1,  # Changed default to 1 (no downsampling)
+            down_ratio: Optional[int] = 2,  # Changed default to 1 (no downsampling)
             head_conv: int = 64,
             backbone: str = 'resnet'
     ):
