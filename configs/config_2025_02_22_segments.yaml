@@ -1,7 +1,7 @@
 # Experiment configuration file for the newest benchmark
 
 defaults:
-  - train: herdnet_iguana_segments_2025_02_26
+  - train: herdnet_iguana_segments_2025_02_26_local
   - test: herdnet_2025_02_25_segments
 
 
