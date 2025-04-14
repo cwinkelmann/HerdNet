@@ -226,6 +226,7 @@ def _define_evaluator(
 @hydra.main(config_path='../configs', config_name="config_2025_02_22_segments")
 def main(cfg: DictConfig) -> None:
     work_dir = None
+    logger.info(f"Using config: {cfg}")
     # if cfg.work_dir is not None:
     #     work_dir = Path(cfg.work_dir).resolve()
     #     if not work_dir.exists():
