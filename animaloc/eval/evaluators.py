@@ -34,7 +34,7 @@ from .metrics import Metrics
 from .lmds import HerdNetLMDS
 
 from ..utils.registry import Registry
-
+from loguru import logger as loguru_logger
 EVALUATORS = Registry('evaluators', module_key='animaloc.eval.evaluators')
 
 __all__ = ['EVALUATORS', *EVALUATORS.registry_names]
@@ -163,7 +163,7 @@ class Evaluator:
         
         Args:
             returns (str, optional): metric to be returned. Possible values are:
-                'recall', 'precision', 'f1_score', 'mse', 'mae', 'rmse', 'accuracy'
+                'recall', 'precision', 'f1_score', 'f2_score' 'mse', 'mae', 'rmse', 'accuracy'
                 and 'mAP'. Defauts to 'recall'
             wandb_flag (bool, optional): set to True to log on Weight & Biases. 
                 Defaults to False.
@@ -184,7 +184,7 @@ class Evaluator:
         iter_metrics = self.metrics.copy()
 
         for i, (images, targets) in enumerate(logger.log_every(self.dataloader, self.print_freq, self.header)):
-
+            loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
 
             if self.stitcher is not None:
@@ -207,12 +207,13 @@ class Evaluator:
             iter_metrics.aggregate()
             if log_meters:
                 logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn))
-                logger.add_meter('recall', round(iter_metrics.recall(),2))
-                logger.add_meter('precision', round(iter_metrics.precision(),2))
-                logger.add_meter('f1-score', round(iter_metrics.fbeta_score(),2))
-                logger.add_meter('MAE', round(iter_metrics.mae(),2))
-                logger.add_meter('MSE', round(iter_metrics.mse(),2))
-                logger.add_meter('RMSE', round(iter_metrics.rmse(),2))
+                logger.add_meter('recall', round(iter_metrics.recall(), 2))
+                logger.add_meter('precision', round(iter_metrics.precision(), 2))
+                logger.add_meter('f1-score', round(iter_metrics.fbeta_score(), 2))
+                logger.add_meter('f2-score', round(iter_metrics.fbeta_score(beta=2), 2))
+                logger.add_meter('MAE', round(iter_metrics.mae(), 2))
+                logger.add_meter('MSE', round(iter_metrics.mse(), 2))
+                logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
 
             if wandb_flag:
                 wandb.log({
@@ -220,6 +221,7 @@ class Evaluator:
                     'recall': iter_metrics.recall(),
                     'precision': iter_metrics.precision(),
                     'f1_score': iter_metrics.fbeta_score(),
+                    'f2_score': iter_metrics.fbeta_score(beta=2),
                     'MAE': iter_metrics.mae(),
                     'MSE': iter_metrics.mse(),
                     'RMSE': iter_metrics.rmse()
@@ -239,6 +241,7 @@ class Evaluator:
             wandb.run.summary['recall'] =  self.metrics.recall()
             wandb.run.summary['precision'] =  self.metrics.precision()
             wandb.run.summary['f1_score'] =  self.metrics.fbeta_score()
+            wandb.run.summary['f2_score'] =  self.metrics.fbeta_score(beta=2)
             wandb.run.summary['MAE'] =  self.metrics.mae()
             wandb.run.summary['MSE'] =  self.metrics.mse()
             wandb.run.summary['RMSE'] =  self.metrics.rmse()
@@ -252,6 +255,8 @@ class Evaluator:
             return self.metrics.precision()
         elif returns == 'f1_score':
             return self.metrics.fbeta_score()
+        elif returns == 'f2_score':
+            return self.metrics.fbeta_score(beta=2)
         elif returns == 'mse':
             return self.metrics.mse()
         elif returns == 'mae':

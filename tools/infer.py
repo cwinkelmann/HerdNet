@@ -86,11 +86,12 @@ def main():
 
     classes = {
         1: 'iguana',
-               2: 'Buffalo',
-               3: 'Kob',
-               4: 'Warthog',
-               5: 'Waterbuck',
-               6: 'Elephant'
+        2: 'hard_negative',
+        3: 'Kob',
+        4: 'Warthog',
+        5: 'Waterbuck',
+        6: 'Elephant',
+        7: 'Impala',
                }
 
     num_classes = len(classes) + 1
@@ -103,8 +104,10 @@ def main():
     img_std= [0.229, 0.224, 0.225]
     # Prepare dataset and dataloader
     img_names = [i for i in os.listdir(args.root) 
-            if i.endswith(('.JPG','.jpg','.JPEG','.jpeg'))]
+            if i.endswith(('.JPG','.jpg','.JPEG','.jpeg', ".tiff", ".tif"))]
     n = len(img_names)
+    if n == 0:
+        raise FileNotFoundError(f"No images found in {args.root}.")
     df = pandas.DataFrame(data={'images': img_names, 'x': [0]*n, 'y': [0]*n, 'labels': [1]*n})
     
     end_transforms = []
@@ -144,11 +147,12 @@ def main():
             ) 
 
     metrics = PointsMetrics(radius=5, num_classes = num_classes)
+
     evaluator = HerdNetEvaluator(
         model = model,
         dataloader = dataloader,
         metrics = metrics,
-        lmds_kwargs = dict(kernel_size=(3, 3), adapt_ts=0.2),
+        lmds_kwargs = dict(kernel_size=(3, 3), adapt_ts=0.2), # TODO get this from a config
         device_name = device,
         print_freq = args.pf,
         stitcher = stitcher,

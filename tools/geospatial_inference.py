@@ -4,156 +4,45 @@ config based inference script which takes the test/herdnets.yaml configuration f
 """
 
 
-__copyright__ = \
-    """
-    Copyright (C) 2024 University of Liège, Gembloux Agro-Bio Tech, Forest Is Life
-    All rights reserved.
-
-    This source code is under the MIT License.
-
-    Please contact the author Alexandre Delplanque (alexandre.delplanque@uliege.be) for any questions.
-
-    Last modification: March 18, 2024
-    """
-__author__ = "Alexandre Delplanque"
-__license__ = "MIT License"
-__version__ = "0.2.1"
-
-from pathlib import Path
-
 import PIL
+import albumentations as A
+import hydra
 import numpy
 import numpy as np
-import torch
-import hydra
-import wandb
-import animaloc
 import os
-import torchvision
 import pandas
-
-import albumentations as A
-
-from torch.utils.data import DataLoader
-from omegaconf import DictConfig
-from typing import Callable
-
-from animaloc.data.transforms import DownSample
-from animaloc.models.utils import load_model, LossWrapper
-from animaloc.eval import Evaluator, Metrics, PointsMetrics, BoxesMetrics
-from animaloc.eval.stitchers import Stitcher
+import torch
+import wandb
+from PIL import Image
 from loguru import logger
+from omegaconf import DictConfig
+from pathlib import Path
+from torch.utils.data import DataLoader
+
+import animaloc
+from animaloc.data.transforms import DownSample
+from animaloc.eval import PointsMetrics, BoxesMetrics
 from animaloc.utils.useful_funcs import current_date, mkdir
 from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
+from tools.inference_test import _set_species_labels, _get_collate_fn, _build_model, _define_evaluator
 
-from PIL import Image
 Image.MAX_IMAGE_PIXELS = None  # Disable the limit
 
 
-def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
-    assert 'species' in df.columns
-    cls_dict = dict(map(reversed, cls_dict.items()))
-    df['labels'] = df['species'].map(cls_dict)
-
-def _build_model(cfg: DictConfig) -> torch.nn.Module:
-
-    name = cfg.model.name
-    from_torchvision = cfg.model.from_torchvision
-
-    if from_torchvision:
-        assert name in torchvision.models.__dict__.keys(), \
-            f'\'{name}\' unfound in torchvision\'s models'
-
-        model = torchvision.models.__dict__[name]
-
-    else:
-        assert name in animaloc.models.__dict__.keys(), \
-            f'\'{name}\' class unfound, make sure you have included the class in the models list'
-
-        model = animaloc.models.__dict__[name]
-
-    kwargs = dict(cfg.model.kwargs)
-    for k in ['num_classes']:
-        kwargs.pop(k, None)
-    
-    model = model(**kwargs, num_classes=cfg.dataset.num_classes)
-    model = LossWrapper(model, [])
-    model = load_model(model, cfg.model.pth_file)
-    return model
-
-def _get_collate_fn(cfg: DictConfig) -> Callable:
-    fn = cfg.dataset.collate_fn
-    if fn is not None:
-        fn = animaloc.data.batch_utils.__dict__[fn]
-    return fn
-
-def _define_stitcher(model: torch.nn.Module, cfg: DictConfig) -> Stitcher:
-
-    name = cfg.stitcher.name
-
-    assert name in animaloc.eval.stitchers.__dict__.keys(), \
-        f'\'{name}\' class unfound, make sure you have included the class in the stitchers list'
-
-    kwargs = dict(cfg.stitcher.kwargs)
-    for k in ['model','size','device_name']:
-        kwargs.pop(k, None)
-
-    stitcher = animaloc.eval.stitchers.__dict__[name](
-        model = model,
-        size = cfg.dataset.img_size,
-        **kwargs,
-        device_name = cfg.device_name
-        ) 
-
-    return stitcher
-
-def _define_evaluator(
-    model: torch.nn.Module, 
-    dataloader: torch.utils.data.DataLoader, 
-    metrics: Metrics, 
-    cfg: DictConfig
-    ) -> Evaluator:
-
-    name = cfg.evaluator.name
-
-    assert name in animaloc.eval.evaluators.__dict__.keys(), \
-        f'\'{name}\' class unfound, make sure you have included the class in the evaluators list'
-
-    stitcher = None
-    if cfg.stitcher is not None:
-        stitcher = _define_stitcher(model, cfg)
-    
-    kwargs = dict(cfg.evaluator.kwargs)
-    for k in ['model','dataloader','metrics','device_name','stitcher','header']:
-        kwargs.pop(k, None)
-
-    evaluator = animaloc.eval.evaluators.__dict__[name](
-        model = model,
-        dataloader = dataloader,
-        metrics = metrics,
-        device_name = cfg.device_name,
-        stitcher = stitcher,
-        header = '[TEST]',
-        **kwargs
-    )
-
-    return evaluator
 
 
 @hydra.main(config_path='../configs', config_name="config_2025_04_14_dla")
-def main(cfg: DictConfig) -> None:
+def main(cfg: DictConfig, plain_inference = True) -> None:
 
     # retrieving the test part of the config
     cfg = cfg.test # TODO move this to the other config
+    ts = 256  # Thumbnail size
 
     current_directory = Path(os.getcwd())
     logger.info(f"Current directory: {current_directory}")
 
-    # down_ratio = 1
-    plain_inference = True
 
-    if 'down_ratio' in cfg.model.kwargs.keys():
-        down_ratio = cfg.model.kwargs.down_ratio
+    down_ratio = cfg.model.kwargs.down_ratio
 
     if cfg.wandb_flag:
         # Set up wandb
@@ -189,6 +78,7 @@ def main(cfg: DictConfig) -> None:
             raise FileNotFoundError(f"No images found in {cfg.dataset.root_dir}.")
         test_df = pandas.DataFrame(data={'images': img_names, 'x': [0] * n, 'y': [0] * n, 'labels': [1] * n})
         test_df["species"] = "iguana"
+
     else:
         test_df = pandas.read_csv(cfg.dataset.csv_file)
 
@@ -232,38 +122,6 @@ def main(cfg: DictConfig) -> None:
     plots_path = current_directory / 'plots'
     plots_path.mkdir(exist_ok=True, parents=True)
 
-    if not plain_inference:
-     # 1) PR curves
-
-        pr_curve = PlotPrecisionRecall(legend=True)
-
-        print(f"Saving the results ..., plots: {plots_path}")
-
-        metrics = evaluator._stored_metrics
-        for c in range(1, metrics.num_classes):
-            rec, pre = metrics.rec_pre_lists(c)
-            pr_curve.feed(rec, pre, label=cls_dict[c])
-        try:
-            pr_curve.save(plots_path / 'precision_recall_curve.png')
-        except IndexError:
-            logger.error('Weird index error, skipping PR curve plot')
-
-        logger.info(" 2) metrics per class")
-        df_res = evaluator.results
-        cols = df_res.columns.tolist()
-        str_cls_dict = {str(k): v for k,v in cls_dict.items()}
-        str_cls_dict.update({'binary': 'binary'})
-        df_res['species'] = df_res['class'].map(str_cls_dict)
-        df_res = df_res[['class', 'species'] + cols[1:]]
-        print(df_res[["species", "precision", "recall", "f1_score", "mae"]])
-
-        df_res.to_csv(current_directory / 'metrics_results.csv', index=False)
-
-        logger.info(" 3) confusion matrix")
-        cm = pandas.DataFrame(metrics.confusion_matrix, columns=cls_names, index=cls_names)
-        cm.to_csv(current_directory / 'confusion_matrix.csv')
-        print(cm)
-
     logger.info("4) detections")
     detections =  evaluator.detections
     logger.info(f"Num detections: {len(detections)}")
@@ -299,7 +157,6 @@ def main(cfg: DictConfig) -> None:
         output = draw_points(img, pts, color='red', size=30)
         output.save(os.path.join(dest_plots, img_name), format="JPEG", quality=95)
 
-        ts = 256 # Thumbnail size
         # Create and export thumbnails
         sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
         for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):

@@ -181,7 +181,7 @@ class DownSample:
 
         if isinstance(image, PIL.Image.Image):
             image = torchvision.transforms.ToTensor()(image)
-        logger.warning(f'Down-sampling the annotations with a ratio of {self.down_ratio}, but kept the image at {image.size(2)}', )
+        # logger.warning(f'Down-sampling the annotations with a ratio of {self.down_ratio}, but kept the image at {image.size(2)}', )
         if self.anno_type == 'bbox':
             
             target['boxes'] = torch.div(target['boxes'], self.down_ratio, rounding_mode='floor')

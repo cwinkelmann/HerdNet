@@ -1,8 +1,8 @@
 wandb_project: 'Herdnet_Test'
 wandb_entity: 'karisu'
 wandb_flag: True
-wandb_run: 'test_2025-02-27'
-device_name: 'mps'
+wandb_run: 'geospatial_all_random_test_2025-04-14'
+device_name: 'cuda:0'
 
 model: 
   name: 'HerdNet'
@@ -33,8 +33,11 @@ dataset:
 
   name: 'CSVDataset'
   # Many images
-  csv_file: '/Users/christian/data/Manual Counting/Fer_FNF02_19122021/herdnet_fake.csv'
-  root_dir: '/Users/christian/data/Manual Counting/Fer_FNF02_19122021/tiles'
+  # csv_file: '//Users/christian/PycharmProjects/hnee/HerdNet/data/2025_02_22_HIT/segments_points_many/train/herdnet_format_crops.csv'
+  csv_file: null
+  # root_dir: '//Users/christian/PycharmProjects/hnee/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
+  # root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/01_segment_pretraining/segments_12/train/padded_images'
+  root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/FMO02_full_orthophoto_tiles/'
 
   mean: [0.485, 0.456, 0.406]
   std: [0.229, 0.224, 0.225]

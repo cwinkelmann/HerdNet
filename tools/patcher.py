@@ -13,7 +13,8 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
+from PIL import Image
+Image.MAX_IMAGE_PIXELS = None
 import argparse
 import os
 import PIL
@@ -62,6 +63,9 @@ def main():
 
     for img_path in tqdm(images_paths, desc='Exporting patches'):
         pil_img = PIL.Image.open(img_path)
+        # convert to RGB
+        if pil_img.mode != 'RGB':
+            pil_img = pil_img.convert('RGB')
         img_tensor = torchvision.transforms.ToTensor()(pil_img)
         img_name = os.path.basename(img_path)
 
