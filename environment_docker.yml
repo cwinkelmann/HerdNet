@@ -1,0 +1,27 @@
+name: herdnet
+channels:
+  - pytorch
+  - defaults
+
+dependencies:
+  - python=3.11
+  - pip
+  - numpy<2.0
+  - scikit-learn==1.6.1
+  - pandas~=2.3.0
+  - matplotlib==3.10.3
+
+  - pip:
+     - albumentations==1.0.3 #
+     - fiftyone
+     - hydra-core==1.1.0
+     - opencv-python>=4.5.1.48
+     - pillow==8.2.0
+     - scikit-image==0.18.1 #
+     - scipy>=1.9.3
+     - wandb
+     - tqdm==4.66.5
+     - timm==1.0.15
+     - gdown==5.2.0
+     - jupyterlab==3.4.4
+     - loguru

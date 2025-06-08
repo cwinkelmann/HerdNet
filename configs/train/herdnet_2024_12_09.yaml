@@ -3,18 +3,18 @@ wandb_project: 'herdnet'
 wandb_entity: 'karisu'
 wandb_run: 'FMO03_02_05'
 seed: 1
-device_name: 'cuda'
+device_name: 'cpu'
 
 model: 
-  name: 'HerdNet'
+  name: 'HerdNetResNet'
   from_torchvision: False
   # load_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-09/13-28-39/best_model.pth"
   load_from: null
   # resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-07/23-11-21/latest_model.pth"
   resume_from: null
   kwargs:
-    num_layers: 60
-    pretrained: null
+    num_layers: 34
+    pretrained: true
     down_ratio: 2
     head_conv: 64
   freeze: null
@@ -150,7 +150,8 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  epochs: 2
+  epochs: 6
+  num_workers: 2
   valid_freq: 5
   print_freq: 100
   batch_size: 10

@@ -1,0 +1,46 @@
+# Base image with CUDA 11.3, cuDNN 8, and Python 3.9
+# FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-devel
+
+FROM pytorch/pytorch:2.6.0-cpython3.11-cuda12.6-cudnn9-devel
+
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY environment_docker.yml /app/environment.yml
+RUN conda env update -n base -f environment.yml
+
+# Install additional dependencies
+# RUN pip install --no-cache-dir gdown==5.2.0 jupyterlab
+
+# Copy your code
+COPY data_FMO03_02_05 data/data_FMO03_02_05
+COPY animaloc animaloc
+COPY configs configs
+COPY notebooks notebooks
+COPY tools tools
+
+# Configure Jupyter
+ENV JUPYTER_PASSWORD=123456
+RUN mkdir -p /root/.jupyter && \
+    python -c "from jupyter_server.auth import passwd; \
+               print(f'c.ServerApp.password = \"{passwd(\"${JUPYTER_PASSWORD}\")}\"')" \
+    > /root/.jupyter/jupyter_lab_config.py
+
+EXPOSE 8888
+
+# Start Jupyter Lab
+CMD ["jupyter-lab", "--ip=0.0.0.0", "--allow-root", "--no-browser", "--NotebookApp.allow_origin='*'", "--NotebookApp.disable_check_xsrf=True", "--NotebookApp.allow_remote_access=True"]
+
+

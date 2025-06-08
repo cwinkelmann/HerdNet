@@ -295,6 +295,7 @@ class Trainer:
                         wandb.log({"mse": self.evaluator.metrics.mse(), 'epoch': epoch})
                         wandb.log({"rmse": self.evaluator.metrics.rmse(), 'epoch': epoch})
                         wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
+                        wandb.log({"f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
 
 
                 elif self.val_dataloader is not None:

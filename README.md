@@ -57,6 +57,19 @@ Create a [Weights & Biases](https://wandb.ai/home) account and then log in
 wandb login
 ```
 
+Use the docker container
+```shell
+# Now test with
+
+docker build -f Dockerfile_2 -t dockerkartok/herdnet:latest  . && docker run --gpus all -it --rm -p 8891:8888 --name cw_herdnet herdnet-image
+
+docker push dockerkartok/herdnet:latest
+
+# run the container
+docker run -it -p 8888:8888 herdnet:latest
+```
+
+
 ## Dataset Format
 A CSV file which must contain the header **`images,x,y,labels`** for points, or **`images,x_min,y_min,x_max,y_max,y,labels`** for bounding boxes. Each row should represent one annotation, with at least, the image name (``images``), the object location within the image (`x`, `y`) for points, and (`x_min`, `y_min`, `x_max`, `y_max`) for bounding boxes and its label (`labels`):
 
