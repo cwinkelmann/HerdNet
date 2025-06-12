@@ -140,6 +140,7 @@ def _define_evaluator(
     return evaluator
 
 
+
 @hydra.main(config_path='../configs', config_name="config_2025_04_14_dla")
 def main(cfg: DictConfig) -> None:
 
@@ -150,7 +151,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Current directory: {current_directory}")
 
     # down_ratio = 1
-    plain_inference = True
+    plain_inference = False
 
     if 'down_ratio' in cfg.model.kwargs.keys():
         down_ratio = cfg.model.kwargs.down_ratio
@@ -189,12 +190,13 @@ def main(cfg: DictConfig) -> None:
             raise FileNotFoundError(f"No images found in {cfg.dataset.root_dir}.")
         test_df = pandas.DataFrame(data={'images': img_names, 'x': [0] * n, 'y': [0] * n, 'labels': [1] * n})
         test_df["species"] = "iguana"
+    # load ground truth annotations
     else:
         test_df = pandas.read_csv(cfg.dataset.csv_file)
 
         _set_species_labels(cls_dict, df=test_df)
 
-    # TODO why is this definehere and the config is not used?
+    # TODO why is this defined here and the config to build the Augmentations
     test_dataset = animaloc.datasets.__dict__[cfg.dataset.name](
         csv_file = test_df,
         root_dir = cfg.dataset.root_dir,
@@ -221,6 +223,7 @@ def main(cfg: DictConfig) -> None:
     else:
         raise NotImplementedError
 
+    logger.info(f"Define Evaluator: {anno_type}")
     evaluator = _define_evaluator(model, test_dataloader, metrics, cfg)
 
     # Start testing
@@ -233,7 +236,7 @@ def main(cfg: DictConfig) -> None:
     plots_path.mkdir(exist_ok=True, parents=True)
 
     if not plain_inference:
-     # 1) PR curves
+        # 1) PR curves
 
         pr_curve = PlotPrecisionRecall(legend=True)
 

@@ -180,7 +180,7 @@ class HerdNetLMDS(LMDS):
         
         # upsample class map
         if self.up:
-            scale_factor = 16
+            scale_factor = 16 # TODO this is hardcoded, should be set in the model
             clsmap = F.interpolate(clsmap, scale_factor=scale_factor, mode='nearest')
 
         # softmax

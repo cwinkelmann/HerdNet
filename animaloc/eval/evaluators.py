@@ -188,25 +188,37 @@ class Evaluator:
             images, targets = self.prepare_data(images, targets)
 
             if self.stitcher is not None:
-                output = self.stitcher(images[0])
-                output = self.post_stitcher(output)
+                model_output = self.stitcher(images[0]) # remove batch dimension
+                model_output = self.post_stitcher(model_output)
             else:
                 # output, _ = self.model(images, targets)  
-                output, _ = self.model(images)
+                model_output, _ = self.model(images)
 
             if viz and self.vizual_fn is not None:
                 if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
-                    fig = self._vizual(image = images, target = targets, output = output)
+                    fig = self._vizual(image = images, target = targets, output = model_output)
                     wandb.log({'validation_vizuals': fig})
+            # the model output is a list of 2 tensors, one heatmap one class map
+            output_prediction = self.prepare_feeding(targets, model_output)
 
-            output = self.prepare_feeding(targets, output)
 
-            # TODO what is the format of this?
-
-            iter_metrics.feed(**output)
+            # for each image feed outputs and aggregate metrics, should look like
+            """
+            {'est_count': [7, 0, 0, 0, 0, 0, 0], 
+            'gt': {'labels': [1], 
+            'loc': [[1596.0, 1747.0]]}, 
+            'preds': {'dscores': [0.19435586035251617, 0.27331411838531494, 0.18535958230495453, 0.23847505450248718, 0.30953675508499146, 0.2966581881046295, 0.31906700134277344], 
+            'labels': [1, 1, 1, 1, 1, 1, 1], 
+            'loc': [[9.0, 1181.0], [174.0, 187.0], [182.0, 1025.0], [423.0, 1246.0], [581.0, 840.0], [1007.0, 54.0], [1593.0, 1744.0]], 
+            'scores': [0.8123772740364075, 0.970843493938446, 0.9492995738983154, 0.9641066193580627, 0.9905760288238525, 0.9475813508033752, 0.9999991655349731]}}
+            """
+            iter_metrics.feed(**output_prediction)
             iter_metrics.aggregate()
             if log_meters:
-                logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn))
+                logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp))
+                logger.add_meter('tp', sum(iter_metrics.tp))
+                logger.add_meter('fp', sum(iter_metrics.fp))
+                logger.add_meter('fn', sum(iter_metrics.fn))
                 logger.add_meter('recall', round(iter_metrics.recall(), 2))
                 logger.add_meter('precision', round(iter_metrics.precision(), 2))
                 logger.add_meter('f1-score', round(iter_metrics.fbeta_score(), 2))
@@ -214,22 +226,29 @@ class Evaluator:
                 logger.add_meter('MAE', round(iter_metrics.mae(), 2))
                 logger.add_meter('MSE', round(iter_metrics.mse(), 2))
                 logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
+                logger.add_meter('avg_score', round(iter_metrics.avg_score(), 2))
+                logger.add_meter('avg_dscore', round(iter_metrics.avg_dscore(), 3))
 
             if wandb_flag:
                 wandb.log({
-                    'n': sum(iter_metrics.tp) + sum(iter_metrics.fn),
+                    'n': sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp),
+                    'tp': sum(iter_metrics.tp),
+                    'fp': sum(iter_metrics.fp),
+                    'fn': sum(iter_metrics.fn),
                     'recall': iter_metrics.recall(),
                     'precision': iter_metrics.precision(),
                     'f1_score': iter_metrics.fbeta_score(),
                     'f2_score': iter_metrics.fbeta_score(beta=2),
                     'MAE': iter_metrics.mae(),
                     'MSE': iter_metrics.mse(),
-                    'RMSE': iter_metrics.rmse()
+                    'RMSE': iter_metrics.rmse(),
+                    'avg_score': iter_metrics.avg_score(),
+                    'avg_dscore': iter_metrics.avg_dscore(),
                     })
 
             iter_metrics.flush()
 
-            self.metrics.feed(**output)
+            self.metrics.feed(**output_prediction)
         
         self._stored_metrics = self.metrics.copy()
 
@@ -247,6 +266,15 @@ class Evaluator:
             wandb.run.summary['RMSE'] =  self.metrics.rmse()
             wandb.run.summary['accuracy'] =  self.metrics.accuracy()
             wandb.run.summary['mAP'] =  mAP
+            wandb.run.summary['tp'] =  sum(self.metrics.tp)
+            wandb.run.summary['fn'] =  sum(self.metrics.fn)
+            wandb.run.summary['fp'] =  sum(self.metrics.fp)
+            wandb.run.summary['n'] =  sum(self.metrics.fp) +  sum(self.metrics.fn) + sum(self.metrics.tp)
+            wandb.run.summary['avg_score'] =  self.metrics.avg_score()
+            wandb.run.summary['avg_dscore'] =  self.metrics.avg_dscore()
+
+            print(f"Wandb summary: {wandb.run.summary}")
+
             wandb.run.finish()
 
         if returns == 'recall':

@@ -16,6 +16,8 @@ __version__ = "0.2.1"
 
 import math
 import copy
+
+import numpy as np
 import sklearn.neighbors
 import numpy
 from loguru import logger
@@ -67,6 +69,7 @@ class Metrics:
         self.num_classes = num_classes
 
         self.detections = []
+        self.predictions = []
         self.idx = 0
 
         self.tp = self._init_attr()
@@ -87,7 +90,8 @@ class Metrics:
         self._confusion_matrix = self.confusion_matrix
 
     def feed(self, gt: dict, preds: dict, est_count: Optional[list] = None) -> None:
-        ''' Feed the object with ground truth and predictions and returns
+        '''
+        Feed the object with ground truth and predictions and returns
         specified metrics optionally.
 
         Args:
@@ -189,6 +193,7 @@ class Metrics:
         self._ap_tables = [[[1,*x[1:]] for x in sum(self._ap_tables, [])]]
         self._confusion_matrix = numpy.array([[1.]])
         self._total_count = [sum(self._total_count)]
+        # self.predictions =
 
     def precision(self, c: int = 1) -> float:
         ''' Precision 
@@ -344,7 +349,28 @@ class Metrics:
             return tp / N
         else:
             return 0.
-    
+
+    def avg_score(self) -> float:
+        ''' Average score of predictions
+
+        Returns:
+            float
+        '''
+        if len(self.detections) > 0:
+            return float(np.mean([det.get("scores", 0) for det in self.detections]))
+        else:
+            return 0.0
+
+    def avg_dscore(self) -> float:
+        ''' Average detection score of predictions
+
+        Returns:
+            float
+        '''
+        if len(self.detections) > 0:
+            return float(np.mean([det.get("dscores", 0) for det in self.detections]))
+        else:
+            return 0.0
     def total_count(self, c: int = 1) -> float:
         ''' Total class count
         Args: 
@@ -543,6 +569,8 @@ class PointsMetrics(Metrics):
                 self.detections.append({'images': self.idx, **det, **counts})
         else:
             self.detections.append({'images': self.idx, **counts})
+
+
 
 @METRICS.register()
 class BoxesMetrics(Metrics):

@@ -358,6 +358,7 @@ class FIDT:
             image = torchvision.transforms.ToTensor()(image)
         
         self.img_height, self.img_width = image.size(1), image.size(2)
+
         if self.down_ratio is not None:
             self.img_height = self.img_height // self.down_ratio
             self.img_width = self.img_width // self.down_ratio

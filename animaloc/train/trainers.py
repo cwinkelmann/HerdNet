@@ -284,17 +284,25 @@ class Trainer:
                     viz = False
                     if wandb_flag: viz = True
                     self._prepare_evaluator('validation', epoch)
-                    val_output = self.evaluator.evaluate(returns=validate_on, viz=viz)
+                    val_output = self.evaluator.evaluate(returns=validate_on, viz=viz, wandb_flag=False)
 
                     print(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
+                        wandb.log({"f2-score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
+                        wandb.log({'true_positive': sum(self.evaluator.metrics.tp), 'epoch': epoch})
+                        wandb.log({'false_negative': sum(self.evaluator.metrics.fn), 'epoch': epoch})
+                        wandb.log({'false_positive': sum(self.evaluator.metrics.fp), 'epoch': epoch})
+                        wandb.log({'n': sum(self.evaluator.metrics.tp) + sum(self.evaluator.metrics.fn) + sum(self.evaluator.metrics.fp), 'epoch': epoch})
                         wandb.log({"recall": self.evaluator.metrics.recall(), 'epoch': epoch})
                         wandb.log({"precision": self.evaluator.metrics.precision(), 'epoch': epoch})
                         wandb.log({"mse": self.evaluator.metrics.mse(), 'epoch': epoch})
+                        wandb.log({"mae": self.evaluator.metrics.mae(), 'epoch': epoch})
                         wandb.log({"rmse": self.evaluator.metrics.rmse(), 'epoch': epoch})
                         wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
+                        wandb.log({"avg_scores": self.evaluator.metrics.avg_score(), 'epoch': epoch})
+                        wandb.log({"avg_dscores": self.evaluator.metrics.avg_dscore(), 'epoch': epoch})
 
 
                 elif self.val_dataloader is not None:

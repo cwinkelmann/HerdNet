@@ -34,6 +34,8 @@ from animaloc.eval import Evaluator, PointsMetrics, Stitcher, BoxesMetrics, Imag
 
 from animaloc.utils.seed import set_seed
 from animaloc.utils.useful_funcs import current_date
+# from datasets import visualize_dataset_examples
+
 
 def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
     # FIXME 'species' is not in train_patches.csv
@@ -225,7 +227,7 @@ def _define_evaluator(
 
 # @hydra.main(config_path='../configs', config_name="config_2025_02_22_segments")
 # @hydra.main(config_path='../configs', config_name="config_2025_04_14_resnet")
-@hydra.main(config_path='../configs', config_name="config_2025_04_26_geospatial")
+@hydra.main(config_path='../configs', config_name="config_2025_06_08_hasty")
 def main(cfg: DictConfig) -> None:
     work_dir = None
     logger.info(f"Using config: {cfg}")
@@ -257,6 +259,9 @@ def main(cfg: DictConfig) -> None:
         albu_transforms = _load_albu_transforms(train_args.albu_transforms),
         end_transforms = _load_end_transforms(train_args.end_transforms)
         )
+
+    # visualize_dataset_examples(train_dataset, num_examples=8)
+
     
     train_dl_kwargs = dict(
         batch_size=cfg.training_settings.batch_size,
@@ -309,7 +314,13 @@ def main(cfg: DictConfig) -> None:
             seed = cfg.seed,
             data_augmentation = list(cfg.datasets.train.albu_transforms.keys()),
             input_size = cfg.datasets.img_size,
-            **cfg.model.kwargs
+            class_def = cfg.datasets.class_def,
+            **cfg.model.kwargs,
+            loss_dict=cfg.losses,
+            dataloader={"train": cfg.datasets.train.name, "val": cfg.datasets.validate.name },
+            data={"train_csv": cfg.datasets.train.csv_file, "val_csv": cfg.datasets.validate.csv_file },
+
+            training_settings = cfg.training_settings,
             )
         )
     
@@ -357,8 +368,6 @@ def main(cfg: DictConfig) -> None:
     
     # Watch the model's gradients during training
     wandb.watch(model)
-    
-
 
     if cfg.training_settings.evaluator is not None:
 
@@ -418,7 +427,6 @@ def main(cfg: DictConfig) -> None:
             wandb_flag = True
             )
 
-    # FIXME : Add information in .pth files correctly, this does not work
     # Add information in .pth files
     for pth_name in ['best_model.pth', 'latest_model.pth']:
         path = current_directory / pth_name
