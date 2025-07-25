@@ -1,7 +1,9 @@
 # Base image with CUDA 11.3, cuDNN 8, and Python 3.9
-# FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-devel
+FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-devel
 
-FROM pytorch/pytorch:2.6.0-cpython3.11-cuda12.6-cudnn9-devel
+# docker build -f Dockerfile_2 -t dockerkartok/herdnet:latest  -t dockerkartok/herdnet:2.6.0-cuda12.6-cudnn9-devel . && docker push dockerkartok/herdnet:latest && docker push dockerkartok/herdnet:2.6.0-cuda12.6-cudnn9-devel
+
+# FROM pytorch/pytorch:2.6.0-cpython3.11-cuda12.6-cudnn9-devel
 
 
 # Set environment variables

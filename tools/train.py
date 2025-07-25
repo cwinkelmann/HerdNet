@@ -323,6 +323,7 @@ def main(cfg: DictConfig) -> None:
     # Build the model
     logger.info('Building the model ...')
     model = _build_model(cfg)
+    # model.reshape_classes(cfg.datasets.num_classes)
 
     # Prepare for training
     logger.info('Preparing for training ...')
@@ -332,11 +333,12 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.load_from is not None:
         model = load_model(model, cfg.model.load_from)
 
-        if 'HerdNet' in cfg.model.name:
-            if cfg.model.freeze is not None:
-                model.model.freeze(layers=list(cfg.model.freeze))
-                logger.info(f"Layers {list(cfg.model.freeze)} freezed")
-    
+    if 'HerdNet' in cfg.model.name:
+        if cfg.model.freeze is not None:
+            model.model.freeze(layers=list(cfg.model.freeze))
+            logger.info(f"Layers {list(cfg.model.freeze)} freezed")
+
+
     if cfg.training_settings.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             model.parameters(),

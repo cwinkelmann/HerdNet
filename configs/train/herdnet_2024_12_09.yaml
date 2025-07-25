@@ -6,9 +6,11 @@ seed: 1
 device_name: 'cpu'
 
 model: 
-  name: 'HerdNetResNet'
+  # name: 'HerdNetResNet'
+  name: 'HerdNet'
   from_torchvision: False
   # load_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-09/13-28-39/best_model.pth"
+  # load_from: "/home/christian/hnee/HerdNet/20220413_HerdNet_General_dataset_2022.pth"
   load_from: null
   # resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-07/23-11-21/latest_model.pth"
   resume_from: null
@@ -17,7 +19,9 @@ model:
     pretrained: true
     down_ratio: 2
     head_conv: 64
-  freeze: null
+  freeze:
+    - base_0
+    - dla_up # Freeze the first 32 layers
 
 losses:
   FocalLoss:

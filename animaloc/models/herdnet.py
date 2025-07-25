@@ -118,6 +118,18 @@ class HerdNet(nn.Module):
                 )
             )
 
+        self.hm_head = nn.Sequential(
+            nn.Conv2d(channels[self.first_level], head_conv,
+                      kernel_size=3, padding=1, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(
+                head_conv, self.num_classes - 1,
+                kernel_size=1, stride=1,
+                padding=0, bias=True
+            ),
+            nn.Sigmoid()
+        )
+
         self.cls_head[-1].bias.data.fill_(0.00)
         
     def forward(self, input: torch.Tensor):
@@ -129,11 +141,12 @@ class HerdNet(nn.Module):
         decode_hm = self.dla_up(encode[self.first_level:])
         # decode_cls = self.cls_dla_up(encode[-3:])
 
+        real_heatmap = self.hm_head(decode_hm)
         heatmap = self.loc_head(decode_hm)
         clsmap = self.cls_head(bottleneck)
         # clsmap = self.cls_head(decode_cls)
 
-        return heatmap, clsmap
+        return heatmap, clsmap, real_heatmap
     
     def freeze(self, layers: list) -> None:
         ''' Freeze all layers mentioned in the input list '''
@@ -241,6 +254,20 @@ class HerdNetResNet(nn.Module):
 
         # Localization head with additional upsampling if needed
         self._build_localization_head()
+
+        self.hm_head = nn.Sequential(
+            nn.Conv2d(
+                      self.channels[self.first_level],
+                      head_conv,
+                      kernel_size=3, padding=1, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(
+                head_conv, self.num_classes - 1,
+                kernel_size=1, stride=1,
+                padding=0, bias=True
+            ),
+            nn.Sigmoid()
+        )
 
         # Classification head
         self.cls_head = nn.Sequential(
