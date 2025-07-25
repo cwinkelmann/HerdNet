@@ -25,5 +25,6 @@ dependencies:
      - matplotlib
      - torchvision==0.20.1
      - tqdm==4.66.5
+     - timm
      - loguru==0.7.3
      - shapely==2.1.1

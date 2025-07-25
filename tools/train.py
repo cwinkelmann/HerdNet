@@ -262,7 +262,7 @@ def main(cfg: DictConfig) -> None:
 
     # visualize_dataset_examples(train_dataset, num_examples=8)
 
-    
+
     train_dl_kwargs = dict(
         batch_size=cfg.training_settings.batch_size,
         shuffle=True,
@@ -342,11 +342,12 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.load_from is not None:
         model = load_model(model, cfg.model.load_from)
 
-        if 'HerdNet' in cfg.model.name:
-            if cfg.model.freeze is not None:
-                model.model.freeze(layers=list(cfg.model.freeze))
-                logger.info(f"Layers {list(cfg.model.freeze)} freezed")
-    
+    if 'HerdNet' in cfg.model.name:
+        if cfg.model.freeze is not None:
+            model.model.freeze(layers=list(cfg.model.freeze))
+            logger.info(f"Layers {list(cfg.model.freeze)} freezed")
+
+
     if cfg.training_settings.optimizer == 'adam':
         optimizer = torch.optim.Adam(
             model.parameters(),

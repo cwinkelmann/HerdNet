@@ -290,7 +290,6 @@ class Trainer:
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
-                        wandb.log({"f2-score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
                         wandb.log({'true_positive': sum(self.evaluator.metrics.tp), 'epoch': epoch})
                         wandb.log({'false_negative': sum(self.evaluator.metrics.fn), 'epoch': epoch})
                         wandb.log({'false_positive': sum(self.evaluator.metrics.fp), 'epoch': epoch})
@@ -303,6 +302,7 @@ class Trainer:
                         wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
                         wandb.log({"avg_scores": self.evaluator.metrics.avg_score(), 'epoch': epoch})
                         wandb.log({"avg_dscores": self.evaluator.metrics.avg_dscore(), 'epoch': epoch})
+                        wandb.log({"f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
 
 
                 elif self.val_dataloader is not None:
