@@ -82,6 +82,7 @@ def analyse_detections(df_detections: pd.DataFrame, df_ground_truth: pd.DataFram
         #     sleep(1)
 
     pd.concat(l_fp).to_csv('/home/christian/hnee/HerdNet/data_iguana/val/20240824_HerdNet_results/false_positives.csv', index=False)
+    pd.concat(l_fn).to_csv('/home/christian/hnee/HerdNet/data_iguana/val/20240824_HerdNet_results/false_negatives.csv', index=False)
 
 
 if __name__ == '__main__':

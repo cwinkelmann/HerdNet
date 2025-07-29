@@ -193,7 +193,7 @@ def main(cfg: DictConfig) -> None:
     # load ground truth annotations
     else:
         test_df = pandas.read_csv(cfg.dataset.csv_file)
-
+        test_df = test_df[test_df['species'] == 'iguana_point'].reset_index(drop=True) # FIXME TODO this is a hack becauce too many labels are in the data
         _set_species_labels(cls_dict, df=test_df)
 
     # TODO why is this defined here and the config to build the Augmentations

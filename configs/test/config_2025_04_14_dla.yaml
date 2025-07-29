@@ -14,11 +14,11 @@ model:
   # pth_file: '/Users/christian/PycharmProjects/hnee/HerdNet/data/models/best_r0.99_p0.74_dla34/best_model_2.pth'
   # pth_file: '/Users/christian/PycharmProjects/hnee/HerdNet/tools/outputs/2025-06-08/21-20-16/best_model.pth'
   # pth_file: '/home/cwinkelmann/work/HerdNet/tools/outputs/20250611_ig_train_geospatial_val_pix4d_2025_06_11_dla_RUN_qcfixu05'
-  pth_file: '/home/cwinkelmann/work/HerdNet/tools/outputs/2025-06-12/08-11-58/best_model.pth'
+  pth_file: '/home/cwinkelmann/work/Herdnet/data/models/best_r0.99_p0.74_dla34/best_model_2.pth'
   kwargs:
     num_layers: 34
     pretrained: False
-    down_ratio: 4 # was two before
+    down_ratio: 2 # was two before
     head_conv: 64
 
 dataset:
@@ -28,7 +28,7 @@ dataset:
   collate_fn: null
 
   class_def:
-    1: 'iguana'
+    1: 'iguana_point'
     2: 'hard_negative'
     3: 'Kob'
     4: 'Warthog'
@@ -44,8 +44,20 @@ dataset:
   # root_dir: '//Users/christian/PycharmProjects/hnee/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
   # root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/01_segment_pretraining/segments_12/train/padded_images'
   # root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/FMO02_full_orthophoto_tiles/'
-  root_dir: '/home/cwinkelmann/work/HerdNet/data/FLPC01-07_orthomosaic_herdnet/jpg_tiles'
-  csv_file: '/home/cwinkelmann/work/HerdNet/data/FLPC01-07_orthomosaic_herdnet/jpg_tiles/herdnet_tiles.csv'
+  #root_dir: '/home/cwinkelmann/work/HerdNet/data/FLPC01-07_orthomosaic_herdnet/jpg_tiles'
+  #csv_file: '/home/cwinkelmann/work/HerdNet/data/FLPC01-07_orthomosaic_herdnet/jpg_tiles/herdnet_tiles.csv'
+
+  # full size
+#  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_blackout/Default'
+#  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_blackout/herdnet_format.csv'
+
+  # full size sample
+  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_blackout/floreana_sample/train/Default'
+  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_blackout/floreana_sample/train/herdnet_format.csv'
+
+#  # crop
+#  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_blackout/Floreana_detection/val/crops_512_numNone_overlap0'
+#  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_blackout/Floreana_detection/val/herdnet_format_512_0_crops.csv'
 
 
   mean: [0.485, 0.456, 0.406]
@@ -64,7 +76,7 @@ evaluator:
 stitcher:
   name: 'HerdNetStitcher'
   kwargs:
-    overlap: 0
+    overlap: 120
     down_ratio: ${test.model.kwargs.down_ratio}
     up: False # TODO False is Default and necessary for the testing evaluation,
     # up: True # TODO True makes the plotting work
@@ -73,5 +85,5 @@ stitcher:
 
 hydra:
   run:
-    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ./outputs/${wandb_run}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 

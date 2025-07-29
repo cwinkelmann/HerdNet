@@ -518,8 +518,8 @@ class PointsMetrics(Metrics):
         filter_match_gt = [(k, d, i) for k, d, i in filter_match_gt if d <= self.threshold]
 
         if len(filter_match_gt) == 0:
-            logger.error(f'NO Prediction is matched to any Ground Truth: filter_match_gt: {filter_match_gt}')
-
+            # logger.error(f'NO Prediction is matched to any Ground Truth: filter_match_gt: {filter_match_gt}')
+            pass
         # confusion matrix
         y_true = [gt['labels'][k] for k, d, i in filter_match_gt]
         y_pred = [preds['labels'][i] for k, d, i in filter_match_gt]

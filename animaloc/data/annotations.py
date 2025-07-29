@@ -250,7 +250,7 @@ class AnnotationsFromCSV(Annotations):
     In such a case, these will be kept and linked to the necessary basic content.
     '''
 
-    def __init__(self, csv: Union[str,pandas.DataFrame]) -> None:
+    def __init__(self, csv: Union[str, pandas.DataFrame]) -> None:
         '''
         Args:
             csv (str or pandas.DataFrame): absolute path to the CSV file (with extension),

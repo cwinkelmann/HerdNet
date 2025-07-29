@@ -13,18 +13,27 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+import typing
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt 
 import random
 import itertools
 
-from typing import Optional
+from typing import Optional, Dict
+
+import wandb
+from matplotlib.figure import Figure
+from sentry_sdk.utils import epoch
+from torch import Tensor
 from torchvision.transforms import ToPILImage
+
+from animaloc.vizual.custom_vis import plot_heatmaps, denormalize_image
 from ..data.transforms import UnNormalize, GaussianMap
 
-__all__ = ['PlotPrecisionRecall']
+__all__ = ['PlotPrecisionRecall', 'Visualiser', 'HeatMapVisualizer', 'visualize_sample']
 
 class PlotPrecisionRecall:
 
@@ -90,3 +99,131 @@ class PlotPrecisionRecall:
     @property
     def _markers(self) -> itertools.cycle:
         return itertools.cycle(('^','o','s','x','D','v','>'))
+
+
+import matplotlib.pyplot as plt
+import torch
+import numpy as np
+from matplotlib.patches import Circle
+from typing import Any
+from torchvision.transforms import ToPILImage
+
+class Visualiser:
+    def __init__(self, output_path: str):
+        self.output_path = output_path
+
+class HeatMapVisualizer(Visualiser):
+    def __init__(self, output_path):
+        super().__init__(output_path)
+
+    def __call__(self, image: Tensor, target: Dict,
+                 output: typing.Tuple[Tensor, Tensor],
+                 epoch: int,
+                 output_name: str = 'heatmap.png',
+                 ):
+
+        """
+        Visualizes a sample image, target points, and model output.
+
+        Args:
+            image: Input image tensor [B, C, H, W] (normalized)
+            target: Target dictionary containing 'points', 'labels'
+            output: Model output (optional) - could be predictions, heatmaps, etc.
+
+        Returns:
+            matplotlib.figure.Figure: The created figure
+        """
+        output_name = f"{target['original_image_name'][0][0]}_{epoch}_heatmap_overlay.png"
+
+        fig = visualize_sample(image, target, output)
+        fig.savefig(Path(self.output_path) / output_name )
+        wandb.log({output_name: wandb.Image(fig)})
+        plt.close(fig)
+
+
+        output_name = f"{target['original_image_name'][0][0]}_{epoch}_heatmap.png"
+        heatmap_fig = visualise_full_res_heatmap(image,
+                                                 target,
+                                                 output
+                                   )
+        wandb.log({output_name: wandb.Image(heatmap_fig)})
+        heatmap_fig.savefig(Path(self.output_path) / output_name)
+        plt.close(heatmap_fig)
+        return fig
+
+def visualize_sample(image: Tensor, target: Dict, output: typing.Tuple[Tensor, Tensor],):
+    """
+    Visualization function compatible with animaloc.vizual.plots interface.
+
+    Args:
+        image: Input image tensor [B, C, H, W] (normalized)
+        target: Target dictionary containing 'points', 'labels'
+        output: Model output (optional) - could be predictions, heatmaps, etc.
+
+    Returns:
+        matplotlib.figure.Figure: The created figure
+    """
+    cls_map = output[1]
+    obj_heatmap = output[0]
+
+    image = image.squeeze(0)
+    obj_heatmap = obj_heatmap.squeeze(0)
+    cls_heatmap = cls_map.squeeze(0)
+    
+    fig, axes = plot_heatmaps(image, obj_heatmap, class_names=None, max_channels=2,
+                  overlay_channel=0, alpha=0.5, show_argmax_overlay=True)
+
+    return fig
+
+def visualise_full_res_heatmap(
+    image: Tensor,
+    target: Dict[str, Any],
+    output: typing.Tuple[Tensor, Tensor],
+
+) -> Figure:
+    """
+    Visualizes a full resolution heatmap with the input image and target points.
+
+    Args:
+        image (Tensor): Input image tensor [B, C, H, W] (normalized)
+        target (Dict[str, Any]): Target dictionary containing 'points', 'labels'
+        output (Tuple[Tensor, Tensor]): Model output (heatmap, class map)
+        output_name (str): Name of the output file
+        output_path (str): Path to save the output file
+    """
+    fig, ax = plt.subplots(1, 1, figsize=(20, 20))
+
+    cls_map = output[1]
+    obj_heatmap = output[0]
+
+
+    image_tensor = image.squeeze(0)
+    obj_heatmap = obj_heatmap.squeeze(0)
+    # TODO estimate the down_ratio from the model or dataset
+
+    image_np = denormalize_image(image_tensor)
+    heatmap_tensor = obj_heatmap.detach().cpu()
+
+    H, W = image_tensor.shape[1], image_tensor.shape[2]
+    HH, HW = obj_heatmap.detach().cpu().shape[1], obj_heatmap.detach().cpu().shape[2]
+
+    dr_y = H / HH
+    dr_x = W / HW
+
+    heatmap_tensor = F.interpolate(heatmap_tensor.unsqueeze(0),
+                                   size=(H, W), mode='bilinear', align_corners=False)[0]
+
+    heatmap_np = heatmap_tensor.squeeze(0).cpu().numpy()
+
+    ax.imshow(image_np)
+    ax.imshow(heatmap_np, cmap='jet', alpha=0.5)
+
+    points = target["points"].squeeze(0).cpu().numpy()
+    points = points * dr_x
+    # plot these points
+    for (x, y) in points:
+        ax.plot(x, y, 'wo', markersize=1, markeredgewidth=1.0)
+    ax.set_title("Image with Heatmap Overlay")
+    ax.axis("off")
+
+    return fig

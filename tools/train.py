@@ -13,221 +13,70 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-from pathlib import Path
-
-import torch
-import hydra
-import animaloc
-import wandb
-import pandas
 import os
-import torchvision
+import subprocess
+from pathlib import Path
+from typing import List, Tuple, Any
+
+import hydra
+import pandas
+import torch
+import wandb
 from loguru import logger
-import albumentations as A
-
-from torch.utils.data import DataLoader, Dataset
+from matplotlib import pyplot as plt
 from omegaconf import DictConfig
-from typing import Callable, Optional
+from torch.utils.data import DataLoader
 
+import animaloc
 from animaloc.models.utils import LossWrapper, load_model
-from animaloc.eval import Evaluator, PointsMetrics, Stitcher, BoxesMetrics, ImageLevelMetrics
-
 from animaloc.utils.seed import set_seed
 from animaloc.utils.useful_funcs import current_date
-# from datasets import visualize_dataset_examples
+from tools.train_helper import _get_collate_fn, _build_sampler, _load_albu_transforms, _load_end_transforms, \
+    _build_model, _load_losses, _define_evaluator, _define_visualiser
+from animaloc.vizual.custom_vis import plot_heatmaps
 
 
-def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
-    # FIXME 'species' is not in train_patches.csv
-    assert 'species' in df.columns
-    cls_dict = dict(map(reversed, cls_dict.items()))
-    df['labels'] = df['species'].map(cls_dict)
+def get_least_occupied_gpu_nvidia_smi() -> int:
+    """
+    Get the GPU with the least memory usage using nvidia-smi.
+    More accurate as it shows total system memory usage, not just PyTorch.
 
-    # assert none of the labels are None
-    assert df['labels'].isnull().any() == False
+    Returns:
+        int: GPU device ID with least memory usage
+    """
+    try:
+        # Run nvidia-smi to get GPU memory info
+        result = subprocess.run([
+            'nvidia-smi',
+            '--query-gpu=index,memory.used,memory.total',
+            '--format=csv,noheader,nounits'
+        ], capture_output=True, text=True, check=True)
 
-def _load_albu_transforms(tr_cfg: dict) -> list:
-    transforms = []
-    for name , kwargs in tr_cfg.items():
-        transforms.append(A.__dict__[name](**kwargs))
-    
-    return transforms
+        gpu_info = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split(', ')
+                gpu_id = int(parts[0])
+                memory_used = int(parts[1])  # MB
+                memory_total = int(parts[2])  # MB
+                usage_percent = memory_used / memory_total
+                gpu_info.append((gpu_id, memory_used, usage_percent))
 
-def _load_end_transforms(tr_cfg: DictConfig) -> Optional[list]:
+        # Sort by memory usage and return GPU with least usage
+        gpu_info.sort(key=lambda x: x[1])  # Sort by absolute memory used
+        
+        logger.info(f"GPU memory usage: {gpu_info}")
+        
+        return gpu_info[0][0]
 
-    if tr_cfg is not None:
-        transforms = []
-        for name , kwargs in tr_cfg.items():
-            
-            if name == 'MultiTransformsWrapper':
-                tr_list = []
-                for n, k in kwargs.items():
-                    tr_list.append(animaloc.data.transforms.__dict__[n](**k))
-                
-                transforms.append(animaloc.data.transforms.__dict__[name](tr_list))
-
-            else:
-                transforms.append(animaloc.data.transforms.__dict__[name](**kwargs))
-
-        return transforms
- 
-    else:
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running nvidia-smi: {e}")
         return None
 
-def _build_sampler(sampler_cfg: DictConfig, dl_kwargs: dict, dataset: Dataset) -> dict:
-    dl_kwargs = dl_kwargs.copy()
-    
-    sampler = animaloc.data.samplers.__dict__[sampler_cfg.name]
-    if sampler_cfg.data_source == 'dataset':
-        sampler = sampler(dataset, **dict(sampler_cfg.kwargs))
-    else:
-        raise NotImplementedError
-
-    if sampler_cfg.batch:
-        dl_kwargs.update(dict(batch_size=1, shuffle=False, batch_sampler=sampler))
-    else:
-        dl_kwargs.update(dict(shuffle=False, sampler=sampler))
-
-    return dl_kwargs
-
-def _get_collate_fn(cfg: DictConfig) -> Callable:
-    fn = cfg.datasets.collate_fn
-    if fn is not None:
-        fn = animaloc.data.batch_utils.__dict__[fn]
-    return fn
-
-def _build_model(cfg: DictConfig) -> torch.nn.Module:
-
-    name = cfg.model.name
-    from_torchvision = cfg.model.from_torchvision
-
-    if from_torchvision:
-        assert name in torchvision.models.__dict__.keys(), \
-            f'\'{name}\' unfound in torchvision\'s models'
-
-        model = torchvision.models.__dict__[name]
-
-    else:
-        assert name in animaloc.models.__dict__.keys(), \
-            f'\'{name}\' class unfound, make sure you have included the class in the models list'
-
-        model = animaloc.models.__dict__[name]
-
-    kwargs = dict(cfg.model.kwargs)
-    for k in ['num_classes']:
-        kwargs.pop(k, None)
-
-    model = model(**kwargs, num_classes=cfg.datasets.num_classes)
-
-    return model
-
-def _load_losses(cfg: DictConfig) -> tuple:
-    criterions = []
-    if cfg.losses is not None:
-        for loss, args in cfg.losses.items():
-            
-            kwargs = {}
-            if 'kwargs' in args.keys():
-                kwargs = dict(args.kwargs)
-
-                if 'weights' in kwargs.keys():
-                    kwargs['weights'] = torch.Tensor(kwargs['weights'])
-                elif 'weight' in kwargs.keys():
-                    kwargs['weight'] = torch.Tensor(kwargs['weight']).to(torch.device(cfg.device_name))
-
-            crit_dict = {}
-            if args.from_torch:
-                crit_dict.update({'loss': torch.nn.__dict__[loss](**kwargs)})
-            else:
-                crit_dict.update({'loss': animaloc.train.losses.__dict__[loss](**kwargs)})
-
-            crit_dict.update({
-                'idx': args.output_idx, 
-                'idy': args.target_idx,
-                'lambda': args.lambda_const, 
-                'name': args.print_name
-                })
-
-            criterions.append(crit_dict)
-    
-    return criterions
-
-def _define_stitcher(
-    model: torch.nn.Module,
-    cfg: DictConfig
-    ) -> Stitcher:
-
-    kwargs = dict(cfg.training_settings.stitcher.kwargs)
-    for k in ['model','size','device_name']:
-        kwargs.pop(k, None)
-
-    stitcher = animaloc.eval.stitchers.__dict__[cfg.training_settings.stitcher.name](
-        model = model,
-        size = cfg.datasets.img_size,
-        **kwargs,
-        device_name = cfg.device_name
-        ) 
-
-    return stitcher
 
 
-def _define_evaluator(
-    model: torch.nn.Module, 
-    dataloader: torch.utils.data.DataLoader,  
-    cfg: DictConfig
-    ) -> Evaluator:
 
-    name = cfg.training_settings.evaluator.name
-    anno_type = cfg.datasets.anno_type
 
-    assert name in animaloc.eval.evaluators.__dict__.keys(), \
-        f'\'{name}\' class unfound, make sure you have included the class in the evaluators list'
-
-    if anno_type == 'point':
-        metrics = PointsMetrics(
-            radius = cfg.training_settings.evaluator.threshold, 
-            num_classes = cfg.datasets.num_classes
-            )
-    elif anno_type == 'bbox':
-        metrics = BoxesMetrics(
-            iou = cfg.training_settings.evaluator.threshold, 
-            num_classes = cfg.datasets.num_classes
-            )
-    elif anno_type == 'image':
-        metrics = ImageLevelMetrics(
-            num_classes = cfg.datasets.num_classes
-            )
-    else:
-        raise NotImplementedError
-
-    stitcher = None
-    if cfg.training_settings.stitcher is not None:
-        stitcher = _define_stitcher(model, cfg)
-    
-    kwargs = dict(cfg.training_settings.evaluator.kwargs)
-    for k in ['model','dataloader','metrics','device_name','stitcher','header', 'vizual_fn']:
-        kwargs.pop(k, None)
-
-    vizual_fn = None
-    if cfg.training_settings.vizual_fn is not None:
-        vizual_fn = animaloc.vizual.plots.__dict__[cfg.training_settings.vizual_fn]
-        
-    evaluator = animaloc.eval.evaluators.__dict__[name](
-        model = model,
-        dataloader = dataloader,
-        metrics = metrics,
-        device_name = cfg.device_name,
-        stitcher = stitcher,
-        header = '[TEST]',
-        vizual_fn = vizual_fn, 
-        **kwargs
-    )
-
-    return evaluator
-
-# @hydra.main(config_path='../configs', config_name="config_2025_02_22_segments")
-# @hydra.main(config_path='../configs', config_name="config_2025_04_14_resnet")
-@hydra.main(config_path='../configs', config_name="config_2025_06_08_hasty")
 def main(cfg: DictConfig) -> None:
     work_dir = None
     logger.info(f"Using config: {cfg}")
@@ -236,7 +85,10 @@ def main(cfg: DictConfig) -> None:
     #     if not work_dir.exists():
     #         work_dir.mkdir(parents=True)
 
-    cfg = cfg.train
+    cfg = cfg
+    train_args = cfg.datasets.train
+    val_args = cfg.datasets.validate
+    # test_args = cfg.datasets.test
     # Set the seed
     logger.info(f'Setting the seed to {cfg.seed}')
     set_seed(cfg.seed)
@@ -244,10 +96,14 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"current_directory: {current_directory}")
     # Prepare datasets and dataloaders
     logger.info('Building datasets ...')
+
+    if cfg.device_name is None:
+        # Automatically select the least occupied GPU
+        cfg.device_name = get_least_occupied_gpu_nvidia_smi()
+        logger.info(f"Using device: {cfg.device_name}")
     device = torch.device(cfg.device_name)
 
-    train_args = cfg.datasets.train
-    val_args = cfg.datasets.validate
+
 
     train_df = pandas.read_csv(train_args.csv_file)
     # TODO I would argue, modifying the training data while training is not a good idea
@@ -257,38 +113,23 @@ def main(cfg: DictConfig) -> None:
         csv_file = train_df,
         root_dir = train_args.root_dir,
         albu_transforms = _load_albu_transforms(train_args.albu_transforms),
-        end_transforms = _load_end_transforms(train_args.end_transforms)
+        end_transforms = _load_end_transforms(train_args.end_transforms),
+        augmentation_multiplier = train_args.augmentation_multiplier,
         )
-
-    # visualize_dataset_examples(train_dataset, num_examples=8)
-
-    
-    train_dl_kwargs = dict(
-        batch_size=cfg.training_settings.batch_size,
-        shuffle=True,
-        collate_fn=_get_collate_fn(cfg),
-        num_workers=cfg.training_settings.num_workers
-        )
-    
-    if train_args.sampler is not None:
-        train_dl_kwargs = _build_sampler(train_args.sampler, dl_kwargs=train_dl_kwargs, 
-            dataset=train_dataset)
-
-    train_dataloader = DataLoader(train_dataset, **train_dl_kwargs)
 
     if val_args is not None:
 
         val_df = pandas.read_csv(val_args.csv_file)
         # TODO I would argue modifying data in here is not a good idea. It should immutable
         # _set_species_labels(dict(cfg.datasets.class_def), val_df)
-        
+
         val_dataset = animaloc.datasets.__dict__[val_args.name](
-            csv_file = val_df,
-            root_dir = val_args.root_dir,
-            albu_transforms = _load_albu_transforms(val_args.albu_transforms),
-            end_transforms = _load_end_transforms(val_args.end_transforms)
-            )
-        
+            csv_file=val_df,
+            root_dir=val_args.root_dir,
+            albu_transforms=_load_albu_transforms(val_args.albu_transforms),
+            end_transforms=_load_end_transforms(val_args.end_transforms)
+        )
+        # TODO why is it batch size 1 here: because the the datasets keeps track of metadata image_name etc. we get a wrong RuntimeError: stack expects each tensor to be equal size, but got [1] at entry 0 and [2] at entry 27
         val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=_get_collate_fn(cfg))
     else:
         val_dataloader = None
@@ -300,34 +141,87 @@ def main(cfg: DictConfig) -> None:
     if losses is not None:
         losses = list(cfg.losses.keys())
 
+    # Disable cache for this run
+    os.environ["WANDB_ARTIFACT_CACHE_SIZE"] = "10GB"
+
+    # Or set custom cache location
+    os.environ["WANDB_CACHE_DIR"] = "/raid/cwinkelmann/.cache/wandb-cache"
+
     wandb.init(
-        project = cfg.wandb_project,
-        entity = cfg.wandb_entity,
-        config = dict(
-            batch_size = settings.batch_size,
-            optimizer = settings.optimizer,
-            lr = settings.lr,
-            weight_decay = settings.weight_decay,
-            warmup_iters = settings.warmup_iters,
-            epochs = settings.epochs,
-            losses = losses,
-            seed = cfg.seed,
-            data_augmentation = list(cfg.datasets.train.albu_transforms.keys()),
-            input_size = cfg.datasets.img_size,
-            class_def = cfg.datasets.class_def,
+        project=cfg.wandb_project,
+        entity=cfg.wandb_entity,
+        config=dict(
+            batch_size=settings.batch_size,
+            optimizer=settings.optimizer,
+            lr=settings.lr,
+            weight_decay=settings.weight_decay,
+            warmup_iters=settings.warmup_iters,
+            epochs=settings.epochs,
+            losses=losses,
+            seed=cfg.seed,
+            data_augmentation=list(cfg.datasets.train.albu_transforms.keys()),
+            n_data_augmentation=len(list(cfg.datasets.train.albu_transforms.keys())),
+            end_transforms=list(cfg.datasets.train.end_transforms.keys()),
+            FIDT=cfg.datasets.train.end_transforms.MultiTransformsWrapper.FIDT,
+            PointsToMask=cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask,
+            input_size=cfg.datasets.img_size,
+            class_def=cfg.datasets.class_def,
             **cfg.model.kwargs,
             loss_dict=cfg.losses,
-            dataloader={"train": cfg.datasets.train.name, "val": cfg.datasets.validate.name },
-            data={"train_csv": cfg.datasets.train.csv_file, "val_csv": cfg.datasets.validate.csv_file },
+            base_model=cfg.model.load_from,
+            dataloader={"train": cfg.datasets.train.name, "val": cfg.datasets.validate.name},
+            data={"train_csv": cfg.datasets.train.csv_file, 'train_dir': cfg.datasets.train.root_dir,
+                  "val_csv": cfg.datasets.validate.csv_file, 'val_dir': cfg.datasets.validate.root_dir, },
+            training_settings=cfg.training_settings,
+            num_training_annotations=len(train_df),
+            num_val_annotations=len(val_df),
+            num_training_images=train_df.images.nunique(),
+            num_val_images=val_df.images.nunique(),
+            num_main_images=len(set(train_df['images'].str.replace(r'_x\d+_y\d+\.', '.', regex=True)))
 
-            training_settings = cfg.training_settings,
-            )
+        )
+    )
+
+    date = current_date()
+    wandb.run.name = f'{date}_' + cfg.wandb_run + f'_{wandb.run.id}'
+    wandb.run.tags = [f"train_ds: {cfg.datasets.train.name}", f"val_ds: {cfg.datasets.validate.name}"] + cfg.wandb_tags
+    # TODO this is the time to upload metrics about the data
+
+
+
+    train_dl_kwargs = dict(
+        batch_size=cfg.training_settings.batch_size,
+        shuffle=True,
+        collate_fn=_get_collate_fn(cfg),
+        num_workers=cfg.training_settings.num_workers
         )
     
-    date = current_date()
-    wandb.run.name = f'{date}_' + cfg.wandb_run + f'_RUN_{wandb.run.id}'
+    if train_args.sampler is not None:
+        train_dl_kwargs = _build_sampler(train_args.sampler, dl_kwargs=train_dl_kwargs, 
+            dataset=train_dataset)
 
-    # TODO this is the time to upload metrics about the data
+    
+    # little hack to visuliase training data examples
+    train_dataloader = DataLoader(train_dataset, **train_dl_kwargs)
+
+    # iterate through the dataloader to check if it works
+    max_plot = 20
+    for i, (img_tensor, target) in enumerate(train_dataset):
+        if i >= max_plot:
+            break
+
+        heatmap = target[0].squeeze(0)
+        cls_map = target[1]
+
+        fig, axes = plot_heatmaps(img_tensor.squeeze(0), heatmap,
+                                  show_argmax_overlay=False, max_channels=1)
+
+        wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
+        fig.savefig(os.path.join("/home/cwinkelmann/work/Herdnet/playground/transformed_training_data",
+                                 f'augmented_dataset_examples.png'))
+
+        plt.close(fig)
+
 
 
     # Build the model
@@ -369,6 +263,10 @@ def main(cfg: DictConfig) -> None:
     # Watch the model's gradients during training
     wandb.watch(model)
 
+    visualiser = None
+    if cfg.training_settings.visualiser is not None:
+        visualiser = _define_visualiser(cfg)
+
     if cfg.training_settings.evaluator is not None:
 
         assert val_dataloader is not None, \
@@ -377,6 +275,7 @@ def main(cfg: DictConfig) -> None:
         evaluator = _define_evaluator(model, val_dataloader, cfg)
         select = cfg.training_settings.evaluator.select_mode
         validate_on = cfg.training_settings.evaluator.validate_on
+
     else:
         # Evaluator ?
         evaluator = None
@@ -403,7 +302,7 @@ def main(cfg: DictConfig) -> None:
         val_dataloader = val_dataloader, 
         evaluator = evaluator,
         device_name = cfg.device_name,
-        vizual_fn = vizual_fn,
+        vizual_fn = visualiser,
         work_dir = work_dir,
         print_freq = cfg.training_settings.print_freq,
         valid_freq = cfg.training_settings.valid_freq,
@@ -427,6 +326,8 @@ def main(cfg: DictConfig) -> None:
             wandb_flag = True
             )
 
+
+
     # Add information in .pth files
     for pth_name in ['best_model.pth', 'latest_model.pth']:
         path = current_directory / pth_name
@@ -443,11 +344,64 @@ def main(cfg: DictConfig) -> None:
         torch.save(pth_file, path)
         logger.info(f"Saved Model {pth_name} with added information in {path}")
 
+    wandb.finish()
+
+
+# config_name = "config_2025_07_10_hasty_floreana"
+# config_name = "config_2025_07_10_hasty_floreana_sweep"
+# config_name = "config_2025_07_10_hasty_fernandina_m"
+# config_name = "config_2025_07_10_hasty_fernandina_s"
+# config_name = "config_2025_07_10_hasty_genovesa"
+# config_name = "config_2025_07_10_hasty_all_single"
+
+# config_name = "config_2025_07_11_eikelboom"
+
+# config_name = "config_2025_07_04_hasty_floreana_n"
+
+#config_name = "config_2025_07_04_hasty_Rest"
+#config_name = "config_2025_07_04_hasty_all"
+#config_name="config_2025_07_07_geo_head_LQ"
+# config_name="config_2025_07_07_geo_body_LQ"
+# config_name="config_2025_07_07_geo_body_HQ"
+#config_name="config_2025_07_08_all_detection"
+
+
+# config_name="config_2025_07_13_hasty_edge_blackout_1024"
+# config_name="config_2025_07_22_weinstein_640"
+# config_name="config_2025_07_27_weinstein_full"
+config_name="config_2025_07_27_iguana_sample"
+# config_name="config_2025_07_10_hasty_floreana"
+# config_name="config_2025_07_13_hasty_fernandina_s_edge_blackout_512"
+
+@hydra.main(config_path='../configs', config_name=config_name)
+def main_wrapper(cfg: DictConfig):
+    """
+    Main function to run the training process with hydra configuration.
+    """
+    
+    # # learning curve setup
+    # run_name_template = 'ig_Floreana_learning_curve_dr2'
+    # wandb_tags = ['train_hasty', 'single', 'pretrained=false', 'Floreana', 'dla34', 'dr2', 'learning_curve']
+    #
+    # for i in range(35, 1, -1):
+    #     cfg.wandb_run = f'{run_name_template}_image{i}'
+    #
+    #     cfg.datasets.train.csv_file = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection/Floreana_detection_il_{i}/train/herdnet_format_512_0_crops.csv'
+    #     cfg.datasets.train.root_dir = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection/Floreana_detection_il_{i}/train/crops_512_num{i}_overlap0'
+    #     cfg.wandb_tags = wandb_tags
+    #     cfg.device_name = 'cuda:7'
+    #     main(cfg)
+    #
+    # omegaconf.OmegaConf.to_container(
+    #     cfg, resolve=True, throw_on_missing=True
+    # )
+
+    main(cfg)
 
 if __name__ == '__main__':
-    # hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
-    # cfg = hydra.compose(config_name="config_2025_02_22_segments")
-    # cfg = hydra.compose(config_name="config_FMO03_02_05")
-    # main(cfg)
+    #hydra.initialize(config_path='../configs', job_name="dynamic_hydra")
 
-    main()
+    #cfg = hydra.compose(config_name=config_name)
+    # cfg = hydra.compose(config_name="config_FMO03_02_05")
+    main_wrapper()
+    #main(config_name)

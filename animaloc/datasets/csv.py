@@ -44,7 +44,7 @@ def dict_to_tensor(d: dict) -> Tuple[dict, dict]:
             tensor_params.update({k: v})
 
         types.update({k: type(v)})
-    
+
     return tensor_params, types
 
 def retrieve_num_type(num: torch.Tensor, type: type) -> Union[int, float]:
@@ -57,43 +57,46 @@ def retrieve_num_type(num: torch.Tensor, type: type) -> Union[int, float]:
 
 @DATASETS.register()
 class CSVDataset(Dataset):
-    ''' Class to create a Dataset from a CSV file 
-    
-    This dataset is built on the basis of CSV files containing box coordinates, in 
+    ''' Class to create a Dataset from a CSV file
+
+    This dataset is built on the basis of CSV files containing box coordinates, in
     [x_min, y_min, x_max, y_max] format, or point coordinates in [x,y] format.
 
-    The type of annotations is automatically detected internally. The only condition 
-    is that the file contains at least the keys ['images', 'x_min', 'y_min', 'x_max', 
-    'y_max', 'labels'] for the boxes and, ['images', 'x', 'y', 'labels'] for the points. 
-    Any additional information (i.e. additional columns) will be associated and returned 
+    The type of annotations is automatically detected internally. The only condition
+    is that the file contains at least the keys ['images', 'x_min', 'y_min', 'x_max',
+    'y_max', 'labels'] for the boxes and, ['images', 'x', 'y', 'labels'] for the points.
+    Any additional information (i.e. additional columns) will be associated and returned
     by the dataset.
 
-    If no data augmentation is specified, the dataset returns the image in PIL format 
+    If no data augmentation is specified, the dataset returns the image in PIL format
     and the targets as lists. If transforms are specified, the conversion to torch.Tensor
     is done internally, no need to specify this.
     '''
 
     def __init__(
-        self, 
-        csv_file: str, 
-        root_dir: str, 
-        albu_transforms: Optional[list] = None,
-        end_transforms: Optional[list] = None
-        ) -> None:
-        ''' 
+            self,
+            csv_file: str,
+            root_dir: str,
+            albu_transforms: Optional[list] = None,
+            end_transforms: Optional[list] = None,
+            augmentation_multiplier: int = 1
+    ) -> None:
+        '''
         Args:
-            csv_file (str): absolute path to the csv file containing 
+            csv_file (str): absolute path to the csv file containing
                 annotations
             root_dir (str) : path to the images folder
-            albu_transforms (list, optional): an albumentations' transformations 
-                list that takes input sample as entry and returns a transformed 
+            albu_transforms (list, optional): an albumentations' transformations
+                list that takes input sample as entry and returns a transformed
                 version. Defaults to None.
             end_transforms (list, optional): list of transformations that takes
                 tensor and expected target as input and returns a transformed
                 version. These will be applied after albu_transforms. Defaults
                 to None.
+            augmentation_multiplier (int): How many times to multiply the dataset
+                size for augmentation purposes. Defaults to 1000.
         '''
-        
+
         assert isinstance(albu_transforms, (list, type(None))), \
             f'albumentations-transformations must be a list, got {type(albu_transforms)}'
 
@@ -104,6 +107,8 @@ class CSVDataset(Dataset):
         self.root_dir = root_dir
         self.albu_transforms = albu_transforms
         self.end_transforms = end_transforms
+        self.augmentation_multiplier = augmentation_multiplier
+
         # store end parameters for adaloss
         self._store_end_params()
 
@@ -113,59 +118,66 @@ class CSVDataset(Dataset):
         self.anno_type = self.data.annos[0].atype
 
         used = set()
-        self._img_names = [x for x in self.annotations.images 
-            if x not in used and (used.add(x) or True)]
-    
+        self._img_names = [x for x in self.annotations.images
+                           if x not in used and (used.add(x) or True)]
+
     def _load_image(self, index: int) -> PIL.Image.Image:
-        img_name = self._img_names[index]
+        # Map the augmented index back to actual image index
+        actual_index = index % len(self._img_names)
+        img_name = self._img_names[actual_index]
         img_path = os.path.join(self.root_dir, img_name)
 
         return PIL.Image.open(img_path).convert('RGB')
-    
-    def _load_target(self, index: int) -> Dict[str,List[Any]]:
-        img_name = self._img_names[index]
+
+    def _load_target(self, index: int) -> Dict[str, List[Any]]:
+        # Map the augmented index back to actual image index
+        actual_index = index % len(self._img_names)
+        img_name = self._img_names[actual_index]
         annotations = self.data[self.data['images'] == img_name]
         annotations = annotations.drop(columns='images')
 
+        # Use the augmented index for image_id to maintain uniqueness
         target = {
-            'image_id': [index], 
-            'image_name': [img_name]
-            }
+            'image_id': [index],  # Keep the augmented index for uniqueness
+            'image_name': [f"{img_name}_aug_{index}"],  # Add augmentation suffix
+            'original_image_name': [img_name],  # Keep original name for reference
+            'augmentation_id': [index // len(self._img_names)]  # Which augmentation this is
+        }
 
         for key in annotations.columns:
             target.update({key: list(annotations[key])})
 
             # convert annotations to tuple
-            if key == 'annos': 
+            if key == 'annos':
                 target.update({key: [list(a.get_tuple) for a in annotations[key]]})
 
         return target
-    
+
     def _transforms(
-        self, 
-        image: PIL.Image.Image, 
-        target: dict
-        ) -> Tuple[torch.Tensor, dict]:
+            self,
+            image: PIL.Image.Image,
+            target: dict
+    ) -> Tuple[torch.Tensor, dict]:
 
         label_fields = target.copy()
-        for key in ['annos','image_id','image_name']:
-            label_fields.pop(key)
+        for key in ['annos', 'image_id', 'image_name', 'original_image_name', 'augmentation_id']:
+            label_fields.pop(key, None)  # Use pop with default to avoid KeyError
 
         if self.albu_transforms:
 
             # Bounding boxes
             if self.anno_type == 'BoundingBox':
                 transform_pipeline = albumentations.Compose(
-                    self.albu_transforms, 
+                    self.albu_transforms,
                     bbox_params=albumentations.BboxParams(
-                        format='pascal_voc', 
+                        format='pascal_voc',
                         label_fields=list(label_fields.keys())
                     )
                 )
-                
+
                 transformed = transform_pipeline(
-                    image = numpy.array(image),
-                    bboxes = target['annos'],
+                    image=numpy.array(image),
+                    bboxes=target['annos'],
                     **label_fields
                 )
 
@@ -175,61 +187,63 @@ class CSVDataset(Dataset):
                 transformed['boxes'] = transformed['bboxes']
                 transformed.pop('bboxes')
 
-                for key in ['image_id','image_name']:
-                    transformed[key] = target[key]
+                for key in ['image_id', 'image_name', 'original_image_name', 'augmentation_id']:
+                    if key in target:
+                        transformed[key] = target[key]
 
-                tr_image,  tr_target = SampleToTensor()(tr_image, transformed)
+                tr_image, tr_target = SampleToTensor()(tr_image, transformed)
 
                 if self.end_transforms is not None:
                     for trans in self.end_transforms:
                         tr_image, tr_target = trans(tr_image, tr_target)
 
                 return tr_image, tr_target
-            
+
             # Points
             if self.anno_type == 'Point':
                 transform_pipeline = albumentations.Compose(
-                    self.albu_transforms, 
+                    self.albu_transforms,
                     keypoint_params=albumentations.KeypointParams(
-                        format='xy', 
+                        format='xy',
                         label_fields=list(label_fields.keys())
                     )
                 )
-                
+
                 transformed = transform_pipeline(
-                    image = numpy.array(image),
-                    keypoints = target['annos'],
+                    image=numpy.array(image),
+                    keypoints=target['annos'],
                     **label_fields
                 )
-            
+
                 tr_image = numpy.asarray(transformed['image'])
                 transformed.pop('image')
 
                 transformed['points'] = transformed['keypoints']
                 transformed.pop('keypoints')
 
-                for key in ['image_id','image_name']:
-                    transformed[key] = target[key]
+                for key in ['image_id', 'image_name', 'original_image_name', 'augmentation_id']:
+                    if key in target:
+                        transformed[key] = target[key]
 
-                tr_image,  tr_target = SampleToTensor()(tr_image, transformed, 'point')
+                tr_image, tr_target = SampleToTensor()(tr_image, transformed, 'point')
 
                 if self.end_transforms is not None:
                     for trans in self.end_transforms:
                         tr_image, tr_target = trans(tr_image, tr_target)
 
                 return tr_image, tr_target
-        
+
         else:
             return image, target
-    
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, dict]:        
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, dict]:
         img = self._load_image(index)
         target = self._load_target(index)
 
         tr_img, tr_target = self._transforms(img, target)
 
         return tr_img, tr_target
-    
+
     def load_end_param(self, end_param: str, value: float) -> None:
         self.end_params[end_param] = value
 
@@ -242,10 +256,24 @@ class CSVDataset(Dataset):
 
         self.end_transforms = new_transforms
         self._store_end_params()
-    
+
     def __len__(self) -> int:
+        return len(self._img_names) * self.augmentation_multiplier
+
+    def get_actual_length(self) -> int:
+        """Returns the actual number of unique images"""
         return len(self._img_names)
-    
+
+    def get_augmentation_info(self, index: int) -> Dict[str, Any]:
+        """Get information about which augmentation this index represents"""
+        actual_index = index % len(self._img_names)
+        augmentation_id = index // len(self._img_names)
+        return {
+            'actual_image_index': actual_index,
+            'augmentation_id': augmentation_id,
+            'original_image_name': self._img_names[actual_index]
+        }
+
     def _store_end_params(self) -> None:
         self.end_params = {}
         self._end_params_types = []
@@ -255,7 +283,7 @@ class CSVDataset(Dataset):
                 tensor_params, types = dict_to_tensor(trans.__dict__)
                 self._end_params_types.append(types)
                 self.end_params.update(tensor_params)
-    
+
     def _update_end_params(self) -> list:
         up_params = []
         for trans in self._end_params_types:
@@ -266,7 +294,7 @@ class CSVDataset(Dataset):
                     up_num = retrieve_num_type(self.end_params[k], v)
 
                 up_dict.update({k: up_num})
-            
+
             up_params.append(up_dict)
-        
+
         return up_params

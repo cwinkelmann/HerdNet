@@ -20,6 +20,9 @@ import os
 import numpy
 import wandb
 import matplotlib
+from matplotlib import pyplot as plt
+
+from animaloc.vizual import Visualiser
 
 matplotlib.use('Agg')
 
@@ -51,7 +54,7 @@ class Evaluator:
         device_name: str = 'cuda', 
         print_freq: int = 10,
         stitcher: Optional[Stitcher] = None,
-        vizual_fn: Optional[Callable] = None,
+        vizual_fn: Optional[Visualiser] = None,
         work_dir: Optional[str] = None,
         header: Optional[str] = None
         ):
@@ -105,7 +108,7 @@ class Evaluator:
         self.print_freq = print_freq
         self.stitcher = stitcher
         self.vizual_fn = vizual_fn
-        
+        self.current_epoch = None
         self.work_dir = work_dir
         if self.work_dir is None:
             self.work_dir = os.getcwd()
@@ -184,7 +187,7 @@ class Evaluator:
         iter_metrics = self.metrics.copy()
 
         for i, (images, targets) in enumerate(logger.log_every(self.dataloader, self.print_freq, self.header)):
-            loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
+            # loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
 
             if self.stitcher is not None:
@@ -196,8 +199,12 @@ class Evaluator:
 
             if viz and self.vizual_fn is not None:
                 if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
-                    fig = self._vizual(image = images, target = targets, output = model_output)
-                    wandb.log({'validation_vizuals': fig})
+                    fig = self._vizual(image = images,
+                                       target = targets,
+                                       output = model_output)
+
+
+
             # the model output is a list of 2 tensors, one heatmap one class map
             output_prediction = self.prepare_feeding(targets, model_output)
 
@@ -221,8 +228,8 @@ class Evaluator:
                 logger.add_meter('fn', sum(iter_metrics.fn))
                 logger.add_meter('recall', round(iter_metrics.recall(), 2))
                 logger.add_meter('precision', round(iter_metrics.precision(), 2))
-                logger.add_meter('f1-score', round(iter_metrics.fbeta_score(), 2))
-                logger.add_meter('f2-score', round(iter_metrics.fbeta_score(beta=2), 2))
+                logger.add_meter('f1_score', round(iter_metrics.fbeta_score(), 2))
+                logger.add_meter('f2_score', round(iter_metrics.fbeta_score(beta=2), 2))
                 logger.add_meter('MAE', round(iter_metrics.mae(), 2))
                 logger.add_meter('MSE', round(iter_metrics.mse(), 2))
                 logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
@@ -353,9 +360,16 @@ class Evaluator:
 
         return pandas.DataFrame(data = dets)
     
-    def _vizual(self, image: Any, target: Any, output: Any):
-        fig = self.vizual_fn(image=image, target=target, output=output)
-        return fig
+    def _vizual(self, image: Any, target: Any, output: Any) -> None:
+        fig = self.vizual_fn(image=image,
+                             target=target,
+                             output=output,
+                             epoch=self.current_epoch)
+
+
+
+
+
 
 @EVALUATORS.register()
 class HerdNetEvaluator(Evaluator):

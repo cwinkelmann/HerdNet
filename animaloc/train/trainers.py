@@ -60,7 +60,12 @@ class Trainer:
         device_name: str = 'cuda', 
         print_freq: int = 50,
         valid_freq: int = 1,
-        csv_logger: bool = False
+        csv_logger: bool = False,
+        early_stopping: bool = False,
+        patience: int = 10,
+        min_delta: float = 0.0,
+        restore_best_weights: bool = True
+
         ) -> None:
         '''
         Args:
@@ -194,6 +199,16 @@ class Trainer:
         self.csv_logger = csv_logger
         self.train_logger = CustomLogger(delimiter=' ', filename='training', work_dir=self.work_dir, csv=self.csv_logger)
         self.val_logger = CustomLogger(delimiter=' ', filename='validation', work_dir=self.work_dir, csv=self.csv_logger)
+
+        self.early_stopping = early_stopping
+        self.patience = patience
+        self.min_delta = min_delta
+        self.restore_best_weights = restore_best_weights
+
+        # Early stopping tracking variables
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.best_weights = None
     
     def prepare_data(self, images, targets) -> tuple:
         ''' Method to prepare the data before feeding to the model. 
@@ -264,6 +279,11 @@ class Trainer:
             self.best_val = float('inf')
         elif select =='max': 
             self.best_val = 0
+
+        # Reset early stopping variables
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.best_weights = None
         
         if wandb_flag:
             wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
@@ -290,7 +310,7 @@ class Trainer:
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
-                        wandb.log({"f2-score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
+                        wandb.log({"f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
                         wandb.log({'true_positive': sum(self.evaluator.metrics.tp), 'epoch': epoch})
                         wandb.log({'false_negative': sum(self.evaluator.metrics.fn), 'epoch': epoch})
                         wandb.log({'false_positive': sum(self.evaluator.metrics.fp), 'epoch': epoch})
@@ -310,6 +330,13 @@ class Trainer:
                     val_output = self.evaluate(epoch, wandb_flag=wandb_flag, returns=validate_on)
                     if wandb_flag:
                         wandb.log({'val_loss': val_output, 'epoch': epoch})
+
+                # Early stopping check
+                if val_flag and self.early_stopping:
+                    if self._early_stopping_check(val_output, select, epoch):
+                        self.stopped_epoch = epoch
+                        print(f'Early stopping triggered at epoch {epoch}')
+                        break
             
                 # save checkpoint(s)
                 if val_flag and checkpoints == 'best' and self._is_best(val_output, mode = select):
@@ -339,12 +366,48 @@ class Trainer:
                 self.train_dataloader.dataset.update_end_transforms()
                 self.val_dataloader.dataset.end_params = self.train_dataloader.dataset.end_params
                 self.val_dataloader.dataset.update_end_transforms()
+
+            # Restore best weights if early stopping was triggered and restore_best_weights is True
+            if self.early_stopping and self.restore_best_weights and self.best_weights is not None:
+                print('Restoring best model weights')
+                self.model.load_state_dict(self.best_weights)
         
         if wandb_flag:
             wandb.run.summary['best_validation'] = self.best_val
+            if self.stopped_epoch > 0:
+                wandb.run.summary['stopped_epoch'] = self.stopped_epoch
             wandb.run.finish()
         
         return self.model
+
+    def _early_stopping_check(self, current_val: float, mode: str, epoch: int) -> bool:
+        ''' Check if early stopping criteria is met '''
+
+        if mode == 'min':
+            # For minimization (e.g., loss)
+            if current_val < (self.best_val - self.min_delta):
+                self.best_val = current_val
+                self.wait = 0
+                if self.restore_best_weights:
+                    self.best_weights = self.model.state_dict().copy()
+            else:
+                self.wait += 1
+
+        elif mode == 'max':
+            # For maximization (e.g., accuracy)
+            if current_val > (self.best_val + self.min_delta):
+                self.best_val = current_val
+                self.wait = 0
+                if self.restore_best_weights:
+                    self.best_weights = self.model.state_dict().copy()
+            else:
+                self.wait += 1
+
+        # Check if patience is exceeded
+        if self.wait >= self.patience:
+            return True
+
+        return False
     
     def resume(
         self, 
@@ -395,6 +458,8 @@ class Trainer:
 
         resume_epoch = checkpoint['epoch']
         self.losses = checkpoint['loss']
+        self.best_val = checkpoint['best_val']
+
 
         self.best_val = checkpoint['best_val']
 
@@ -610,6 +675,7 @@ class Trainer:
             self.evaluator.model = self.model
             self.evaluator.logs_filename = filename
             self.evaluator.header = '[{}] - Epoch: [{}]'.format(filename.upper(),epoch)
+            self.evaluator.current_epoch = epoch
     
     def _is_best(self, val_output: float, mode: str = 'min') -> bool:
         ''' Method to determine the best model for saving checkpoint '''

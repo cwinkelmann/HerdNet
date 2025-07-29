@@ -1,0 +1,63 @@
+program: train_sweep.py
+method: bayes
+
+project: 'herdnet'
+entity: 'karisu'
+
+metric:
+  goal: maximize
+  name: f1_score
+
+parameters:
+
+#  model.kwargs.num_layers:
+#    values: [ 34, 60 ]
+
+  model.kwargs.down_ratio:
+    values: [ 1,2,4,8 ]
+
+  model.kwargs.head_conv:
+    values: [ 64,128 ]
+
+  losses.CrossEntropyLoss.kwargs.weight:
+    values: [ [ 0.5, 5.0, 15.0, 1.0, 0.1, 0.1, 1.0, 0.1 ],
+              [ 1.0, 5.0, 15.0, 1.0, 0.1, 0.1, 1.0, 0.1 ],
+              [ 1.5, 5.0, 15.0, 1.0, 0.1, 0.1, 1.0, 0.1 ] ]
+
+  training_settings.batch_size:
+    values: [ 64, 32 ]
+
+
+  training_settings.optimizer:
+    values: [ 'adamW' ]
+
+  training_settings.lr:
+    distribution: log_uniform_values
+    min: 0.0001
+    max: 0.01
+
+  training_settings.weight_decay:
+    distribution: log_uniform_values
+    min: 0.00001
+    max: 0.001
+
+  training_settings.evaluator.threshold:
+    values: [ 5,10,20,30,40,50,75,100 ]
+
+
+  training_settings.evaluator.kwargs.lmds_kwargs.kernel_size:
+    values: [ [ 9,9 ], [ 15, 15 ], [ 25, 25 ], [ 35, 35 ], [ 51, 51 ], [ 75, 75 ] ]
+
+  training_settings.evaluator.kwargs.lmds_kwargs.adapt_ts:
+    distribution: log_uniform_values
+    min: 0.1
+    max: 1
+
+
+
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}

@@ -42,13 +42,23 @@ Note that these metrics have been computed on full-size test images.
 
 ## Installation
 Create and activate the conda environment
-```console
-conda env create -f environment.yml
+```shell
+conda env create -n herdnet -f environment.yml
 conda activate herdnet
 ```
 
+```shell
+# update the conda environment
+conda env update --file environment.yml --prune
+```
+
+```shell
+pip install -r requirements.txt
+
+```
+
 Install the code
-```console
+```shell
 python setup.py install
 ```
 
@@ -164,7 +174,7 @@ losses = [
 herdnet = LossWrapper(herdnet, losses=losses)
 ```
 
-Train et validate HerdNet
+Train and validate HerdNet
 ```python
 from torch.optim import Adam
 from animaloc.train import Trainer
@@ -297,5 +307,33 @@ The code used in the paper is the one corresponding to the tag [`v0.1.0`](https:
 ### Docker Training container
 ```shell
 docker build -t herdnet -f Dockerfile .
+
+```
+
+### Run a wandb sweep
+Since the training generates many models set .wandb/settings
+[default]
+artifact_cache_size = 10GB
+
+```shell
+conda activate HerdNetCarrotConda
+wandb sweep sweep_hyp.yaml 
+
+Run sweep agent with: 
+
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=1 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=2 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=3 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=4 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+CUDA_VISIBLE_DEVICES=5 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+
+CUDA_VISIBLE_DEVICES=6 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+CUDA_VISIBLE_DEVICES=7 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+
 
 ```
