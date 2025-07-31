@@ -20,6 +20,8 @@ from .faster_rcnn import *
 from .dla import *
 from .herdnet import *
 from .herdnetplus import *
+from .herdnet_smp import *
+from .herdnet_timm import *
 from .utils import *
 from .ss_dla import *
 

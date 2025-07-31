@@ -147,45 +147,46 @@ def main(cfg: DictConfig) -> None:
     # Or set custom cache location
     os.environ["WANDB_CACHE_DIR"] = "/raid/cwinkelmann/.cache/wandb-cache"
 
-    wandb.init(
-        project=cfg.wandb_project,
-        entity=cfg.wandb_entity,
-        config=dict(
-            batch_size=settings.batch_size,
-            optimizer=settings.optimizer,
-            lr=settings.lr,
-            weight_decay=settings.weight_decay,
-            warmup_iters=settings.warmup_iters,
-            epochs=settings.epochs,
-            losses=losses,
-            seed=cfg.seed,
-            data_augmentation=list(cfg.datasets.train.albu_transforms.keys()),
-            n_data_augmentation=len(list(cfg.datasets.train.albu_transforms.keys())),
-            end_transforms=list(cfg.datasets.train.end_transforms.keys()),
-            FIDT=cfg.datasets.train.end_transforms.MultiTransformsWrapper.FIDT,
-            PointsToMask=cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask,
-            input_size=cfg.datasets.img_size,
-            class_def=cfg.datasets.class_def,
-            **cfg.model.kwargs,
-            loss_dict=cfg.losses,
-            base_model=cfg.model.load_from,
-            dataloader={"train": cfg.datasets.train.name, "val": cfg.datasets.validate.name},
-            data={"train_csv": cfg.datasets.train.csv_file, 'train_dir': cfg.datasets.train.root_dir,
-                  "val_csv": cfg.datasets.validate.csv_file, 'val_dir': cfg.datasets.validate.root_dir, },
-            training_settings=cfg.training_settings,
-            num_training_annotations=len(train_df),
-            num_val_annotations=len(val_df),
-            num_training_images=train_df.images.nunique(),
-            num_val_images=val_df.images.nunique(),
-            num_main_images=len(set(train_df['images'].str.replace(r'_x\d+_y\d+\.', '.', regex=True)))
+    if cfg.wandb_flag:
+        wandb.init(
+            project=cfg.wandb_project,
+            entity=cfg.wandb_entity,
+            config=dict(
+                batch_size=settings.batch_size,
+                optimizer=settings.optimizer,
+                lr=settings.lr,
+                weight_decay=settings.weight_decay,
+                warmup_iters=settings.warmup_iters,
+                epochs=settings.epochs,
+                losses=losses,
+                seed=cfg.seed,
+                data_augmentation=list(cfg.datasets.train.albu_transforms.keys()),
+                n_data_augmentation=len(list(cfg.datasets.train.albu_transforms.keys())),
+                end_transforms=list(cfg.datasets.train.end_transforms.keys()),
+                FIDT=cfg.datasets.train.end_transforms.MultiTransformsWrapper.FIDT,
+                PointsToMask=cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask,
+                input_size=cfg.datasets.img_size,
+                class_def=cfg.datasets.class_def,
+                **cfg.model.kwargs,
+                loss_dict=cfg.losses,
+                base_model=cfg.model.load_from,
+                dataloader={"train": cfg.datasets.train.name, "val": cfg.datasets.validate.name},
+                data={"train_csv": cfg.datasets.train.csv_file, 'train_dir': cfg.datasets.train.root_dir,
+                      "val_csv": cfg.datasets.validate.csv_file, 'val_dir': cfg.datasets.validate.root_dir, },
+                training_settings=cfg.training_settings,
+                num_training_annotations=len(train_df),
+                num_val_annotations=len(val_df),
+                num_training_images=train_df.images.nunique(),
+                num_val_images=val_df.images.nunique(),
+                num_main_images=len(set(train_df['images'].str.replace(r'_x\d+_y\d+\.', '.', regex=True)))
 
+            )
         )
-    )
 
-    date = current_date()
-    wandb.run.name = f'{date}_' + cfg.wandb_run + f'_{wandb.run.id}'
-    wandb.run.tags = [f"train_ds: {cfg.datasets.train.name}", f"val_ds: {cfg.datasets.validate.name}"] + cfg.wandb_tags
-    # TODO this is the time to upload metrics about the data
+        date = current_date()
+        wandb.run.name = f'{date}_' + cfg.wandb_run + f'_{wandb.run.id}'
+        wandb.run.tags = [f"train_ds: {cfg.datasets.train.name}", f"val_ds: {cfg.datasets.validate.name}"] + cfg.wandb_tags
+        # TODO this is the time to upload metrics about the data
 
 
 
@@ -204,23 +205,24 @@ def main(cfg: DictConfig) -> None:
     # little hack to visuliase training data examples
     train_dataloader = DataLoader(train_dataset, **train_dl_kwargs)
 
-    # iterate through the dataloader to check if it works
-    max_plot = 20
-    for i, (img_tensor, target) in enumerate(train_dataset):
-        if i >= max_plot:
-            break
+    if cfg.wandb_flag:
+        # iterate through the dataloader to check if it works
+        max_plot = 30
+        for i, (img_tensor, target) in enumerate(train_dataset):
+            if i >= max_plot:
+                break
 
-        heatmap = target[0].squeeze(0)
-        cls_map = target[1]
+            heatmap = target[0].squeeze(0)
+            cls_map = target[1]
 
-        fig, axes = plot_heatmaps(img_tensor.squeeze(0), heatmap,
-                                  show_argmax_overlay=False, max_channels=1)
+            fig, axes = plot_heatmaps(img_tensor.squeeze(0), heatmap,
+                                      show_argmax_overlay=False, max_channels=1)
 
-        wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
-        fig.savefig(os.path.join("/home/cwinkelmann/work/Herdnet/playground/transformed_training_data",
-                                 f'augmented_dataset_examples.png'))
+            wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
+            fig.savefig(os.path.join("/home/cwinkelmann/work/Herdnet/playground/transformed_training_data", # TODO get the right path
+                                     f'augmented_dataset_examples.png'))
 
-        plt.close(fig)
+            plt.close(fig)
 
 
 
@@ -261,11 +263,12 @@ def main(cfg: DictConfig) -> None:
             )
     
     # Watch the model's gradients during training
-    wandb.watch(model)
-
     visualiser = None
-    if cfg.training_settings.visualiser is not None:
-        visualiser = _define_visualiser(cfg)
+    if cfg.wandb_flag:
+        wandb.watch(model)
+
+        if cfg.training_settings.visualiser is not None:
+            visualiser = _define_visualiser(cfg)
 
     if cfg.training_settings.evaluator is not None:
 
@@ -315,7 +318,7 @@ def main(cfg: DictConfig) -> None:
             select = select,
             validate_on = validate_on, 
             load_optim = True,
-            wandb_flag = True
+            wandb_flag = cfg.wandb_flag
             )
     else:
         logger.info('Starting training ...')
@@ -323,7 +326,7 @@ def main(cfg: DictConfig) -> None:
             cfg.training_settings.warmup_iters, 
             select = select,
             validate_on = validate_on, 
-            wandb_flag = True
+            wandb_flag = cfg.wandb_flag
             )
 
 
@@ -344,7 +347,8 @@ def main(cfg: DictConfig) -> None:
         torch.save(pth_file, path)
         logger.info(f"Saved Model {pth_name} with added information in {path}")
 
-    wandb.finish()
+    if cfg.wandb_flag:
+        wandb.finish()
 
 
 # config_name = "config_2025_07_10_hasty_floreana"
@@ -369,7 +373,10 @@ def main(cfg: DictConfig) -> None:
 # config_name="config_2025_07_13_hasty_edge_blackout_1024"
 # config_name="config_2025_07_22_weinstein_640"
 # config_name="config_2025_07_27_weinstein_full"
-config_name="config_2025_07_27_iguana_sample"
+
+#config_name="config_2025_07_27_iguana_sample"
+config_name="config_2025_07_27_iguana_timm"
+
 # config_name="config_2025_07_10_hasty_floreana"
 # config_name="config_2025_07_13_hasty_fernandina_s_edge_blackout_512"
 

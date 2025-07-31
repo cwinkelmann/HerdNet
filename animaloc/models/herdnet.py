@@ -13,7 +13,6 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
 import torch
 
 import torch.nn as nn
@@ -74,7 +73,8 @@ class HerdNet(nn.Module):
         channels = self.channels_0
 
         scales = [2 ** i for i in range(len(channels[self.first_level:]))]
-        self.dla_up = dla_modules.DLAUp(channels[self.first_level:], scales=scales)
+        selected_channels = channels[self.first_level:]
+        self.dla_up = dla_modules.DLAUp(selected_channels, scales=scales)
         # self.cls_dla_up = dla_modules.DLAUp(channels[-3:], scales=scales[:3])
 
         # bottleneck conv

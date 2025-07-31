@@ -1,4 +1,4 @@
-
+wandb_flag: True
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
 wandb_run: 'augmentation_dr4_full_size_crop'
@@ -8,20 +8,14 @@ seed: 1
 device_name: 'cuda:1'
 
 model:
-  name: 'HerdNetPlus'
+  name: 'HerdNet'
   # work_dir: "./outputs/"
   from_torchvision: False
-  # load_from: '/home/cwinkelmann/work/Herdnet/data/models/20250612_ig_train_down_ratio4_geospatial_val_pix4d_2025_06_11_dla_RUN_9qyfyj4k_r96_p12.pth'
-  # load_from: '/home/cwinkelmann/work/HerdNet/tools/outputs/20250611_ig_train_geospatial_val_pix4d_2025_06_11_dla_RUN_qcfixu05.pth'
-  # load_from: /raid/cwinkelmann/herdnet/outputs/2025-07-28/16-37-18/best_model.pth # dr2 dataleak, 100% 512px
-  # load_from: /raid/cwinkelmann/herdnet/outputs/2025-07-28/16-20-01/best_model.pth
-  # load_from: /raid/cwinkelmann/herdnet/outputs/herdnetplus/best_model.pth
-  # load_from: /home/cwinkelmann/work/Herdnet/data/models/20250722_bird_weinstein_dr4_edge_512_eoozwrmh.pth
-  # resume_from: "/home/cwinkelmann/work/HerdNet/tools/outputs/2025-02-26/15-29-43/latest_model.pth"
+  load_from: '/home/cwinkelmann/work/Herdnet/data/models/20250612_ig_train_down_ratio4_geospatial_val_pix4d_2025_06_11_dla_RUN_9qyfyj4k_r96_p12.pth'
+  # load_from: null
   resume_from: null
   kwargs:
     num_layers: 34
-    backbone: 'dla'
     pretrained: True
     down_ratio: 4  # was two before
     head_conv: 64 # was 64
@@ -79,58 +73,20 @@ datasets:
 #    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format.csv'
 #    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/Default'
 
-#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
-#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
-
-    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format.csv'
-    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/Default'
+    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
+    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
+#
+#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format.csv'
+#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/Default'
 
 #    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/herdnet_format_512_0_crops.csv'
 #    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/crops_512_numNone_overlap0'
 
     sampler: null
-    augmentation_multiplier: 3
+    augmentation_multiplier: 1
 
     albu_transforms:
-      CenterCrop:
-        height: 2000
-        width: 3000
-        p: 1.0
-#      PadIfNeeded:
-#        min_height: 512
-#        min_width: 512
-#        always_apply: True
-#        border_mode: 4
-#        p: 1.0
-      ObjectAwareRandomCrop:
-        height: 1000
-        width: 1000
-        p: 1.0
-        attempts: 10
-        empty_probability: 0.05
-      Rotate:
-        limit: 145
-        p: 0.5
-      RandomScale:
-        scale_limit: [ 0.9, 1.1 ]
-        p: 0.5
-#
-#      # TODO check if these are beneficial
-#      ShiftScaleRotate:
-#        shift_limit: 0.1
-#        scale_limit: 0.15
-#        rotate_limit: 45
-#        p: 0.5
-#        border_mode: 4
-      Perspective:
-        scale: [ 0.05, 0.15 ]
-        p: 0.3
-#      Affine:
-#        scale: [ 0.9, 1.1 ]
-#        translate_percent: [ 0.1, 0.1 ]
-#        rotate: [ -45, 45 ]
-#        shear: [ -10, 10 ]
-#        p: 0.2
+
 
       HorizontalFlip:
         p: 0.2
@@ -149,29 +105,6 @@ datasets:
         p: 0.1
       ToGray:
         p: 0.1
-
-
-
-#
-      ObjectAwareRandomCropEdgeBlackout:
-        height: 512
-        width: 512
-        p: 1.0
-        attempts: 10
-        edge_black_blobs: True
-
-      PasspartoutAugmentation:
-        p: 1.0
-        intensity: 1.0
-        gaussian_sigma_ratio: 0.2
-        keypoint_threshold: 0.2
-        randomize_center: False
-        randomize_radius: False
-
-#      RandomCrop:
-#        height: 512
-#        width: 512
-#        p: 1.0
       Normalize:
         p: 1.0
 
@@ -194,14 +127,8 @@ datasets:
   validate:
     name: 'CSVDataset'
 
-#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format.csv'
-#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/Default'
-
-#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
-#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
-
-    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_1024_400_crops.csv'
-    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_1024_numNone_overlap400'
+    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
+    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
 
 
 # data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
@@ -217,7 +144,7 @@ datasets:
 training_settings:
   trainer: 'Trainer'
   epochs: 200
-  valid_freq: 200
+  valid_freq: 5
   print_freq: 100
   batch_size: 25
   # optimizer: 'SGD'
