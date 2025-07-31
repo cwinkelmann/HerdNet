@@ -1,15 +1,16 @@
-wandb_flag: True
+wandb_flag: False
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
 wandb_run: 'dr2_timm_model'
 wandb_tags: ['iguana','timm', 'iguana', 'dla34', 'dr2', 'train_full', 'val_full']
 # /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
-device_name: 'cuda:1'
+device_name: null
 
 model:
   # name: 'HerdNetSMP'
-  name: 'HerdNetTimm'
+  # name: 'HerdNetTimm'
+  name: 'HerdNetDINOv2'
 
   # work_dir: "./outputs/"
   from_torchvision: False
@@ -19,7 +20,7 @@ model:
   resume_from: null
   kwargs:
     # backbone: 'dla34'
-    pretrained: False
+    pretrained: True
     # pretrained_path: '/home/cwinkelmann/work/Herdnet/data/models/dla34_224/model_best.pth.tar'
     pretrained_path: null
     down_ratio: 2  # was two before
@@ -80,10 +81,54 @@ datasets:
 
 
     sampler: null
-    augmentation_multiplier: 1
+    augmentation_multiplier: 3
 
     albu_transforms:
 
+      HorizontalFlip:
+        p: 0.2
+      VerticalFlip:
+        p: 0.2
+      MotionBlur:
+        p: 0.2
+      RandomRotate90:
+        p: 0.5
+      RandomBrightnessContrast:
+        brightness_limit: 0.2
+        contrast_limit: 0.2
+        p: 0.1
+      Blur:
+        blur_limit: 15
+        p: 0.1
+      ToGray:
+        p: 0.1
+      #      ShiftScaleRotate:
+      #        shift_limit: 0.0625
+      #        scale_limit: 0.1
+      #        rotate_limit: 45
+      #        p: 0.5
+      #      Perspective:
+      #        scale: 0.05
+      #        p: 0.3
+      HueSaturationValue:
+        hue_shift_limit: 20
+        sat_shift_limit: 30
+        val_shift_limit: 20
+        p: 0.1
+      CLAHE:
+        clip_limit: 2.0
+        p: 0.1
+      #      Solarize:
+      #        threshold: 128
+      #        p: 0.2
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+      Resize:
+        height: 518
+        width: 518
+        p: 1.0
       Normalize:
         p: 1.0
 
@@ -128,7 +173,7 @@ training_settings:
   epochs: 200
   valid_freq: 3
   print_freq: 100
-  batch_size: 10
+  batch_size: 150
   # optimizer: 'SGD'
   optimizer: 'adamW'
   lr: 1e-3

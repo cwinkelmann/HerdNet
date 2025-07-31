@@ -374,8 +374,9 @@ def main(cfg: DictConfig) -> None:
 # config_name="config_2025_07_22_weinstein_640"
 # config_name="config_2025_07_27_weinstein_full"
 
-#config_name="config_2025_07_27_iguana_sample"
-config_name="config_2025_07_27_iguana_timm"
+# config_name="config_2025_07_27_iguana_sample"
+# config_name="config_2025_07_27_iguana_timm_convnext"
+config_name="config_2025_07_27_iguana_timm_DinoV2"
 
 # config_name="config_2025_07_10_hasty_floreana"
 # config_name="config_2025_07_13_hasty_fernandina_s_edge_blackout_512"

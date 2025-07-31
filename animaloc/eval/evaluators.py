@@ -415,11 +415,15 @@ class HerdNetEvaluator(Evaluator):
             labels = gt_labels
         )
 
-        up = True
-        if self.stitcher is not None:
-            up = False
+        if "up" in self.lmds_kwargs.keys():
+            pass
+        elif self.stitcher is not None:
+            self.lmds_kwargs["up"] = False
+        else:
+            self.lmds_kwargs["up"] = True
 
-        lmds = HerdNetLMDS(up=up, **self.lmds_kwargs)
+
+        lmds = HerdNetLMDS(**self.lmds_kwargs)
         counts, locs, labels, scores, dscores = lmds(output)
         
         preds = dict(

@@ -60,7 +60,8 @@ class HerdNetPlus(nn.Module):
         self.backbone = timm.create_model(
             backbone,
             pretrained=pretrained and pretrained_path is None,
-            features_only=True
+            features_only=True,
+            img_size=512,
         )
 
         # Load custom weights if provided

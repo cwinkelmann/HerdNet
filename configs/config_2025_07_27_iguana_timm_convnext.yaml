@@ -1,26 +1,30 @@
 wandb_flag: True
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
-wandb_run: 'augmentation_dr4_full_size_crop'
-wandb_tags: ['iguana','augmentation', 'iguana', 'dla34', 'dr4', 'train_full', 'val_full', 'more_augmentation']
+wandb_run: 'dr2_timm_convnext'
+wandb_tags: ['iguana','timm', 'iguana', 'convnext', 'dr2', 'train_full', 'val_full']
 # /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
 device_name: null
 
 model:
-  name: 'HerdNet'
+  # name: 'HerdNetSMP'
+  name: 'HerdNetTimmConvNext'
+
   # work_dir: "./outputs/"
   from_torchvision: False
-  # load_from: '/home/cwinkelmann/work/Herdnet/data/models/20250612_ig_train_down_ratio4_geospatial_val_pix4d_2025_06_11_dla_RUN_9qyfyj4k_r96_p12.pth'
-  load_from: '/raid/cwinkelmann/herdnet/outputs/2025-07-31/10-19-45/best_model.pth'
-  # load_from: null
+  load_from: null
+  # load_from: '/raid/cwinkelmann/herdnet/outputs/2025-07-31/10-35-37/best_model.pth'
+
   resume_from: null
   kwargs:
-    num_layers: 34
+    backbone: 'convnext_base.fb_in22k_ft_in1k'
     pretrained: True
+    # pretrained_path: '/home/cwinkelmann/work/Herdnet/data/models/dla34_224/model_best.pth.tar'
+    pretrained_path: null
     down_ratio: 4  # was two before
     head_conv: 64 # was 64
-  freeze: null
+  freeze: null # Freeze the backbone, if you want to train only the heads
 
 losses:
   FocalLoss:
@@ -71,23 +75,14 @@ datasets:
     # name: 'CSVDataset'
     name: 'CSVDataset'
 
-#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format.csv'
-#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/Default'
-
     csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
     root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
-#
-#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format.csv'
-#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/Default'
 
-#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/herdnet_format_512_0_crops.csv'
-#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/crops_512_numNone_overlap0'
 
     sampler: null
-    augmentation_multiplier: 1
+    augmentation_multiplier: 3
 
     albu_transforms:
-
 
       HorizontalFlip:
         p: 0.2
@@ -95,17 +90,44 @@ datasets:
         p: 0.2
       MotionBlur:
         p: 0.2
-#      RandomRotate90:
-#        p: 0.5
+      RandomRotate90:
+        p: 0.5
       RandomBrightnessContrast:
         brightness_limit: 0.2
         contrast_limit: 0.2
         p: 0.1
       Blur:
-        blur_limit: 5
+        blur_limit: 15
         p: 0.1
       ToGray:
         p: 0.1
+      #      ShiftScaleRotate:
+      #        shift_limit: 0.0625
+      #        scale_limit: 0.1
+      #        rotate_limit: 45
+      #        p: 0.5
+      #      Perspective:
+      #        scale: 0.05
+      #        p: 0.3
+      HueSaturationValue:
+        hue_shift_limit: 20
+        sat_shift_limit: 30
+        val_shift_limit: 20
+        p: 0.1
+      CLAHE:
+        clip_limit: 2.0
+        p: 0.1
+      #      Solarize:
+      #        threshold: 128
+      #        p: 0.2
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+      Resize:
+        height: 512
+        width: 512
+        p: 1.0
       Normalize:
         p: 1.0
 
@@ -128,6 +150,9 @@ datasets:
   validate:
     name: 'CSVDataset'
 
+#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
+#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
+
     csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format_512_0_crops.csv'
     root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/crops_512_numNone_overlap0'
 
@@ -145,17 +170,17 @@ datasets:
 training_settings:
   trainer: 'Trainer'
   epochs: 200
-  valid_freq: 5
+  valid_freq: 30
   print_freq: 100
-  batch_size: 25
+  batch_size: 55
   # optimizer: 'SGD'
   optimizer: 'adamW'
-  lr: 1e-3
+  lr: 1e-4
   weight_decay: 0.0005
   num_workers: 12
   auto_lr:
     mode: 'max'
-    patience: 50
+    patience: 250
     threshold: 1e-4
     threshold_mode: 'rel'
     cooldown: 20
@@ -175,7 +200,7 @@ training_settings:
     select_mode: 'max'
     validate_on: 'f1_score'
     kwargs:
-      print_freq: 250
+      print_freq: 50
       lmds_kwargs:
         kernel_size: [9, 9]
         adapt_ts: 0.3

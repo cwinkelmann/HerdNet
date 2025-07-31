@@ -62,7 +62,7 @@ def _load_backbone_checkpoint(model, pretrained_path):
     return model
 
 @MODELS.register()
-class HerdNetTimm(nn.Module):
+class HerdNetTimmConvNext(nn.Module):
     def __init__(
         self,
         num_layers: int = 34,
@@ -116,7 +116,6 @@ class HerdNetTimm(nn.Module):
                 print(f"  Level {i}: channels={info['num_chs']}, stride={info['reduction']}, module={info['module']}")
         
 
-
         # Inspect what the backbone actually returns
         if debug:
             self._inspect_backbone()
@@ -125,6 +124,7 @@ class HerdNetTimm(nn.Module):
 
         # Subset of features depending on down_ratio
         selected_channels = self.feature_channels[self.first_level:]
+        selected_channels = self.feature_channels
         self.dla_up = DLAFeatureUpsampler(selected_channels, out_channels=selected_channels[0])
 
         # Bottleneck conv

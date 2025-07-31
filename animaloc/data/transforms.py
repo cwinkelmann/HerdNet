@@ -13,7 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
+import torch.nn.functional as F
 import PIL
 import numpy
 import torch
@@ -384,8 +384,15 @@ class FIDT:
         dist_map = torch.from_numpy(dist_map)
         dist_map = 1 / (torch.pow(dist_map, self.alpha * dist_map + self.beta) + self.c)
         dist_map = torch.where(dist_map < 0.01, 0., dist_map)
+        # logger.warning(f"This is a hack to get DinoV2 going")
+        dist_map_interpolated = F.interpolate(
+            dist_map.unsqueeze(0).unsqueeze(0),
+            size=(128, 128),
+            mode='bilinear',
+            align_corners=False
+        ).squeeze(0).squeeze(0)
 
-        return dist_map
+        return dist_map_interpolated
     
     def _onehot(self, image: torch.Tensor, target: torch.Tensor):
 
@@ -399,14 +406,16 @@ class FIDT:
                 x, y = point[0], point[1]
                 point_buffer = _point_buffer(x, y, masks[label-1], self.radius)
                 masks[label-1, point_buffer] = 0
-
-            dist_maps = torch.ones((self.num_classes, self.img_height, self.img_width), dtype=torch.float64)
+            
+            # FIXME yet another hack to get DinoV2 going
+            # dist_maps = torch.ones((self.num_classes, self.img_height, self.img_width), dtype=torch.float64)
+            dist_maps = torch.ones((self.num_classes, self.img_height-1, self.img_width-1), dtype=torch.float64)
             for i, mask in enumerate(masks):
                 mask = self._get_fidt(mask)
                 if i+1 in labels:
                     dist_maps[i] = mask
                 else: 
-                    dist_maps[i] = torch.zeros((self.img_height, self.img_width), dtype=torch.float64)
+                    dist_maps[i] = torch.zeros((self.img_height-1, self.img_width-1), dtype=torch.float64)
         
         return dist_maps
     

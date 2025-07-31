@@ -146,7 +146,8 @@ class HerdNetLMDS(LMDS):
         up: bool = True, 
         kernel_size: tuple = (3,3), 
         adapt_ts: float = 0.3, 
-        neg_ts: float = 0.1
+        neg_ts: float = 0.1,
+        scale_factor: int = 16
         ) -> None:
         '''
         Args:
@@ -163,7 +164,8 @@ class HerdNetLMDS(LMDS):
         super().__init__(kernel_size=kernel_size, adapt_ts=adapt_ts, neg_ts=neg_ts)
 
         self.up = up
-    
+        self.scale_factor = scale_factor
+
     def __call__(self, outputs: List[torch.Tensor]) -> Tuple[list, list, list, list, list]:
         '''
         Args:
@@ -180,8 +182,7 @@ class HerdNetLMDS(LMDS):
         
         # upsample class map
         if self.up:
-            scale_factor = 16 # TODO this is hardcoded, should be set in the model
-            clsmap = F.interpolate(clsmap, scale_factor=scale_factor, mode='nearest')
+            clsmap = F.interpolate(clsmap, scale_factor=self.scale_factor, mode='nearest')
 
         # softmax
         cls_scores = torch.softmax(clsmap, dim=1)[:,1:,:,:]
