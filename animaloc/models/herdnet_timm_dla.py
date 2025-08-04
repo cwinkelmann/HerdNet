@@ -26,6 +26,7 @@ from .register import MODELS
 
 class DLAFeatureUpsampler(nn.Module):
     """Mimics DLAUp with top-down feature aggregation like FPN."""
+
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.projects = nn.ModuleList([
@@ -46,6 +47,7 @@ class DLAFeatureUpsampler(nn.Module):
             x = up + lateral
         return x
 
+
 def _load_backbone_checkpoint(model, pretrained_path):
     checkpoint = torch.load(pretrained_path, map_location="cpu")
     if "state_dict" in checkpoint:
@@ -61,28 +63,27 @@ def _load_backbone_checkpoint(model, pretrained_path):
 
     return model
 
+
 @MODELS.register()
-class HerdNetTimm(nn.Module):
+class HerdNetTimmDLA(nn.Module):
     def __init__(
-        self,
-        num_layers: int = 34,
-        num_classes: int = 2,
-        pretrained: bool = True,
-        down_ratio: Optional[int] = 2,
-        head_conv: int = 64,
-        pretrained_path=None,
-        debug=True,
-        backbone='dla34'
+            self,
+            num_classes: int = 2,
+            pretrained: bool = True,
+            down_ratio: Optional[int] = 2,
+            head_conv: int = 64,
+            pretrained_path=None,
+            debug=True,
+            backbone='timm/dla34'
     ):
         super().__init__()
 
         assert down_ratio in [1, 2, 4, 8, 16], f"Invalid down_ratio: {down_ratio}"
-        assert num_layers == 34, "Only DLA-34 is supported with timm currently"
 
         self.down_ratio = down_ratio
         self.num_classes = num_classes
         self.head_conv = head_conv
-        self.first_level = int(np.log2(down_ratio)) - 1 #  There is one layer less than in the original DLA
+        self.first_level = int(np.log2(down_ratio)) - 1  # There is one layer less than in the original DLA
 
         # Backbone
         base = timm.create_model(backbone,
@@ -91,18 +92,8 @@ class HerdNetTimm(nn.Module):
 
         base = _load_backbone_checkpoint(base, pretrained_path) if pretrained_path else base
 
-
-
-        # base = timm.create_model("dla34", checkpoint_path=pretrained_path, features_only=True)
-        # base = timm.create_model("dla169", pretrained=pretrained, features_only=True)
-
-        # base = timm.create_model("convnextv2_large.fcmae_ft_in22k_in1k_384", pretrained=pretrained, features_only=True)
-        # TODO convnextv2_large would require an upsample from 128 to 256
-
-        # base = timm.create_model("swinv2_large_window12to16_192to256.ms_in22k_ft_in1k", pretrained=pretrained, features_only=True)
-        # TODO seems great but requires some more magic
-
         self.backbone = base
+        # TODO give it a name to freeze it later
 
         # Get feature info from timm
         feature_info = self.backbone.feature_info
@@ -114,8 +105,6 @@ class HerdNetTimm(nn.Module):
             print(f"\nBackbone '{backbone}' provides {self.num_features} feature levels:")
             for i, info in enumerate(feature_info):
                 print(f"  Level {i}: channels={info['num_chs']}, stride={info['reduction']}, module={info['module']}")
-        
-
 
         # Inspect what the backbone actually returns
         if debug:
@@ -125,6 +114,7 @@ class HerdNetTimm(nn.Module):
 
         # Subset of features depending on down_ratio
         selected_channels = self.feature_channels[self.first_level:]
+        selected_channels = self.feature_channels
         self.dla_up = DLAFeatureUpsampler(selected_channels, out_channels=selected_channels[0])
 
         # Bottleneck conv
@@ -150,7 +140,6 @@ class HerdNetTimm(nn.Module):
         )
         self.cls_head[-1].bias.data.fill_(0.0)
 
-
     def _inspect_backbone(self):
         """Debug function to inspect what backbone returns"""
         print(f"\nInspecting backbone outputs:")
@@ -163,42 +152,42 @@ class HerdNetTimm(nn.Module):
             print(f"  Feature {i}: shape={feat.shape}")
 
     def forward(self, x):
-        feats = self.backbone(x)                          # full feature pyramid
-        selected_feats = feats[self.first_level:]         # according to down_ratio
-        selected_feats = feats         # according to down_ratio
+        feats = self.backbone(x)  # full feature pyramid
+        selected_feats = feats[self.first_level:]  # according to down_ratio
+        selected_feats = feats  # according to down_ratio
 
-        upsampled = self.dla_up(selected_feats)           # DLAUp-like fused map
+        upsampled = self.dla_up(selected_feats)  # DLAUp-like fused map
 
         # Localization heatmap
         fused = self.bottleneck_conv(upsampled)
-        heatmap = self.loc_head(fused)                    # shape: (B, 1, H, W)
+        heatmap = self.loc_head(fused)  # shape: (B, 1, H, W)
 
         # Classification from deepest feature map (for global task)
-        cls_out = self.cls_head(selected_feats[-1])       # shape: (B, C, h, w)
+        cls_out = self.cls_head(selected_feats[-1])  # shape: (B, C, h, w)
 
         return heatmap, cls_out
-    
+
     def freeze(self, layers: list) -> None:
         ''' Freeze all layers mentioned in the input list '''
         for layer in layers:
             self._freeze_layer(layer)
-    
+
     def _freeze_layer(self, layer_name: str) -> None:
         for param in getattr(self, layer_name).parameters():
             param.requires_grad = False
-    
+
     def reshape_classes(self, num_classes: int) -> None:
         ''' Reshape architecture according to a new number of classes.
 
         Arg:
             num_classes (int): new number of classes
         '''
-        
+
         self.cls_head[-1] = nn.Conv2d(
-                self.head_conv, num_classes, 
-                kernel_size=1, stride=1, 
-                padding=0, bias=True
-                )
+            self.head_conv, num_classes,
+            kernel_size=1, stride=1,
+            padding=0, bias=True
+        )
 
         self.cls_head[-1].bias.data.fill_(0.00)
 
