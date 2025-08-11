@@ -1,26 +1,28 @@
 wandb_flag: True
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
-wandb_run: 'dr2_timm_convnext'
-wandb_tags: ['iguana','timm', 'iguana', 'convnext', 'dr2', 'train_full', 'val_full']
+wandb_run: 'dr2_timm_dla'
+wandb_tags: ['iguana','timm', 'iguana', 'dla34', 'dr2', 'train_full', 'val_full']
 # /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
 seed: 1
 device_name: null
 
 model:
-  name: 'HerdNetTimmConvNext'
+  name: 'HerdNetTimmDLA'
 
   # work_dir: "./outputs/"
   from_torchvision: False
+
+  # Load the full herdnet model
   load_from: null
   # load_from: '/raid/cwinkelmann/herdnet/outputs/2025-07-31/10-35-37/best_model.pth'
 
   resume_from: null
   kwargs:
-    backbone: 'timm/convnext_tiny.in12k_ft_in1k'
+    backbone: 'timm/dla34'
     pretrained: True
-    # pretrained_path: '/home/cwinkelmann/work/Herdnet/data/models/dla34_224/model_best.pth.tar'
-    pretrained_path: null
+    pretrained_path: '/home/cwinkelmann/work/Herdnet/data/models/delplanque_dla34_512/model_best.pth.tar'
+    # pretrained_path: null
     down_ratio: 4  # was two before
     head_conv: 64 # was 64
   freeze: null # Freeze the backbone, if you want to train only the heads
@@ -79,7 +81,7 @@ datasets:
 
 
     sampler: null
-    augmentation_multiplier: 3
+    augmentation_multiplier: 1
 
     albu_transforms:
 
@@ -152,9 +154,12 @@ datasets:
 
 #    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format_512_0_crops.csv'
 #    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/train/crops_512_numNone_overlap0'
+#
+#    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format_512_0_crops.csv'
+#    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/crops_512_numNone_overlap0'
 
-    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format_512_0_crops.csv'
-    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/crops_512_numNone_overlap0'
+    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/Default'
 
 
 # data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
@@ -170,7 +175,7 @@ datasets:
 training_settings:
   trainer: 'Trainer'
   epochs: 200
-  valid_freq: 30
+  valid_freq: 25
   print_freq: 100
   batch_size: 55
   # optimizer: 'SGD'
@@ -204,7 +209,8 @@ training_settings:
       lmds_kwargs:
         kernel_size: [ 9, 9 ]
         adapt_ts: 0.3
-        scale_factor: 1 # scale the heatmap to the original image size
+        scale_factor: 1 # scale the heatmap to the original image size,
+        # TODO kind of the same as down_ratio
         up: True
 
   stitcher:

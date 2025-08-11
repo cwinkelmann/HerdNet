@@ -40,19 +40,7 @@ class SimpleDINOv2Extractor(nn.Module):
         return features, attention_maps
 
 
-"""
-Copyright (C) 2024 University of Liège, Gembloux Agro-Bio Tech, Forest Is Life
-All rights reserved.
 
-This source code is under the MIT License.
-
-Please contact the author Alexandre Delplanque (alexandre.delplanque@uliege.be) for any questions.
-
-Last modification: March 18, 2024
-"""
-__author__ = "Alexandre Delplanque"
-__license__ = "MIT License"
-__version__ = "0.2.1"
 
 from typing import Optional, List
 import numpy as np
@@ -64,7 +52,9 @@ from .register import MODELS
 
 
 class DINOv2AttentionExtractor(nn.Module):
-    """Extract spatial attention maps from DINOv2 transformer blocks."""
+    """
+    Extract spatial attention maps from DINOv2 transformer blocks.
+    """
 
     def __init__(self, dinov2_model, layer_indices: List[int] = [-4, -3, -2, -1]):
         super().__init__()
@@ -271,14 +261,15 @@ def _load_backbone_checkpoint(model, pretrained_path):
 class HerdNetDINOv2(nn.Module):
     def __init__(
         self,
-        num_layers: int = 34,  # Keep for compatibility, not used with DINOv2
+        backbone = 'vit_large_patch14_dinov2.lvd142m',
         num_classes: int = 2,
         pretrained: bool = True,
         down_ratio: Optional[int] = 2,
         head_conv: int = 64,
         pretrained_path=None,
         debug=True,
-        attention_layers: List[int] = [-4, -3, -2, -1],  # Which transformer layers to extract attention from
+        attention_layers: List[int] = [-4, -3, -2, -1],
+        input_resolution=(512,512) # Which transformer layers to extract attention from
     ):
         super().__init__()
 
@@ -291,10 +282,12 @@ class HerdNetDINOv2(nn.Module):
 
         # Load DINOv2 model from timm
         dinov2_model = timm.create_model(
-            'vit_large_patch14_dinov2.lvd142m',
+            model_name=backbone,
             pretrained=pretrained,
             num_classes=0,  # Remove classification head
         )
+
+
 
         if pretrained_path:
             dinov2_model = _load_backbone_checkpoint(dinov2_model, pretrained_path)
@@ -304,7 +297,6 @@ class HerdNetDINOv2(nn.Module):
         self.embed_dim = dinov2_model.embed_dim  # 1024 for large model
 
         if debug:
-            logger.info(f"\nDINOv2 Large model loaded:")
             logger.info(f"  Patch size: {self.patch_size}x{self.patch_size}")
             logger.info(f"  Embedding dim: {self.embed_dim}")
             logger.info(f"  Attention extraction layers: {attention_layers}")
@@ -325,6 +317,7 @@ class HerdNetDINOv2(nn.Module):
 
         # Spatial processor for multi-scale features
         output_channels = [256, 512, 1024]
+
         self.spatial_processor = DINOv2SpatialProcessor(
             feature_dim=self.embed_dim,
             output_channels=output_channels
@@ -350,14 +343,6 @@ class HerdNetDINOv2(nn.Module):
             nn.Sigmoid()
         )
         self.loc_head[-2].bias.data.fill_(0.0)
-
-        # # Classification head (using deepest features)
-        # self.cls_head = nn.Sequential(
-        #     nn.Conv2d(output_channels[-1], head_conv, kernel_size=3, padding=1),
-        #     nn.ReLU(inplace=True),
-        #     nn.Conv2d(head_conv, num_classes, kernel_size=1)
-        # )
-        # self.cls_head[-1].bias.data.fill_(0.0)
 
         # classification head
         self.cls_head = nn.Sequential(
@@ -391,6 +376,40 @@ class HerdNetDINOv2(nn.Module):
         if debug:
             self._inspect_model()
 
+    def check_trainable_parameters(self):
+        """Check which parameters are trainable."""
+        total_params = 0
+        trainable_params = 0
+
+        for name, param in self.named_parameters():
+            total_params += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+
+        logger.info(f"Total parameters: {total_params:,}")
+        logger.info(f"Trainable parameters: {trainable_params:,}")
+        logger.info(f"Percentage trainable: {100 * trainable_params / total_params:.2f}%")
+
+        # Check specifically DINOv2 parameters
+        dinov2_total = 0
+        dinov2_trainable = 0
+
+        for name, param in self.attention_extractor.dinov2.named_parameters():
+            dinov2_total += param.numel()
+            if param.requires_grad:
+                dinov2_trainable += param.numel()
+
+        logger.info(f"DINOv2 total parameters: {dinov2_total:,}")
+        logger.info(f"DINOv2 trainable parameters: {dinov2_trainable:,}")
+        logger.info(f"DINOv2 percentage trainable: {100 * dinov2_trainable / dinov2_total:.2f}%")
+
+        return {
+            'total_params': total_params,
+            'trainable_params': trainable_params,
+            'dinov2_total': dinov2_total,
+            'dinov2_trainable': dinov2_trainable
+        }
+
     def _inspect_model(self):
         """Debug function to inspect model outputs"""
         logger.info(f"\nInspecting DINOv2 model outputs:")
@@ -420,6 +439,17 @@ class HerdNetDINOv2(nn.Module):
 
     def forward(self, x):
         # Extract DINOv2 features and attention maps
+
+        # Interpolate input to match expected resolution
+        if x.shape[2:] != (self.patch_size * 37, self.patch_size * 37):
+            # logger.info(f"Input shape {x.shape[2:]} does not match expected patch size {self.patch_size * 37}, resizing.")
+            x = F.interpolate(
+                x,
+                size=(self.patch_size * 37, self.patch_size * 37),
+                mode='bilinear',
+                align_corners=False
+            )
+
         patch_features, attention_maps = self.attention_extractor(x)
 
         # Process into multi-scale features and attention heatmaps

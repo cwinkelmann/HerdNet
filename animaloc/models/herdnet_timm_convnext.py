@@ -65,24 +65,22 @@ def _load_backbone_checkpoint(model, pretrained_path):
 class HerdNetTimmConvNext(nn.Module):
     def __init__(
         self,
-        num_layers: int = 34,
         num_classes: int = 2,
         pretrained: bool = True,
         down_ratio: Optional[int] = 2,
         head_conv: int = 64,
         pretrained_path=None,
         debug=True,
-        backbone='dla34'
+        backbone='timm/convnext_tiny.in12k_ft_in1k'
     ):
         super().__init__()
 
-        assert down_ratio in [1, 2, 4, 8, 16], f"Invalid down_ratio: {down_ratio}"
-        assert num_layers == 34, "Only DLA-34 is supported with timm currently"
+        assert down_ratio in [4, 8, 16], f"Invalid down_ratio: {down_ratio}"
 
         self.down_ratio = down_ratio
         self.num_classes = num_classes
         self.head_conv = head_conv
-        self.first_level = int(np.log2(down_ratio)) - 1 #  There is one layer less than in the original DLA
+        self.first_level = int(np.log2(down_ratio)) - 2 #  There is two layer less than in the original DLA
 
         # Backbone
         base = timm.create_model(backbone,
@@ -91,18 +89,8 @@ class HerdNetTimmConvNext(nn.Module):
 
         base = _load_backbone_checkpoint(base, pretrained_path) if pretrained_path else base
 
-
-
-        # base = timm.create_model("dla34", checkpoint_path=pretrained_path, features_only=True)
-        # base = timm.create_model("dla169", pretrained=pretrained, features_only=True)
-
-        # base = timm.create_model("convnextv2_large.fcmae_ft_in22k_in1k_384", pretrained=pretrained, features_only=True)
-        # TODO convnextv2_large would require an upsample from 128 to 256
-
-        # base = timm.create_model("swinv2_large_window12to16_192to256.ms_in22k_ft_in1k", pretrained=pretrained, features_only=True)
-        # TODO seems great but requires some more magic
-
         self.backbone = base
+        # TODO give it a name to freeze it later
 
         # Get feature info from timm
         feature_info = self.backbone.feature_info
@@ -124,7 +112,7 @@ class HerdNetTimmConvNext(nn.Module):
 
         # Subset of features depending on down_ratio
         selected_channels = self.feature_channels[self.first_level:]
-        selected_channels = self.feature_channels
+        # selected_channels = self.feature_channels
         self.dla_up = DLAFeatureUpsampler(selected_channels, out_channels=selected_channels[0])
 
         # Bottleneck conv
@@ -165,7 +153,7 @@ class HerdNetTimmConvNext(nn.Module):
     def forward(self, x):
         feats = self.backbone(x)                          # full feature pyramid
         selected_feats = feats[self.first_level:]         # according to down_ratio
-        selected_feats = feats         # according to down_ratio
+        # selected_feats = feats         # according to down_ratio
 
         upsampled = self.dla_up(selected_feats)           # DLAUp-like fused map
 
@@ -174,9 +162,25 @@ class HerdNetTimmConvNext(nn.Module):
         heatmap = self.loc_head(fused)                    # shape: (B, 1, H, W)
 
         # Classification from deepest feature map (for global task)
-        cls_out = self.cls_head(selected_feats[-1])       # shape: (B, C, h, w)
+        clsmap = self.cls_head(selected_feats[-1])       # shape: (B, C, h, w)
 
-        return heatmap, cls_out
+        if self.down_ratio == 1:
+            assert heatmap.shape[1:] == (1, 512,512)
+            assert clsmap.shape[1:] == (8, 16,16)
+        elif self.down_ratio == 2:
+            assert heatmap.shape[1:] == (1, 256,256)
+            assert clsmap.shape[1:] == (8, 16, 16)
+        elif self.down_ratio == 4:
+            assert heatmap.shape[1:] == (1, 128,128)
+            assert clsmap.shape[1:] == (8, 16, 16)
+        elif self.down_ratio == 8:
+            assert heatmap.shape[1:] == (1, 64,64)
+            assert clsmap.shape[1:] == (8, 16, 16)
+        elif self.down_ratio == 16:
+            assert heatmap.shape[1:] == (1, 32,32)
+            assert clsmap.shape[1:] == (8, 16, 16)
+
+        return heatmap, clsmap
     
     def freeze(self, layers: list) -> None:
         ''' Freeze all layers mentioned in the input list '''

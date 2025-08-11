@@ -1,17 +1,3 @@
-__copyright__ = \
-    """
-    Copyright (C) 2024 University of Liège, Gembloux Agro-Bio Tech, Forest Is Life
-    All rights reserved.
-
-    This source code is under the MIT License.
-
-    Please contact the author Alexandre Delplanque (alexandre.delplanque@uliege.be) for any questions.
-
-    Last modification: March 18, 2024
-    """
-__author__ = "Alexandre Delplanque"
-__license__ = "MIT License"
-__version__ = "0.2.1"
 
 from typing import Optional
 
@@ -20,6 +6,7 @@ import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from loguru import logger
 
 from .register import MODELS
 
@@ -78,12 +65,12 @@ class HerdNetTimmDLA(nn.Module):
     ):
         super().__init__()
 
-        assert down_ratio in [1, 2, 4, 8, 16], f"Invalid down_ratio: {down_ratio}"
+        assert down_ratio in [2, 4, 8, 16], f"Invalid down_ratio: {down_ratio}"
 
         self.down_ratio = down_ratio
         self.num_classes = num_classes
         self.head_conv = head_conv
-        self.first_level = int(np.log2(down_ratio)) - 1  # There is one layer less than in the original DLA
+        self.first_level = int(np.log2(down_ratio)) -1  # There is one layer less than in the original DLA
 
         # Backbone
         base = timm.create_model(backbone,
@@ -102,9 +89,9 @@ class HerdNetTimmDLA(nn.Module):
         self.num_features = len(feature_info)
 
         if debug:
-            print(f"\nBackbone '{backbone}' provides {self.num_features} feature levels:")
+            logger.info(f"\nBackbone '{backbone}' provides {self.num_features} feature levels:")
             for i, info in enumerate(feature_info):
-                print(f"  Level {i}: channels={info['num_chs']}, stride={info['reduction']}, module={info['module']}")
+                logger.info(f"  Level {i}: channels={info['num_chs']}, stride={info['reduction']}, module={info['module']}")
 
         # Inspect what the backbone actually returns
         if debug:
@@ -114,7 +101,7 @@ class HerdNetTimmDLA(nn.Module):
 
         # Subset of features depending on down_ratio
         selected_channels = self.feature_channels[self.first_level:]
-        selected_channels = self.feature_channels
+        # selected_channels = self.feature_channels
         self.dla_up = DLAFeatureUpsampler(selected_channels, out_channels=selected_channels[0])
 
         # Bottleneck conv
@@ -152,9 +139,11 @@ class HerdNetTimmDLA(nn.Module):
             print(f"  Feature {i}: shape={feat.shape}")
 
     def forward(self, x):
-        feats = self.backbone(x)  # full feature pyramid
+        feats = self.backbone(x)  # full feature set
+
+
         selected_feats = feats[self.first_level:]  # according to down_ratio
-        selected_feats = feats  # according to down_ratio
+        # selected_feats = feats  # according to down_ratio
 
         upsampled = self.dla_up(selected_feats)  # DLAUp-like fused map
 
@@ -163,9 +152,19 @@ class HerdNetTimmDLA(nn.Module):
         heatmap = self.loc_head(fused)  # shape: (B, 1, H, W)
 
         # Classification from deepest feature map (for global task)
-        cls_out = self.cls_head(selected_feats[-1])  # shape: (B, C, h, w)
+        clsmap = self.cls_head(selected_feats[-1])  # shape: (B, C, h, w)
 
-        return heatmap, cls_out
+        if self.down_ratio == 1:
+            assert heatmap.shape[1:] == (1, 512,512)
+            assert clsmap.shape[1:] == (8, 16,16)
+        elif self.down_ratio == 2:
+            assert heatmap.shape[1:] == (1, 256,256)
+            assert clsmap.shape[1:] == (8, 16, 16)
+        elif self.down_ratio == 4:
+            assert heatmap.shape[1:] == (1, 128,128)
+            assert clsmap.shape[1:] == (8, 16, 16)
+
+        return heatmap, clsmap
 
     def freeze(self, layers: list) -> None:
         ''' Freeze all layers mentioned in the input list '''

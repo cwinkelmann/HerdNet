@@ -6,7 +6,7 @@ entity: 'karisu'
 
 metric:
   goal: maximize
-  name: f1_score
+  name: f2_score
 
 parameters:
 

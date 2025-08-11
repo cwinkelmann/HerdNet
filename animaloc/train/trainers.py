@@ -310,7 +310,9 @@ class Trainer:
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
+                        wandb.log({"f1_score": self.evaluator.metrics.fbeta_score(c=1, beta=1), 'epoch': epoch})
                         wandb.log({"f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
+                        wandb.log({"f5_score": self.evaluator.metrics.fbeta_score(c=1, beta=5), 'epoch': epoch})
                         wandb.log({'true_positive': sum(self.evaluator.metrics.tp), 'epoch': epoch})
                         wandb.log({'false_negative': sum(self.evaluator.metrics.fn), 'epoch': epoch})
                         wandb.log({'false_positive': sum(self.evaluator.metrics.fp), 'epoch': epoch})
@@ -344,7 +346,10 @@ class Trainer:
                     logger.info('Best model saved - Epoch {} - Validation value: {:.6f}, path: {}'.format(epoch, val_output, model_checkpoint_path))
                     artifact = wandb.Artifact(name=checkpoints, type="model")
                     artifact.add_file(model_checkpoint_path)  # Add a file
-                    wandb.log_artifact(artifact)
+                    try:
+                        wandb.log_artifact(artifact)
+                    except Exception as e:
+                        logger.error(f'Error logging artifact to wandb: {e}')
                 elif checkpoints == 'all':
                     self._save_checkpoint(epoch, checkpoints)
 

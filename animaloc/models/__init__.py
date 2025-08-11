@@ -19,7 +19,7 @@ from .register import MODELS
 from .faster_rcnn import *
 from .dla import *
 from .herdnet import *
-from .herdnet_timm import *
+from .herdnet_timm_dla import *
 from .herdnet_timm_convnext import *
 from .herdnet_timm_dinoSvin import *
 from .utils import *

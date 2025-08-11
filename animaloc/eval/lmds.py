@@ -179,7 +179,8 @@ class HerdNetLMDS(LMDS):
         '''
 
         heatmap, clsmap = outputs
-        
+        if self.scale_factor is None:
+            pass
         # upsample class map
         if self.up:
             clsmap = F.interpolate(clsmap, scale_factor=self.scale_factor, mode='nearest')

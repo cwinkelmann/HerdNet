@@ -14,7 +14,7 @@ __license__ = "MIT License"
 __version__ = "0.2.1"
 
 import os
-import subprocess
+
 from pathlib import Path
 from typing import List, Tuple, Any
 
@@ -24,7 +24,7 @@ import torch
 import wandb
 from loguru import logger
 from matplotlib import pyplot as plt
-from omegaconf import DictConfig
+from omegaconf import DictConfig, omegaconf
 from torch.utils.data import DataLoader
 
 import animaloc
@@ -32,46 +32,11 @@ from animaloc.models.utils import LossWrapper, load_model
 from animaloc.utils.seed import set_seed
 from animaloc.utils.useful_funcs import current_date
 from tools.train_helper import _get_collate_fn, _build_sampler, _load_albu_transforms, _load_end_transforms, \
-    _build_model, _load_losses, _define_evaluator, _define_visualiser
+    _build_model, _load_losses, _define_evaluator, _define_visualiser, get_least_occupied_gpu_nvidia_smi
 from animaloc.vizual.custom_vis import plot_heatmaps
 
 
-def get_least_occupied_gpu_nvidia_smi() -> int:
-    """
-    Get the GPU with the least memory usage using nvidia-smi.
-    More accurate as it shows total system memory usage, not just PyTorch.
 
-    Returns:
-        int: GPU device ID with least memory usage
-    """
-    try:
-        # Run nvidia-smi to get GPU memory info
-        result = subprocess.run([
-            'nvidia-smi',
-            '--query-gpu=index,memory.used,memory.total',
-            '--format=csv,noheader,nounits'
-        ], capture_output=True, text=True, check=True)
-
-        gpu_info = []
-        for line in result.stdout.strip().split('\n'):
-            if line:
-                parts = line.split(', ')
-                gpu_id = int(parts[0])
-                memory_used = int(parts[1])  # MB
-                memory_total = int(parts[2])  # MB
-                usage_percent = memory_used / memory_total
-                gpu_info.append((gpu_id, memory_used, usage_percent))
-
-        # Sort by memory usage and return GPU with least usage
-        gpu_info.sort(key=lambda x: x[1])  # Sort by absolute memory used
-        
-        logger.info(f"GPU memory usage: {gpu_info}")
-        
-        return gpu_info[0][0]
-
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error running nvidia-smi: {e}")
-        return None
 
 
 
@@ -152,6 +117,8 @@ def main(cfg: DictConfig) -> None:
             project=cfg.wandb_project,
             entity=cfg.wandb_entity,
             config=dict(
+                model_name=cfg.model.name,
+                model_load=cfg.model.load_from,
                 batch_size=settings.batch_size,
                 optimizer=settings.optimizer,
                 lr=settings.lr,
@@ -160,26 +127,38 @@ def main(cfg: DictConfig) -> None:
                 epochs=settings.epochs,
                 losses=losses,
                 seed=cfg.seed,
-                data_augmentation=list(cfg.datasets.train.albu_transforms.keys()),
+                train_data_augmentation=list(cfg.datasets.train.albu_transforms.keys()),
+                train_data_augmentation_v=dict(cfg.datasets.train.albu_transforms),
+                validate_data_augmentation_v=dict(cfg.datasets.validate.albu_transforms),
+
                 n_data_augmentation=len(list(cfg.datasets.train.albu_transforms.keys())),
                 end_transforms=list(cfg.datasets.train.end_transforms.keys()),
                 FIDT=cfg.datasets.train.end_transforms.MultiTransformsWrapper.FIDT,
-                PointsToMask=cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask,
+                PointsToMask=dict(cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask),
                 input_size=cfg.datasets.img_size,
                 class_def=cfg.datasets.class_def,
-                **cfg.model.kwargs,
-                loss_dict=cfg.losses,
+                augmentation_multiplier=cfg.datasets.train.augmentation_multiplier,
+                model = dict(cfg.model.kwargs),
+                model_backbone=cfg.model.kwargs.backbone if "backbone" in cfg.model.kwargs else None, # TODO fix it when it works
+                loss_dict=dict(cfg.losses),
                 base_model=cfg.model.load_from,
                 dataloader={"train": cfg.datasets.train.name, "val": cfg.datasets.validate.name},
                 data={"train_csv": cfg.datasets.train.csv_file, 'train_dir': cfg.datasets.train.root_dir,
                       "val_csv": cfg.datasets.validate.csv_file, 'val_dir': cfg.datasets.validate.root_dir, },
-                training_settings=cfg.training_settings,
+                training_settings=dict(cfg.training_settings),
+                training_auto_ld=dict(cfg.training_settings.auto_lr),
+
                 num_training_annotations=len(train_df),
                 num_val_annotations=len(val_df),
                 num_training_images=train_df.images.nunique(),
                 num_val_images=val_df.images.nunique(),
-                num_main_images=len(set(train_df['images'].str.replace(r'_x\d+_y\d+\.', '.', regex=True)))
+                num_main_images=len(set(train_df['images'].str.replace(r'_x\d+_y\d+\.', '.', regex=True))),
 
+
+                evaluator_name=cfg.training_settings.evaluator.name if cfg.training_settings.evaluator is not None else None,
+                evaluator_kwargs=cfg.training_settings.evaluator.kwargs if cfg.training_settings.evaluator is not None else None,
+                evaluator=cfg.training_settings.evaluator,
+                stitcher=cfg.training_settings.stitcher if cfg.training_settings.stitcher is not None else None
             )
         )
 
@@ -187,7 +166,6 @@ def main(cfg: DictConfig) -> None:
         wandb.run.name = f'{date}_' + cfg.wandb_run + f'_{wandb.run.id}'
         wandb.run.tags = [f"train_ds: {cfg.datasets.train.name}", f"val_ds: {cfg.datasets.validate.name}"] + cfg.wandb_tags
         # TODO this is the time to upload metrics about the data
-
 
 
     train_dl_kwargs = dict(
@@ -229,14 +207,14 @@ def main(cfg: DictConfig) -> None:
     # Build the model
     logger.info('Building the model ...')
     model = _build_model(cfg)
-
+    # model.check_trainable_parameters() # TODO implement this in all models
     # Prepare for training
     logger.info('Preparing for training ...')
     criterions = _load_losses(cfg)
     model = LossWrapper(model, criterions).to(device)
 
     if cfg.model.load_from is not None:
-        model = load_model(model, cfg.model.load_from)
+        model = load_model(model, cfg.model.load_from, device=device)
 
         if 'HerdNet' in cfg.model.name:
             if cfg.model.freeze is not None:
@@ -374,36 +352,67 @@ def main(cfg: DictConfig) -> None:
 # config_name="config_2025_07_22_weinstein_640"
 # config_name="config_2025_07_27_weinstein_full"
 
-# config_name="config_2025_07_27_iguana_sample"
-# config_name="config_2025_07_27_iguana_timm_convnext"
-config_name="config_2025_07_27_iguana_timm_DinoV2"
+## Refactoring of herdnet
+# config_name="config_2025_07_27_iguana_legacy_dla34"
+# config_name="config_2025_07_27_iguana_timm_DLA"
+#config_name="config_2025_07_27_iguana_timm_convnext"
+# config_name="config_2025_07_27_iguana_timm_DinoV2"
 
 # config_name="config_2025_07_10_hasty_floreana"
 # config_name="config_2025_07_13_hasty_fernandina_s_edge_blackout_512"
 
-@hydra.main(config_path='../configs', config_name=config_name)
+## label correction experiment
+#config_name = "config_2025_08_08_dinov2_train_val_classic"
+#config_name = "config_2025_08_08_dinov2_train_val_corrected"
+#config_name = "config_2025_08_08_dinov2_train_val_inverted_val_classic"
+#config_name = "config_2025_08_08_dinov2_train_val_inverted_val_corrected"
+#config_name = "config_2025_08_08_dla34_train_val_inverted_val_corrected"
+
+config_name = "config_2025_08_10_dinov2_floreana_all_val_fernandina"
+# config_name = "config_2025_08_10_dinov2_floreana_fernandia_all_val_fernandina"
+
+@hydra.main(config_path='../configs/iguana/label_correction', config_name=config_name)
 def main_wrapper(cfg: DictConfig):
     """
     Main function to run the training process with hydra configuration.
     """
     
-    # # learning curve setup
-    # run_name_template = 'ig_Floreana_learning_curve_dr2'
-    # wandb_tags = ['train_hasty', 'single', 'pretrained=false', 'Floreana', 'dla34', 'dr2', 'learning_curve']
+    # learning curve setup
+
+
+    # for i in range(1, 25, 1):
+    #     # run_name_template = 'ig_Fernandina_s_learning_curve_dino'
+    #     augmentation_inflation = 1
+    #     # wandb_tags = ['train_hasty', 'single', 'pretrained=true', 'Fernandina_s', 'dinoV2', 'learning_curve', f'augmentation_inflation={augmentation_inflation}', f'num={i}']
     #
-    # for i in range(35, 1, -1):
-    #     cfg.wandb_run = f'{run_name_template}_image{i}'
+    #     # cfg.wandb_run = f'{run_name_template}_image{i}'
+    #     #
+    #     # cfg.datasets.train.csv_file = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/Fernandina_s_detection_il_{i}/train/herdnet_format_512_0_crops.csv'
+    #     # cfg.datasets.train.root_dir = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/Fernandina_s_detection_il_{i}/train/crops_512_num{i}_overlap0'
     #
-    #     cfg.datasets.train.csv_file = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection/Floreana_detection_il_{i}/train/herdnet_format_512_0_crops.csv'
-    #     cfg.datasets.train.root_dir = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection/Floreana_detection_il_{i}/train/crops_512_num{i}_overlap0'
-    #     cfg.wandb_tags = wandb_tags
-    #     cfg.device_name = 'cuda:7'
+    #     # cfg.datasets.train.csv_file = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/floreana_sample/train/herdnet_format_512_0_crops.csv'
+    #     # cfg.datasets.train.root_dir = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/floreana_sample/train/crops_512_numNone_overlap0'
+    #
+    #
+    #     #cfg.datasets.validate.csv_file = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/Fernandina_s_detection/val/herdnet_format_512_0_crops.csv'
+    #     #cfg.datasets.validate.root_dir = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/Fernandina_s_detection/val/crops_512_numNone_overlap0'
+    #
+    #     cfg.datasets.validate.csv_file = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/Floreana_detection/val/herdnet_format.csv'
+    #     cfg.datasets.validate.root_dir = f'/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection_edge_black_512/Floreana_detection/val/Default'
+    #     # cfg.wandb_tags = wandb_tags
+    #     # cfg.device_name = null
+    #     cfg.datasets.train.augmentation_multiplier = augmentation_inflation
+    #
+    #     # omegaconf.OmegaConf.to_container(
+    #     #     cfg, resolve=True, throw_on_missing=True
+    #     # )
+    #
     #     main(cfg)
-    #
+
     # omegaconf.OmegaConf.to_container(
     #     cfg, resolve=True, throw_on_missing=True
     # )
-
+    #
     main(cfg)
 
 if __name__ == '__main__':

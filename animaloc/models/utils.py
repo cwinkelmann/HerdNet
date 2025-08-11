@@ -21,7 +21,7 @@ from loguru import logger
 
 __all__ = ['load_model', 'count_parameters', 'LossWrapper']
 
-def load_model(model: torch.nn.Module, pth_path: str) -> torch.nn.Module:
+def load_model(model: torch.nn.Module, pth_path: str, device: str = 'cuda') -> torch.nn.Module:
     ''' Load model parameters from a PTH file 
     
     Args:
@@ -35,7 +35,7 @@ def load_model(model: torch.nn.Module, pth_path: str) -> torch.nn.Module:
     logger.info(f"Loading model from {pth_path}...")
     map_location = torch.device('cpu')
     if torch.cuda.is_available():
-        map_location = torch.device('cuda')
+        map_location = torch.device(device)
     
     checkpoint = torch.load(pth_path, map_location=map_location)
     model.load_state_dict(checkpoint['model_state_dict'])

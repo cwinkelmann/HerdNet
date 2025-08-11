@@ -47,6 +47,10 @@ from animaloc.utils.useful_funcs import current_date, mkdir
 from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
 
 from PIL import Image
+
+from tools.train_helper import get_least_occupied_gpu_nvidia_smi, _load_albu_transforms, _load_end_transforms, \
+    _define_visualiser
+
 Image.MAX_IMAGE_PIXELS = None  # Disable the limit
 
 
@@ -76,31 +80,31 @@ def _build_model(cfg: DictConfig) -> torch.nn.Module:
     for k in ['num_classes']:
         kwargs.pop(k, None)
     
-    model = model(**kwargs, num_classes=cfg.dataset.num_classes)
+    model = model(**kwargs, num_classes=cfg.datasets.num_classes)
     model = LossWrapper(model, [])
-    model = load_model(model, cfg.model.pth_file)
+    model = load_model(model, cfg.model.load_from)
     return model
 
 def _get_collate_fn(cfg: DictConfig) -> Callable:
-    fn = cfg.dataset.collate_fn
+    fn = cfg.datasets.collate_fn
     if fn is not None:
         fn = animaloc.data.batch_utils.__dict__[fn]
     return fn
 
 def _define_stitcher(model: torch.nn.Module, cfg: DictConfig) -> Stitcher:
 
-    name = cfg.stitcher.name
+    name = cfg.training_settings.stitcher.name
 
     assert name in animaloc.eval.stitchers.__dict__.keys(), \
         f'\'{name}\' class unfound, make sure you have included the class in the stitchers list'
 
-    kwargs = dict(cfg.stitcher.kwargs)
+    kwargs = dict(cfg.training_settings.stitcher.kwargs)
     for k in ['model','size','device_name']:
         kwargs.pop(k, None)
 
     stitcher = animaloc.eval.stitchers.__dict__[name](
         model = model,
-        size = cfg.dataset.img_size,
+        size = cfg.datasets.img_size,
         **kwargs,
         device_name = cfg.device_name
         ) 
@@ -114,18 +118,24 @@ def _define_evaluator(
     cfg: DictConfig
     ) -> Evaluator:
 
-    name = cfg.evaluator.name
+    name = cfg.training_settings.evaluator.name
 
     assert name in animaloc.eval.evaluators.__dict__.keys(), \
         f'\'{name}\' class unfound, make sure you have included the class in the evaluators list'
 
     stitcher = None
-    if cfg.stitcher is not None:
+    if cfg.training_settings.stitcher is not None:
         stitcher = _define_stitcher(model, cfg)
     
-    kwargs = dict(cfg.evaluator.kwargs)
+    kwargs = dict(cfg.training_settings.evaluator.kwargs)
     for k in ['model','dataloader','metrics','device_name','stitcher','header']:
         kwargs.pop(k, None)
+        
+    visualiser = None
+    if cfg.wandb_flag:
+
+        if cfg.training_settings.visualiser is not None:
+            visualiser = _define_visualiser(cfg)
 
     evaluator = animaloc.eval.evaluators.__dict__[name](
         model = model,
@@ -134,92 +144,115 @@ def _define_evaluator(
         device_name = cfg.device_name,
         stitcher = stitcher,
         header = '[TEST]',
+        vizual_fn = visualiser,
         **kwargs
     )
 
     return evaluator
 
+# config_name="config_2025_04_14_dla"
+# config_name = "config_2025_07_27_iguana_timm_DinoV2"
+config_name = "config_2025_08_08_dinov2_train_val_inverted_val_corrected"
+config_name = "config_2025_08_10_dinov2_floreana_all_val_fernandina"
 
 
-@hydra.main(config_path='../configs', config_name="config_2025_04_14_dla")
+@hydra.main(config_path='../configs/iguana/label_correction', config_name=config_name)
 def main(cfg: DictConfig) -> None:
 
     # retrieving the test part of the config
-    cfg = cfg.test # TODO move this to the other config
+     # TODO move this to the other config
 
     current_directory = Path(os.getcwd())
     logger.info(f"Current directory: {current_directory}")
 
     # down_ratio = 1
     plain_inference = False
-
+    down_ratio = 4
     if 'down_ratio' in cfg.model.kwargs.keys():
         down_ratio = cfg.model.kwargs.down_ratio
+
+
 
     if cfg.wandb_flag:
         # Set up wandb
         wandb.init(
-            project = cfg.wandb_project,
+            project = f"{cfg.wandb_project}_Test",
             entity = cfg.wandb_entity,
             config = dict(
                 model = cfg.model,
                 down_ratio = down_ratio,
-                num_classes = cfg.dataset.num_classes,
-                threshold = cfg.evaluator.threshold
+                num_classes = cfg.datasets.num_classes,
+                threshold = cfg.training_settings.evaluator.threshold,
                 )
             )
 
         date = current_date()
         wandb.run.name = f'{date}_' + cfg.wandb_run + f'_RUN_{wandb.run.id}'
 
+    if cfg.device_name is None:
+        # Automatically select the least occupied GPU
+        cfg.device_name = get_least_occupied_gpu_nvidia_smi()
+        logger.info(f"Using device: {cfg.device_name}")
     device = torch.device(cfg.device_name)
 
     # Prepare dataset and dataloader
-    print('Building the test dataset ...')
+    logger.info('Building the test dataset ...')
 
-    cls_dict = dict(cfg.dataset.class_def)
+    cls_dict = dict(cfg.datasets.class_def)
     cls_names = list(cls_dict.values())
 
 
     # Code for the case of doing just inference
     if plain_inference:
-        img_names = [i for i in os.listdir(cfg.dataset.root_dir)
+        img_names = [i for i in os.listdir(cfg.datasets.test.root_dir)
                      if i.endswith(('.JPG', '.jpg', '.JPEG', '.jpeg', ".tiff", ".tif"))]
+
+
         n = len(img_names)
         if n == 0:
-            raise FileNotFoundError(f"No images found in {cfg.dataset.root_dir}.")
+            raise FileNotFoundError(f"No images found in {cfg.datasets.test.root_dir}.")
         test_df = pandas.DataFrame(data={'images': img_names, 'x': [0] * n, 'y': [0] * n, 'labels': [1] * n})
         test_df["species"] = "iguana"
     # load ground truth annotations
     else:
-        test_df = pandas.read_csv(cfg.dataset.csv_file)
-        test_df = test_df[test_df['species'] == 'iguana_point'].reset_index(drop=True) # FIXME TODO this is a hack becauce too many labels are in the data
-        _set_species_labels(cls_dict, df=test_df)
+        test_df = pandas.read_csv(cfg.datasets.test.csv_file)
+        #test_df = test_df[test_df['species'] == 'iguana_point'].reset_index(drop=True) # FIXME TODO this is a hack becauce too many labels are in the data
+        #test_df["species"] = "iguana"
+        #_set_species_labels(cls_dict, df=test_df)
 
     # TODO why is this defined here and the config to build the Augmentations
-    test_dataset = animaloc.datasets.__dict__[cfg.dataset.name](
-        csv_file = test_df,
-        root_dir = cfg.dataset.root_dir,
-        albu_transforms = [A.Normalize(cfg.dataset.mean, cfg.dataset.std)],
-        end_transforms = [DownSample(down_ratio=down_ratio, anno_type=cfg.dataset.anno_type)]
-        )
-    
+    # test_dataset = animaloc.datasets.__dict__[cfg.datasets.test.name](
+    #     csv_file = test_df,
+    #     root_dir = cfg.datasets.test.root_dir,
+    #     albu_transforms = [A.Normalize(cfg.datasets.validate.mean, cfg.datasets.validate.std)],
+    #     end_transforms = [DownSample(down_ratio=down_ratio, anno_type=cfg.datasets.validate.anno_type)]
+    #     )
+
+    # test_df = test_df[:20]  # For testing purposes, limit to 20 samples
+
+    test_dataset = animaloc.datasets.__dict__[cfg.datasets.test.name](
+        csv_file=test_df,
+        root_dir=cfg.datasets.test.root_dir,
+        albu_transforms=_load_albu_transforms(cfg.datasets.validate.albu_transforms),
+        end_transforms=_load_end_transforms(cfg.datasets.validate.end_transforms)
+    )
+        # TODO figure out how a bigger batch size is possible
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False,
         sampler=torch.utils.data.SequentialSampler(test_dataset),
                                  collate_fn=_get_collate_fn(cfg))
     
     # Build the trained model
-    print('Building the trained model ...')
+    logger.info('Building the trained model ...')
     model = _build_model(cfg).to(device)
 
     # Build the evaluator
-    print('Preparing for testing ...')
-    anno_type = cfg.dataset.anno_type
+    logger.info('Preparing for testing ...')
+    anno_type = cfg.datasets.anno_type
 
     if anno_type == 'point':
-        metrics = PointsMetrics(radius = cfg.evaluator.threshold, num_classes = cfg.dataset.num_classes)
+        metrics = PointsMetrics(radius = cfg.training_settings.evaluator.threshold, num_classes = cfg.datasets.num_classes)
     elif anno_type == 'bbox':
-        metrics = BoxesMetrics(iou = cfg.evaluator.threshold, num_classes = cfg.dataset.num_classes)
+        metrics = BoxesMetrics(iou = cfg.training_settings.evaluator.threshold, num_classes = cfg.datasets.num_classes)
     else:
         raise NotImplementedError
 
@@ -228,7 +261,7 @@ def main(cfg: DictConfig) -> None:
 
     # Start testing
     logger.info(f'Starting testing ...')
-    out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=False)
+    out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=True)
     logger.info(f'Done with predictions ...')
 
     # Save results
@@ -239,8 +272,7 @@ def main(cfg: DictConfig) -> None:
         # 1) PR curves
 
         pr_curve = PlotPrecisionRecall(legend=True)
-
-        print(f"Saving the results ..., plots: {plots_path}")
+        logger.info(f"Saving the results ..., plots: {plots_path}")
 
         metrics = evaluator._stored_metrics
         for c in range(1, metrics.num_classes):
@@ -258,14 +290,14 @@ def main(cfg: DictConfig) -> None:
         str_cls_dict.update({'binary': 'binary'})
         df_res['species'] = df_res['class'].map(str_cls_dict)
         df_res = df_res[['class', 'species'] + cols[1:]]
-        print(df_res[["species", "precision", "recall", "f1_score", "mae"]])
+        logger.info(df_res[["species", "precision", "recall", "f1_score", "mae"]])
 
         df_res.to_csv(current_directory / 'metrics_results.csv', index=False)
 
         logger.info(" 3) confusion matrix")
         cm = pandas.DataFrame(metrics.confusion_matrix, columns=cls_names, index=cls_names)
         cm.to_csv(current_directory / 'confusion_matrix.csv')
-        print(cm)
+        logger.info(cm)
 
     logger.info("4) detections")
     detections =  evaluator.detections
@@ -281,7 +313,7 @@ def main(cfg: DictConfig) -> None:
     # fp = detections[detections['FP'] == 1]
 
     logger.info("5) plot the detections")
-    print('Exporting plots and thumbnails ...')
+    logger.info('Exporting plots and thumbnails ...')
     dest_plots = plots_path
     mkdir(dest_plots)
     dest_thumb = current_directory / 'thumbnails'
@@ -289,7 +321,7 @@ def main(cfg: DictConfig) -> None:
     img_names = numpy.unique(detections['images'].values).tolist()
 
     for img_name in img_names:
-        img = PIL.Image.open(os.path.join(cfg.dataset.root_dir, img_name))
+        img = PIL.Image.open(os.path.join(cfg.datasets.test.root_dir, img_name))
         if img.format != 'JPEG':
             img = img.convert("RGB")
 

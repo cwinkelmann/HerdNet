@@ -189,6 +189,8 @@ class Evaluator:
         for i, (images, targets) in enumerate(logger.log_every(self.dataloader, self.print_freq, self.header)):
             # loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
+            if len(images) > 1:
+                raise ValueError(f"A batch size larger than 1 is not supported, got {len(images)} images in the batch.")
 
             if self.stitcher is not None:
                 model_output = self.stitcher(images[0]) # remove batch dimension
@@ -230,6 +232,7 @@ class Evaluator:
                 logger.add_meter('precision', round(iter_metrics.precision(), 2))
                 logger.add_meter('f1_score', round(iter_metrics.fbeta_score(), 2))
                 logger.add_meter('f2_score', round(iter_metrics.fbeta_score(beta=2), 2))
+                logger.add_meter('f5_score', round(iter_metrics.fbeta_score(beta=5), 2))
                 logger.add_meter('MAE', round(iter_metrics.mae(), 2))
                 logger.add_meter('MSE', round(iter_metrics.mse(), 2))
                 logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
@@ -246,6 +249,7 @@ class Evaluator:
                     'precision': iter_metrics.precision(),
                     'f1_score': iter_metrics.fbeta_score(),
                     'f2_score': iter_metrics.fbeta_score(beta=2),
+                    'f5_score': iter_metrics.fbeta_score(beta=5),
                     'MAE': iter_metrics.mae(),
                     'MSE': iter_metrics.mse(),
                     'RMSE': iter_metrics.rmse(),
@@ -268,6 +272,7 @@ class Evaluator:
             wandb.run.summary['precision'] =  self.metrics.precision()
             wandb.run.summary['f1_score'] =  self.metrics.fbeta_score()
             wandb.run.summary['f2_score'] =  self.metrics.fbeta_score(beta=2)
+            wandb.run.summary['f5_score'] =  self.metrics.fbeta_score(beta=5)
             wandb.run.summary['MAE'] =  self.metrics.mae()
             wandb.run.summary['MSE'] =  self.metrics.mse()
             wandb.run.summary['RMSE'] =  self.metrics.rmse()
@@ -292,6 +297,8 @@ class Evaluator:
             return self.metrics.fbeta_score()
         elif returns == 'f2_score':
             return self.metrics.fbeta_score(beta=2)
+        elif returns == 'f5_score':
+            return self.metrics.fbeta_score(beta=5)
         elif returns == 'mse':
             return self.metrics.mse()
         elif returns == 'mae':
@@ -415,15 +422,21 @@ class HerdNetEvaluator(Evaluator):
             labels = gt_labels
         )
 
+        up = True
+        if self.stitcher is not None:
+            up = False
+
+
+        # TODO I still don't understand why the up parameter is set differently depending on the stitcher
         if "up" in self.lmds_kwargs.keys():
-            pass
+            lmds = HerdNetLMDS(**self.lmds_kwargs)
         elif self.stitcher is not None:
-            self.lmds_kwargs["up"] = False
+            lmds = HerdNetLMDS(up=False, **self.lmds_kwargs)
         else:
-            self.lmds_kwargs["up"] = True
+            lmds = HerdNetLMDS(up=True, **self.lmds_kwargs)
 
-
-        lmds = HerdNetLMDS(**self.lmds_kwargs)
+        #
+        # lmds = HerdNetLMDS(**self.lmds_kwargs)
         counts, locs, labels, scores, dscores = lmds(output)
         
         preds = dict(

@@ -1,4 +1,4 @@
-wandb_flag: True
+wandb_flag: False
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
 wandb_run: 'augmentation_dr4_full_size_crop'
@@ -12,13 +12,13 @@ model:
   # work_dir: "./outputs/"
   from_torchvision: False
   # load_from: '/home/cwinkelmann/work/Herdnet/data/models/20250612_ig_train_down_ratio4_geospatial_val_pix4d_2025_06_11_dla_RUN_9qyfyj4k_r96_p12.pth'
-  load_from: '/raid/cwinkelmann/herdnet/outputs/2025-07-31/10-19-45/best_model.pth'
-  # load_from: null
+  #load_from: '/raid/cwinkelmann/herdnet/outputs/2025-07-31/10-19-45/best_model.pth'
+  load_from: null
   resume_from: null
   kwargs:
     num_layers: 34
     pretrained: True
-    down_ratio: 4  # was two before
+    down_ratio: 2  # was two before
     head_conv: 64 # was 64
   freeze: null
 
@@ -115,6 +115,7 @@ datasets:
         FIDT:
           num_classes: ${datasets.num_classes}
           down_ratio: ${model.kwargs.down_ratio}
+          radius: 3
 #          alpha: 0.01
 #          beta: 0.5
 #          c: 0.1
@@ -179,6 +180,8 @@ training_settings:
       lmds_kwargs:
         kernel_size: [9, 9]
         adapt_ts: 0.3
+        scale_factor: 1 # scale the heatmap to the original image size
+        up: True
 
   stitcher:
     name: 'HerdNetStitcher'

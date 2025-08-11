@@ -126,6 +126,15 @@ class HerdNet(nn.Module):
         clsmap = self.cls_head(bottleneck)
         # clsmap = self.cls_head(decode_cls)
 
+        if self.down_ratio == 1:
+            assert heatmap.shape[1:] == (1, 512,512)
+            assert clsmap.shape[1:] == (8, 16,16)
+        elif self.down_ratio == 2:
+            assert heatmap.shape[1:] == (1, 256,256)
+            assert clsmap.shape[1:] == (8, 16, 16)
+        elif self.down_ratio == 4:
+            assert heatmap.shape[1:] == (1, 128,128)
+            assert clsmap.shape[1:] == (8, 16, 16)
         return heatmap, clsmap
     
     def freeze(self, layers: list) -> None:

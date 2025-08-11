@@ -125,6 +125,8 @@ def main():
         end_transforms = end_transforms
         )
     
+    
+    ## TODO why a batch size of 1? This slows inference down a lot
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
         sampler=torch.utils.data.SequentialSampler(dataset))
     

@@ -24,7 +24,7 @@ import os
 import torchvision
 from loguru import logger
 import albumentations as A
-
+import subprocess
 from torch.utils.data import DataLoader, Dataset
 from omegaconf import DictConfig
 from typing import Callable, Optional
@@ -266,3 +266,41 @@ def _define_visualiser(
     )
 
     return visualisor
+
+
+def get_least_occupied_gpu_nvidia_smi() -> int:
+    """
+    Get the GPU with the least memory usage using nvidia-smi.
+    More accurate as it shows total system memory usage, not just PyTorch.
+
+    Returns:
+        int: GPU device ID with least memory usage
+    """
+    try:
+        # Run nvidia-smi to get GPU memory info
+        result = subprocess.run([
+            'nvidia-smi',
+            '--query-gpu=index,memory.used,memory.total',
+            '--format=csv,noheader,nounits'
+        ], capture_output=True, text=True, check=True)
+
+        gpu_info = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split(', ')
+                gpu_id = int(parts[0])
+                memory_used = int(parts[1])  # MB
+                memory_total = int(parts[2])  # MB
+                usage_percent = memory_used / memory_total
+                gpu_info.append((gpu_id, memory_used, usage_percent))
+
+        # Sort by memory usage and return GPU with least usage
+        gpu_info.sort(key=lambda x: x[1])  # Sort by absolute memory used
+
+        logger.info(f"GPU memory usage: {gpu_info}")
+
+        return gpu_info[0][0]
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running nvidia-smi: {e}")
+        return None
