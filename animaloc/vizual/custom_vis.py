@@ -143,7 +143,7 @@ def denormalize_image(img_tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224,
 
 def plot_heatmaps(image_tensor, heatmap_tensor,
                   class_names=None, max_channels=7,
-                  overlay_channel=0, alpha=0.5, show_argmax_overlay=True):
+                  overlay_channel=0, alpha=0.5, show_argmax_overlay=True, cmap="inferno"):
     """
     Visualize the heatmaps next to the input image, including overlays.
 
@@ -163,14 +163,14 @@ def plot_heatmaps(image_tensor, heatmap_tensor,
     H, W = image_tensor.shape[1], image_tensor.shape[2]
     heatmap_tensor = F.interpolate(heatmap_tensor.unsqueeze(0),
                                    size=(H, W), mode='bilinear', align_corners=False)[0]
-
+    heatmap_tensor = torch.where(heatmap_tensor < 0.01, 0.0, heatmap_tensor)
 
     num_channels = min(heatmap_tensor.shape[0], max_channels)
-    num_subplots = num_channels + 2 if show_argmax_overlay else num_channels + 1
+    num_subplots = num_channels + 1 if show_argmax_overlay else num_channels
 
     fig, axes = plt.subplots(1, num_subplots+1, figsize=(8 * num_subplots, 8))
-    if num_subplots == 1:
-        axes = [axes]
+    # if num_subplots == 1:
+    #     axes = [axes]
 
     # Original image
     axes[0].imshow(image_np)
@@ -180,33 +180,37 @@ def plot_heatmaps(image_tensor, heatmap_tensor,
     # Heatmaps
     for i in range(num_channels):
         heat = heatmap_tensor[i].numpy()
-        axes[i + 1].imshow(heat, cmap="inferno")
+        axes[i + 1].imshow(heat, cmap=cmap)
         title = f"Heatmap {i}" if class_names is None else class_names[i]
         axes[i + 1].set_title(title)
         axes[i + 1].axis("off")
 
     # Overlay selected channel
-    if overlay_channel < heatmap_tensor.shape[0]:
+    if show_argmax_overlay and overlay_channel < heatmap_tensor.shape[0]:
         heat_overlay = heatmap_tensor[overlay_channel].numpy()
         ax_idx = num_channels + 1
 
         axes[ax_idx].imshow(image_np)
-        # upscale the heat_overlay to match the image size using down_ratio
 
-        axes[ax_idx].imshow(heat_overlay, cmap="inferno", alpha=alpha)
+        # Create a masked array to make low values transparent
+        heat_masked = np.ma.masked_where(heat_overlay < 0.05, heat_overlay)
+
+        axes[ax_idx].imshow(heat_masked, cmap="inferno", alpha=alpha)
+
+        # axes[ax_idx].imshow(heat_overlay, cmap="inferno", alpha=alpha)
         axes[ax_idx].set_title(f"Overlay: Channel {overlay_channel}")
         axes[ax_idx].axis("off")
 
-    # Argmax overlay
-    if show_argmax_overlay:
-        argmax_map = torch.argmax(heatmap_tensor, dim=0).numpy()
-        ax_idx = num_channels + 2 if overlay_channel < heatmap_tensor.shape[0] else num_channels + 1
-        axes[ax_idx].imshow(image_np)
-        # upscale the argmax_map to match the image size using down_ratio
-
-        axes[ax_idx].imshow(argmax_map, cmap="tab10", alpha=alpha)
-        axes[ax_idx].set_title("Argmax Overlay")
-        axes[ax_idx].axis("off")
+    # # Argmax overlay
+    # if show_argmax_overlay:
+    #     argmax_map = torch.argmax(heatmap_tensor, dim=0).numpy()
+    #     ax_idx = num_channels + 2 if overlay_channel < heatmap_tensor.shape[0] else num_channels + 1
+    #     axes[ax_idx].imshow(image_np)
+    #     # upscale the argmax_map to match the image size using down_ratio
+    #
+    #     axes[ax_idx].imshow(argmax_map, cmap="tab10", alpha=alpha)
+    #     axes[ax_idx].set_title("Argmax Overlay")
+    #     axes[ax_idx].axis("off")
 
     plt.tight_layout()
     return fig, axes

@@ -14,7 +14,9 @@ __license__ = "MIT License"
 __version__ = "0.2.1"
 
 from pathlib import Path
+import random
 
+import pandas as pd
 import torch
 import hydra
 import animaloc
@@ -107,6 +109,11 @@ def _get_collate_fn(cfg: DictConfig) -> Callable:
     fn = cfg.datasets.collate_fn
     if fn is not None:
         fn = animaloc.data.batch_utils.__dict__[fn]
+    return fn
+
+def _get_show_batch_fn() -> Callable:
+
+    fn = animaloc.data.batch_utils.show_batch
     return fn
 
 
@@ -224,7 +231,10 @@ def _define_evaluator(
     # vizual_fn = None
     # if cfg.training_settings.vizual_fn is not None:
     #     vizual_fn = animaloc.vizual.plots.__dict__[cfg.training_settings.vizual_fn]
-    visualiser = _define_visualiser(cfg)
+    if cfg.training_settings.visualiser is not None:
+        visualiser = _define_visualiser(cfg)
+    else:
+        visualiser = None
 
     evaluator = animaloc.eval.evaluators.__dict__[name](
         model=model,
@@ -245,21 +255,10 @@ def _define_visualiser(
 ) -> Visualiser:
 
     name = cfg.training_settings.visualiser.name
-    anno_type = cfg.datasets.anno_type
 
     assert name in animaloc.vizual.plots.__dict__.keys(), \
         f'\'{name}\' class unfound, make sure you have included the class in the evaluators list'
 
-    if anno_type == 'point':
-        metrics = PointsMetrics(
-            radius=cfg.training_settings.evaluator.threshold,
-            num_classes=cfg.datasets.num_classes
-        )
-    elif anno_type == 'bbox':
-        metrics = BoxesMetrics(
-            iou=cfg.training_settings.evaluator.threshold,
-            num_classes=cfg.datasets.num_classes
-        )
 
     visualisor = animaloc.vizual.plots.__dict__[name](
         output_path=cfg.training_settings.visualiser.output_dir
@@ -296,8 +295,14 @@ def get_least_occupied_gpu_nvidia_smi() -> int:
 
         # Sort by memory usage and return GPU with least usage
         gpu_info.sort(key=lambda x: x[1])  # Sort by absolute memory used
+        import pandas as pd
+        df_gpu_usage = pd.DataFrame(gpu_info, columns=['gpu_id', 'memory_used', 'usage'])
 
-        logger.info(f"GPU memory usage: {gpu_info}")
+        logger.info(f"GPU memory usage: {df_gpu_usage}")
+
+        min_memory = df_gpu_usage['memory_used'].min()
+        candidates = df_gpu_usage[df_gpu_usage['memory_used'] <= min_memory + 500]['gpu_id']
+        return f"cuda:{random.choice(candidates)}"
 
         return gpu_info[0][0]
 

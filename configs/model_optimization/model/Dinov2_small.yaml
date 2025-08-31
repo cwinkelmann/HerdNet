@@ -1,0 +1,13 @@
+name: 'HerdNetDINOv2'
+from_torchvision: False
+load_from: null
+
+
+resume_from: null
+kwargs:
+  backbone: 'timm/vit_small_patch14_dinov2.lvd142m'
+
+  pretrained: True
+  down_ratio: 4  # was two before
+  head_conv: 64 # was 64
+freeze: null

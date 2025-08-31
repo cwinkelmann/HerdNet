@@ -190,8 +190,9 @@ class Evaluator:
             # loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
             if len(images) > 1:
-                raise ValueError(f"A batch size larger than 1 is not supported, got {len(images)} images in the batch.")
-
+                loguru_logger.warning(f"A batch size larger than 1 is not supported, got {len(images)} images in the batch.")
+            
+            # TODO if the image is just 512px the stitcher should not be used but is anyway
             if self.stitcher is not None:
                 model_output = self.stitcher(images[0]) # remove batch dimension
                 model_output = self.post_stitcher(model_output)
@@ -309,6 +310,10 @@ class Evaluator:
             return self.metrics.accuracy()
         elif returns == 'mAP':
             return mAP
+        else:
+            raise ValueError(f'Unknown return value: {returns}. Possible values are: '
+                             '\'recall\', \'precision\', \'f1_score\', \'f2_score\', '
+                             '\'f5_score\', \'mse\', \'mae\', \'rmse\', \'accuracy\' and \'mAP\'.')
     
     @property
     def results(self) -> pandas.DataFrame:

@@ -19,7 +19,7 @@ import numpy
 import torch
 import torchvision 
 import scipy
-from loguru import logger
+
 
 from typing import Dict, Optional, Union, Tuple, List, Any
 

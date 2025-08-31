@@ -1,0 +1,255 @@
+# Settings from From crowd to herd counting: How to precisely detect and count African mammals using aerial imagery and deep learning? paper, Deplanque2023
+
+wandb_flag: True
+wandb_project: 'herdnet_deplanque2022'
+wandb_entity: 'karisu'
+wandb_run: 'timmdla34__opt_random_crop'
+wandb_tags: ['deplanque','dla34.in1k', 'timm','boxcenter', 'random_crop']
+
+
+seed: 1
+device_name: null
+
+model:
+  name: 'HerdNetTimmDLA'
+  from_torchvision: False
+#  load_from: null
+  load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-19/21-55-28/best_model.pth"
+
+  resume_from: null
+  kwargs:
+    backbone: 'dla34'
+
+    pretrained: True
+    down_ratio: 4  # was two before
+    head_conv: 64 # was 64
+  freeze: null
+
+losses:
+  FocalLoss:
+    print_name: 'focal_loss'
+    from_torch: False
+    output_idx: 0
+    target_idx: 0
+    lambda_const: 1.0
+    kwargs:
+      alpha: 4
+      beta: 1
+      reduction: 'mean'
+      normalize: False
+
+  CrossEntropyLoss:
+    print_name: 'ce_loss'
+    from_torch: True
+    output_idx: 1
+    target_idx: 1
+    lambda_const: 1.0
+    background_class_weight: 10
+    kwargs:
+      reduction: 'mean'
+      weight:
+        - ${losses.CrossEntropyLoss.background_class_weight}    # background
+        - 0.24 # Alcelaphinae
+        - 0.15 # Buffalo
+        - 0.248 # Kob
+        - 0.045 # Warthog
+        - 0.02 # Waterbuck
+        - 0.28 # Elephant
+       # One weight for each class including the background
+      #weight: [0.9, 0.001, 1.0] # From the notebook
+
+datasets:
+  img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
+  anno_type: 'point'
+  num_classes: 7 # One class more for the background
+  collate_fn: null
+
+
+  class_def:
+    1: 'Alcelaphinae'
+    2: 'Buffalo' # these next 6 are just there so I can use the pretrained model
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+
+  train:
+    # name: 'CSVDataset'
+    name: 'CSVDataset'
+
+#    csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_train/detection_train_0_512/herdnet_format_512_0_crops.csv'
+#    root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_train/detection_train_0_512/crops_512_numNone_overlap0'
+#
+    csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_train/detection_train_0_512/herdnet_format.csv'
+    root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_train/detection_train_0_512/Default'
+
+    sampler: null
+    augmentation_multiplier: 1
+
+    albu_transforms:
+        ObjectAwareRandomCrop:
+          height: 1000
+          width: 1000
+          p: 1.0
+          attempts: 10
+          edge_black_blobs: True
+        RandomScale:
+          scale_limit: [0.8, 1.2]
+          p: 0.5
+
+
+        ShiftScaleRotate:
+          shift_limit: 0.1
+          scale_limit: 0.15
+          rotate_limit: 45
+          p: 0.5
+          border_mode: 4
+        Perspective:
+          scale: [0.05, 0.15]
+          p: 0.3
+        Affine:
+          scale: [0.9, 1.1]
+          translate_percent: [0.1, 0.1]
+          rotate: [-45, 45]
+          shear: [-10, 10]
+          p: 0.2
+
+        HorizontalFlip:
+          p: 0.2
+        VerticalFlip:
+          p: 0.2
+        MotionBlur:
+          p: 0.2
+        RandomRotate90:
+          p: 0.5
+        RandomBrightnessContrast:
+          brightness_limit: 0.2
+          contrast_limit: 0.2
+          p: 0.1
+        Blur:
+          blur_limit: 15
+          p: 0.1
+        ToGray:
+          p: 0.1
+        ObjectAwareRandomCropEdgeBlackout:
+          height: 512
+          width: 512
+          p: 1.0
+          attempts: 10
+          edge_black_blobs: False
+
+        Normalize:
+          p: 1.0
+
+
+    end_transforms:
+      MultiTransformsWrapper:
+        FIDT:
+          num_classes: ${datasets.num_classes}
+          down_ratio: ${model.kwargs.down_ratio}
+          radius: 1
+        #          alpha: 0.01
+        #          beta: 0.5
+        #          c: 0.1
+
+
+        PointsToMask:
+          radius: 2
+          num_classes: ${datasets.num_classes}
+          squeeze: True
+          down_ratio: 32
+
+  validate:
+    name: 'CSVDataset'
+
+    csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_val/detection_val_0_512/herdnet_format_512_0_crops.csv'
+    root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_val/detection_val_0_512/crops_512_numNone_overlap0'
+#
+#    csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_val/detection_val_0_512/herdnet_format.csv'
+#    root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_val/detection_val_0_512/Default'
+
+
+    # data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
+    albu_transforms:
+#      ObjectAwareRandomCrop:
+#        height: 1500
+#        width: 1500
+#        p: 1.0
+#        attempts: 10
+#        edge_black_blobs: True
+
+      Normalize:
+        p: 1.0
+
+    end_transforms:
+      DownSample:
+        down_ratio: ${model.kwargs.down_ratio}
+        anno_type: ${datasets.anno_type}
+
+  test:
+    name: 'CSVDataset'
+
+    csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_test/detection_test_0_512/herdnet_format_512_0_crops.csv'
+    root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_test/detection_test_0_512/crops_512_numNone_overlap0'
+
+
+training_settings:
+  trainer: 'Trainer'
+  epochs: 200
+
+  early_stopping: False
+  early_stopping_patience: 20
+
+
+  valid_freq: 1
+  print_freq: 125
+  batch_size: 35
+  # optimizer: 'SGD'
+  optimizer: 'adamW'
+  lr: 0.0001
+  weight_decay: 0.0005
+  num_workers: 12
+  auto_lr:
+    mode: 'max'
+    patience: 10
+    threshold: 1e-4
+    threshold_mode: 'rel'
+    cooldown: 10
+    min_lr: 1e-7
+    verbose: True
+  warmup_iters: 10000
+
+  # vizual_fn: "model_vizual"
+  vizual_fn: null
+  #visualize_sample
+  visualiser: null
+#    name: 'HeatMapVisualizer'
+#    output_dir: /home/cwinkelmann/work/Herdnet/playground/visualizations/transformed_training_data
+
+  evaluator:
+    name: 'HerdNetEvaluator'
+    threshold: 25
+    select_mode: 'max'
+    validate_on: 'f5_score'
+    kwargs:
+      print_freq: 25
+      lmds_kwargs:
+        kernel_size: [9, 9]
+        adapt_ts: 0.3
+        scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
+        # scale_factor_patching: 1
+        up: True
+
+  stitcher:
+    name: 'HerdNetStitcher'
+    kwargs:
+      overlap: 120
+      down_ratio: ${model.kwargs.down_ratio}
+      up: False
+      reduction: 'mean'
+  #stitcher: null
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

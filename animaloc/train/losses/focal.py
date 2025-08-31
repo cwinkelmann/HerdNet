@@ -79,6 +79,7 @@ class FocalLoss(torch.nn.Module):
     def _neg_loss(self, output: torch.Tensor, target: torch.Tensor):
         ''' Focal loss, adapted from CenterNet 
         https://github.com/xingyizhou/CenterNet/blob/master/src/lib/models/losses.py
+        Which again is from CornerNet
         Args:
             output (torch.Tensor): [B,C,H,W]
             target (torch.Tensor): [B,C,H,W]
@@ -93,7 +94,7 @@ class FocalLoss(torch.nn.Module):
             assert self.weights.shape[0] == C, \
                 'Number of weights must match the number of channels, ' \
                     f'got {C} channels and {self.weights.shape[0]} weights'
-
+        # This kind of restores the original point which was converted into a contiues distributin
         pos_inds = target.eq(1).float()
         neg_inds = target.lt(1).float()
 

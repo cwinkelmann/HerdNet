@@ -114,7 +114,8 @@ class ObjectAwareRandomCrop(DualTransform):
 
         # Extract x,y coordinates from keypoints
         keypoint_coords = [(kp[0], kp[1]) for kp in keypoints]
-
+        if len(keypoint_coords) > 1:
+            pass
         if not keypoint_coords:
             # If no keypoints, fall back to regular random crop
             max_crop_x = image_width - self.width

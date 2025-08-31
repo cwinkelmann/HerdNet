@@ -24,27 +24,6 @@ import torch.nn.functional as F
 from .register import MODELS
 
 
-class DLAFeatureUpsampler(nn.Module):
-    """Mimics DLAUp with top-down feature aggregation like FPN."""
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.projects = nn.ModuleList([
-            nn.Conv2d(c, out_channels, kernel_size=1) for c in in_channels
-        ])
-
-    def forward(self, features):
-        """
-        Args:
-            features: list of feature maps, deepest first
-        Returns:
-            Fused feature map at highest spatial resolution
-        """
-        x = self.projects[-1](features[-1])  # smallest resolution
-        for i in range(len(features) - 2, -1, -1):
-            up = F.interpolate(x, size=features[i].shape[2:], mode='nearest')
-            lateral = self.projects[i](features[i])
-            x = up + lateral
-        return x
 
 def _load_backbone_checkpoint(model, pretrained_path):
     checkpoint = torch.load(pretrained_path, map_location="cpu")

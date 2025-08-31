@@ -1,14 +1,13 @@
+from typing import Optional, List
 
-from typing import Optional
-
-import numpy as np
 import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from loguru import logger
 
 from .register import MODELS
-from loguru import logger
+
 
 class SimpleDINOv2Extractor(nn.Module):
     """Simplified DINOv2 feature extractor without attention hooks."""
@@ -33,22 +32,12 @@ class SimpleDINOv2Extractor(nn.Module):
         # Feature-based attention (simple but effective)
         feature_attention = torch.norm(features, dim=2)  # [B, N]
         feature_attention = (feature_attention - feature_attention.min(dim=1, keepdim=True)[0]) / \
-                          (feature_attention.max(dim=1, keepdim=True)[0] - feature_attention.min(dim=1, keepdim=True)[0] + 1e-8)
+                            (feature_attention.max(dim=1, keepdim=True)[0] - feature_attention.min(dim=1, keepdim=True)[
+                                0] + 1e-8)
 
         attention_maps = {0: feature_attention}  # Simple single-layer attention
 
         return features, attention_maps
-
-
-
-
-from typing import Optional, List
-import numpy as np
-import timm
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from .register import MODELS
 
 
 class DINOv2AttentionExtractor(nn.Module):
@@ -56,7 +45,8 @@ class DINOv2AttentionExtractor(nn.Module):
     Extract spatial attention maps from DINOv2 transformer blocks.
     """
 
-    def __init__(self, dinov2_model, layer_indices: List[int] = [-4, -3, -2, -1]):
+    def __init__(self, dinov2_model,
+                 layer_indices: List[int] = [-4, -3, -2, -1]):
         super().__init__()
         self.dinov2 = dinov2_model
         self.layer_indices = layer_indices
@@ -178,7 +168,7 @@ class DINOv2SpatialProcessor(nn.Module):
                 attention = attention_maps[i]  # [B, N]
                 attention_heatmap = attention.reshape(B, 1, H, W)  # [B, 1, H, W]
                 attention_heatmap = F.interpolate(attention_heatmap, size=scale_feat.shape[2:],
-                                                mode='bilinear', align_corners=False)
+                                                  mode='bilinear', align_corners=False)
                 attention_heatmaps.append(attention_heatmap)
             else:
                 # Create uniform attention map as fallback
@@ -260,16 +250,17 @@ def _load_backbone_checkpoint(model, pretrained_path):
 @MODELS.register()
 class HerdNetDINOv2(nn.Module):
     def __init__(
-        self,
-        backbone = 'vit_large_patch14_dinov2.lvd142m',
-        num_classes: int = 2,
-        pretrained: bool = True,
-        down_ratio: Optional[int] = 2,
-        head_conv: int = 64,
-        pretrained_path=None,
-        debug=True,
-        attention_layers: List[int] = [-4, -3, -2, -1],
-        input_resolution=(512,512) # Which transformer layers to extract attention from
+            self,
+            backbone='vit_large_patch14_dinov2.lvd142m',
+            num_classes: int = 2,
+            pretrained: bool = True,
+            down_ratio: Optional[int] = 2,
+            head_conv: int = 64,
+            pretrained_path=None,
+            debug=True,
+            attention_layers: List[int] = [-8, -4, -3, -2, -1],
+            output_channels=[256, 512, 1024, 1536],
+            input_resolution=(512, 512)  # Which transformer layers to extract attention from
     ):
         super().__init__()
 
@@ -287,10 +278,10 @@ class HerdNetDINOv2(nn.Module):
             num_classes=0,  # Remove classification head
         )
 
-
-
         if pretrained_path:
             dinov2_model = _load_backbone_checkpoint(dinov2_model, pretrained_path)
+
+        self.backbone = dinov2_model
 
         # Extract model info
         self.patch_size = dinov2_model.patch_embed.patch_size[0]
@@ -301,7 +292,7 @@ class HerdNetDINOv2(nn.Module):
             logger.info(f"  Embedding dim: {self.embed_dim}")
             logger.info(f"  Attention extraction layers: {attention_layers}")
 
-        # Attention extractor - try hook-based first, fallback to simple
+        # Attention extractor
         try:
             self.attention_extractor = DINOv2AttentionExtractor(dinov2_model, attention_layers)
             self.use_hook_attention = True
@@ -316,7 +307,8 @@ class HerdNetDINOv2(nn.Module):
             attention_channels = 1
 
         # Spatial processor for multi-scale features
-        output_channels = [256, 512, 1024]
+         # [256, 512, 1024]
+        logger.warning(f"  Output channels: {output_channels}")
 
         self.spatial_processor = DINOv2SpatialProcessor(
             feature_dim=self.embed_dim,
@@ -347,14 +339,14 @@ class HerdNetDINOv2(nn.Module):
         # classification head
         self.cls_head = nn.Sequential(
             nn.Conv2d(output_channels[-1], head_conv,
-            kernel_size=3, padding=1, bias=True),
+                      kernel_size=3, padding=1, bias=True),
             nn.ReLU(inplace=True),
             nn.Conv2d(
                 head_conv, self.num_classes,
                 kernel_size=1, stride=1,
                 padding=0, bias=True
-                )
             )
+        )
         self.cls_head[-1].bias.data.fill_(0.00)
 
         # Attention heatmap head (coarse attention-based heatmap)
@@ -375,6 +367,11 @@ class HerdNetDINOv2(nn.Module):
 
         if debug:
             self._inspect_model()
+
+    def freeze_backbone_completely(self):
+        """Freeze all parameters in the DINOv2 backbone."""
+        for param in self.backbone.parameters():
+            param.requires_grad = False
 
     def check_trainable_parameters(self):
         """Check which parameters are trainable."""
@@ -538,7 +535,8 @@ class HerdNetDINOv2(nn.Module):
                 # Use feature magnitude as proxy for attention
                 feature_magnitude = torch.norm(patch_features, dim=2)  # [B, N]
                 feature_magnitude = (feature_magnitude - feature_magnitude.min(dim=1, keepdim=True)[0]) / \
-                                  (feature_magnitude.max(dim=1, keepdim=True)[0] - feature_magnitude.min(dim=1, keepdim=True)[0] + 1e-8)
+                                    (feature_magnitude.max(dim=1, keepdim=True)[0] -
+                                     feature_magnitude.min(dim=1, keepdim=True)[0] + 1e-8)
 
                 return {0: feature_magnitude.reshape(B, 1, H, W)}
 

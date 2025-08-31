@@ -24,6 +24,7 @@ from pathlib import Path
 import PIL
 import numpy
 import numpy as np
+import pandas as pd
 import torch
 import hydra
 import wandb
@@ -49,7 +50,7 @@ from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
 from PIL import Image
 
 from tools.train_helper import get_least_occupied_gpu_nvidia_smi, _load_albu_transforms, _load_end_transforms, \
-    _define_visualiser
+    _define_visualiser, _load_losses
 
 Image.MAX_IMAGE_PIXELS = None  # Disable the limit
 
@@ -81,6 +82,7 @@ def _build_model(cfg: DictConfig) -> torch.nn.Module:
         kwargs.pop(k, None)
     
     model = model(**kwargs, num_classes=cfg.datasets.num_classes)
+    # criterions = _load_losses(cfg)
     model = LossWrapper(model, [])
     model = load_model(model, cfg.model.load_from)
     return model
@@ -158,6 +160,15 @@ config_name = "config_2025_08_10_dinov2_floreana_all_val_fernandina"
 
 @hydra.main(config_path='../configs/iguana/label_correction', config_name=config_name)
 def main(cfg: DictConfig) -> None:
+    """
+    Main function to run the inference test with the given configuration.
+    It initializes the model, prepares the dataset, and evaluates the model on the test set.
+    """
+    logger.info(f"Running inference test with config: {cfg}")
+    inference(cfg)
+
+
+def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
 
     # retrieving the test part of the config
      # TODO move this to the other config
@@ -166,7 +177,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Current directory: {current_directory}")
 
     # down_ratio = 1
-    plain_inference = False
+
     down_ratio = 4
     if 'down_ratio' in cfg.model.kwargs.keys():
         down_ratio = cfg.model.kwargs.down_ratio
@@ -204,8 +215,8 @@ def main(cfg: DictConfig) -> None:
 
     # Code for the case of doing just inference
     if plain_inference:
-        img_names = [i for i in os.listdir(cfg.datasets.test.root_dir)
-                     if i.endswith(('.JPG', '.jpg', '.JPEG', '.jpeg', ".tiff", ".tif"))]
+        img_names = [i.name for i in Path(cfg.datasets.test.root_dir).glob("*")
+                     if i.name.endswith(('.JPG', '.jpg', '.JPEG', '.jpeg', ".tiff", ".tif")) and not i.name.startswith('.')]
 
 
         n = len(img_names)
@@ -220,15 +231,6 @@ def main(cfg: DictConfig) -> None:
         #test_df["species"] = "iguana"
         #_set_species_labels(cls_dict, df=test_df)
 
-    # TODO why is this defined here and the config to build the Augmentations
-    # test_dataset = animaloc.datasets.__dict__[cfg.datasets.test.name](
-    #     csv_file = test_df,
-    #     root_dir = cfg.datasets.test.root_dir,
-    #     albu_transforms = [A.Normalize(cfg.datasets.validate.mean, cfg.datasets.validate.std)],
-    #     end_transforms = [DownSample(down_ratio=down_ratio, anno_type=cfg.datasets.validate.anno_type)]
-    #     )
-
-    # test_df = test_df[:20]  # For testing purposes, limit to 20 samples
 
     test_dataset = animaloc.datasets.__dict__[cfg.datasets.test.name](
         csv_file=test_df,
@@ -237,7 +239,9 @@ def main(cfg: DictConfig) -> None:
         end_transforms=_load_end_transforms(cfg.datasets.validate.end_transforms)
     )
         # TODO figure out how a bigger batch size is possible
-    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+    test_dataloader = DataLoader(test_dataset,
+                                 batch_size=1,
+                                 shuffle=False,
         sampler=torch.utils.data.SequentialSampler(test_dataset),
                                  collate_fn=_get_collate_fn(cfg))
     
@@ -350,6 +354,8 @@ def main(cfg: DictConfig) -> None:
             thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
 
     logger.info(f'Testing done, wrote results to: {os.getcwd()}')
+
+    return detections
 
 if __name__ == '__main__':
     main()

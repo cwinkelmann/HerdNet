@@ -93,7 +93,7 @@ class Annotations:
     def __init__(
         self, 
         images: Union[str, List[str]], 
-        annos: List[Union[Point, BoundingBox]], 
+        annos: List[Union[Point, BoundingBox]],
         labels: List[int], 
         **kwargs
         ) -> None:

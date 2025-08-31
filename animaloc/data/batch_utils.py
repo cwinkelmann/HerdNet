@@ -33,7 +33,7 @@ def collate_fn(batch):
     ''' Collate batch samples '''
     images , targets = list(zip(*batch))
     batched_images = cat_list(images)
-    return batched_images , targets
+    return batched_images, targets
 
 def to_xywh(bbox):
     ''' Bbox from [x_min,y_min,x_max,y_max] to [x,y,width,height] '''

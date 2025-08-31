@@ -26,12 +26,10 @@ from typing import Optional, Dict
 
 import wandb
 from matplotlib.figure import Figure
-from sentry_sdk.utils import epoch
 from torch import Tensor
-from torchvision.transforms import ToPILImage
+
 
 from animaloc.vizual.custom_vis import plot_heatmaps, denormalize_image
-from ..data.transforms import UnNormalize, GaussianMap
 
 __all__ = ['PlotPrecisionRecall', 'Visualiser', 'HeatMapVisualizer', 'visualize_sample']
 
@@ -111,6 +109,7 @@ from torchvision.transforms import ToPILImage
 class Visualiser:
     def __init__(self, output_path: str):
         self.output_path = output_path
+        Path(self.output_path).mkdir(parents=True, exist_ok=True)
 
 class HeatMapVisualizer(Visualiser):
     def __init__(self, output_path):
@@ -136,6 +135,7 @@ class HeatMapVisualizer(Visualiser):
         output_name = f"{target['original_image_name'][0][0]}_{epoch}_heatmap_overlay.png"
 
         fig = visualize_sample(image, target, output)
+        Path(self.output_path).mkdir(parents=True, exist_ok=True)
         fig.savefig(Path(self.output_path) / output_name )
         wandb.log({output_name: wandb.Image(fig)})
         plt.close(fig)
@@ -169,9 +169,13 @@ def visualize_sample(image: Tensor, target: Dict, output: typing.Tuple[Tensor, T
     image = image.squeeze(0)
     obj_heatmap = obj_heatmap.squeeze(0)
     cls_heatmap = cls_map.squeeze(0)
-    
-    fig, axes = plot_heatmaps(image, obj_heatmap, class_names=None, max_channels=2,
-                  overlay_channel=0, alpha=0.5, show_argmax_overlay=True)
+
+    fig, axes = plot_heatmaps(image, obj_heatmap,
+                              class_names=None,
+                              max_channels=2,
+                              overlay_channel=0,
+                              alpha=0.5,
+                              show_argmax_overlay=True)
 
     return fig
 

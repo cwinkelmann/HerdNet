@@ -8,31 +8,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from loguru import logger
 
+from . import DLAUp
 from .register import MODELS
 
 
-class DLAFeatureUpsampler(nn.Module):
-    """Mimics DLAUp with top-down feature aggregation like FPN."""
 
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.projects = nn.ModuleList([
-            nn.Conv2d(c, out_channels, kernel_size=1) for c in in_channels
-        ])
-
-    def forward(self, features):
-        """
-        Args:
-            features: list of feature maps, deepest first
-        Returns:
-            Fused feature map at highest spatial resolution
-        """
-        x = self.projects[-1](features[-1])  # smallest resolution
-        for i in range(len(features) - 2, -1, -1):
-            up = F.interpolate(x, size=features[i].shape[2:], mode='nearest')
-            lateral = self.projects[i](features[i])
-            x = up + lateral
-        return x
 
 
 def _load_backbone_checkpoint(model, pretrained_path):
@@ -70,7 +50,25 @@ class HerdNetTimmDLA(nn.Module):
         self.down_ratio = down_ratio
         self.num_classes = num_classes
         self.head_conv = head_conv
-        self.first_level = int(np.log2(down_ratio)) -1  # There is one layer less than in the original DLA
+
+        if "dla" in backbone:
+            # DLA timm backbone has a different downsampling scheme
+            # The first level is the one with stride 2, so we need to adjust accordingly
+            self.first_level = int(np.log2(down_ratio)) - 1 # should be 0 for dr 2
+        elif "convnext" in backbone:
+            # ConvNext backbone has a different downsampling scheme
+            # The first level is the one with stride 4, so we need to adjust accordingly
+            # This is because ConvNext has a different feature map structure
+            # compared to DLA, where the first level is the one with stride 4.
+            # So we need to adjust the first_level accordingly.
+            assert down_ratio >= 4, "ConvNext backbone requires down_ratio >= 4"
+            self.first_level = int(np.log2(down_ratio)) - 2  # There is two layer less than in the original DLA
+        elif "efficientnet" in backbone:
+            # EfficientNet backbone has a different downsampling scheme
+            # The first level is the one with stride 4, so we need to adjust accordingly
+            self.first_level = int(np.log2(down_ratio)) - 1
+        else:
+            raise ValueError(f"Backbone {backbone} not supported.")
 
         # Backbone
         base = timm.create_model(backbone,
@@ -91,28 +89,29 @@ class HerdNetTimmDLA(nn.Module):
         if debug:
             logger.info(f"\nBackbone '{backbone}' provides {self.num_features} feature levels:")
             for i, info in enumerate(feature_info):
-                logger.info(f"  Level {i}: channels={info['num_chs']}, stride={info['reduction']}, module={info['module']}")
+                logger.info(f"  Level {i}: reduction(aka down_ratio)={info['reduction']},channels={info['num_chs']}, stride={info['reduction']}, module={info['module']}")
 
-        # Inspect what the backbone actually returns
-        if debug:
             self._inspect_backbone()
 
         self.feature_channels = base.feature_info.channels()
-
+        channels = self.feature_channels
         # Subset of features depending on down_ratio
         selected_channels = self.feature_channels[self.first_level:]
+        scales = [2 ** i for i in range(len(selected_channels))]
         # selected_channels = self.feature_channels
-        self.dla_up = DLAFeatureUpsampler(selected_channels, out_channels=selected_channels[0])
+
+        # self.dla_up = DLAFeatureUpsampler(selected_channels, out_channels=selected_channels[0])
+        self.dla_up = DLAUp(selected_channels, scales=scales)
 
         # Bottleneck conv
         self.bottleneck_conv = nn.Conv2d(
-            selected_channels[0], selected_channels[0],
+            channels[-1], channels[-1],
             kernel_size=1, stride=1, padding=0, bias=True
         )
 
         # Localization head
         self.loc_head = nn.Sequential(
-            nn.Conv2d(selected_channels[0], head_conv, kernel_size=3, padding=1),
+            nn.Conv2d(channels[self.first_level], head_conv, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(head_conv, 1, kernel_size=1),
             nn.Sigmoid()
@@ -121,48 +120,73 @@ class HerdNetTimmDLA(nn.Module):
 
         # Classification head
         self.cls_head = nn.Sequential(
-            nn.Conv2d(selected_channels[-1], head_conv, kernel_size=3, padding=1),
+            nn.Conv2d(channels[-1], head_conv, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(head_conv, num_classes, kernel_size=1)
         )
         self.cls_head[-1].bias.data.fill_(0.0)
 
+        if debug:
+            logger.info(f"\nModel initialized with down_ratio={down_ratio}, num_classes={num_classes}, head_conv={head_conv}")
+            logger.info(f"First level for feature selection: {self.first_level}")
+            self._test_forward()
+
+    def _test_forward(self):
+        """Debug function to test forward pass"""
+        logger.debug(f"\nTesting forward pass with dummy input:")
+        dummy_input = torch.randn(1, 3, 512, 512)
+        with torch.no_grad():
+            heatmap, clsmap = self.forward(dummy_input)
+
+        logger.debug(f"Output heatmap shape: {heatmap.shape}")
+        logger.debug(f"Output clsmap shape: {clsmap.shape}")
+
+        if self.down_ratio == 1:
+            assert heatmap.shape[1:] == (1, 512,512)
+            assert clsmap.shape[1:] == (self.num_classes, 16,16)
+        elif self.down_ratio == 2:
+            assert heatmap.shape[1:] == (1, 256,256)
+            assert clsmap.shape[1:] == (self.num_classes, 16, 16)
+        elif self.down_ratio == 4:
+            assert heatmap.shape[1:] == (1, 128,128)
+            assert clsmap.shape[1:] == (self.num_classes, 16, 16)
+        elif self.down_ratio == 8:
+            assert heatmap.shape[1:] == (1, 64,64)
+            assert clsmap.shape[1:] == (self.num_classes, 16, 16)
+        elif self.down_ratio == 16:
+            assert heatmap.shape[1:] == (1, 32, 32)
+            assert clsmap.shape[1:] == (self.num_classes, 16, 16)
+
+        return heatmap, clsmap
+
     def _inspect_backbone(self):
         """Debug function to inspect what backbone returns"""
-        print(f"\nInspecting backbone outputs:")
-        dummy_input = torch.randn(1, 3, 256, 256)
+        logger.debug(f"\nInspecting backbone outputs:")
+        dummy_input = torch.randn(1, 3, 512, 512)
         with torch.no_grad():
             features = self.backbone(dummy_input)
 
-        print(f"Backbone returns {len(features)} features:")
+        logger.debug(f"Backbone returns {len(features)} features:")
         for i, feat in enumerate(features):
-            print(f"  Feature {i}: shape={feat.shape}")
+            logger.debug(f"  Feature {i}: shape={feat.shape}")
 
     def forward(self, x):
         feats = self.backbone(x)  # full feature set
-
-
         selected_feats = feats[self.first_level:]  # according to down_ratio
+
+        bottlenecked = self.bottleneck_conv(feats[-1])
+
+        selected_feats[-1] = bottlenecked
         # selected_feats = feats  # according to down_ratio
 
         upsampled = self.dla_up(selected_feats)  # DLAUp-like fused map
 
         # Localization heatmap
-        fused = self.bottleneck_conv(upsampled)
-        heatmap = self.loc_head(fused)  # shape: (B, 1, H, W)
+        # fused = self.bottleneck_conv(upsampled)
+        heatmap = self.loc_head(upsampled)  # shape: (B, 1, H, W)
 
         # Classification from deepest feature map (for global task)
         clsmap = self.cls_head(selected_feats[-1])  # shape: (B, C, h, w)
-
-        if self.down_ratio == 1:
-            assert heatmap.shape[1:] == (1, 512,512)
-            assert clsmap.shape[1:] == (8, 16,16)
-        elif self.down_ratio == 2:
-            assert heatmap.shape[1:] == (1, 256,256)
-            assert clsmap.shape[1:] == (8, 16, 16)
-        elif self.down_ratio == 4:
-            assert heatmap.shape[1:] == (1, 128,128)
-            assert clsmap.shape[1:] == (8, 16, 16)
 
         return heatmap, clsmap
 
@@ -191,3 +215,33 @@ class HerdNetTimmDLA(nn.Module):
         self.cls_head[-1].bias.data.fill_(0.00)
 
         self.num_classes = num_classes
+
+
+    def freeze_backbone_completely(self):
+        """Freeze all parameters in the DINOv2 backbone."""
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
+    def check_trainable_parameters(self):
+        """Check which parameters are trainable."""
+        total_params = 0
+        trainable_params = 0
+
+        for name, param in self.named_parameters():
+            total_params += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+
+        logger.info(f"Total parameters: {total_params:,}")
+        logger.info(f"Trainable parameters: {trainable_params:,}")
+        logger.info(f"Percentage trainable: {100 * trainable_params / total_params:.2f}%")
+
+        # Check specifically DINOv2 parameters
+        dinov2_total = 0
+        dinov2_trainable = 0
+
+
+        return {
+            'total_params': total_params,
+            'trainable_params': trainable_params,
+        }
