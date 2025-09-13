@@ -2,7 +2,7 @@ trainer: 'Trainer'
 epochs: 100
 valid_freq: 1
 print_freq: 125
-batch_size: 10
+batch_size: 60
 # optimizer: 'SGD'
 optimizer: 'adam'
 lr: 0.001

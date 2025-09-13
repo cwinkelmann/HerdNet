@@ -9,6 +9,10 @@ Use these configs:
 - exp1_timmdla102_publication_setting
 - exp1_timmdla102x_publication_setting
 
+```shell
+HerdNet/tools/train_cli.py --config-name="dinoV2_large_publication_setting" --config-path="../configs/iguana"
+```
+
 
 ## Experiment 2: Hyperparameter Optimization with WandDB sweeps
 This will optimise the dla34 model and look for better batch_sizes, learning rates, weight decays. To get this running, do the following:
@@ -52,5 +56,13 @@ PYTHONPATH=$PYTHONPATH:../ python train_cli.py \
   --multirun \
   hydra/launcher=joblib \
   hydra.launcher.n_jobs=3
+```
 
+## Experiment 4: Run DinoV2 Backbone
+# pip install hydra-joblib-launcher
+PYTHONPATH=$PYTHONPATH:../ python train_cli.py \
+  --config-name=experiment_publication_reproduction \
+  --multirun \
+  hydra/launcher=joblib \
+  hydra.launcher.n_jobs=3
 ```

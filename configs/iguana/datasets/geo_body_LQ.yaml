@@ -31,6 +31,7 @@
     root_dir: '/home/cwinkelmann/work/Herdnet/data/Head_BODY_LQ_HQ_exp/train_lq_body/2025_07_06_512_objcenter_False/Herdnet/train/iguana'
 
     sampler: null
+    augmentation_multiplier: 1
 
     albu_transforms:
       HorizontalFlip:

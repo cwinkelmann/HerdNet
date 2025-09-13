@@ -337,3 +337,14 @@ CUDA_VISIBLE_DEVICES=7 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
 
 
 ```
+
+
+```shell
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="aed_dinov2_base_publication_setting_train_full_eval_crop_aug_all" --config-path="../configs/experiment_publication_reproduction"
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="aed_dinov2_base_publication_setting_train_full_eval_crop_aug_all" --config-path="../configs/experiment_publication_reproduction" --config-name="aed_t_dinov2_base_publication_setting_train_full_eval_crop_aug_all"
+--config-path="../configs/experiment_publication_reproduction" &
+```

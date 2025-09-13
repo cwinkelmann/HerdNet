@@ -18,6 +18,7 @@ import os
 import PIL
 import numpy
 import albumentations
+from loguru import logger
 
 from torch.utils.data import Dataset
 
@@ -213,7 +214,7 @@ class CSVDataset(Dataset):
 
         label_fields = target.copy()
         for key in ['annos', 'image_id', 'image_name', 'original_image_name',
-                    'augmentation_id', 'mask_path', 'masks']:
+                    'augmentation_id']:
             label_fields.pop(key, None)  # Use pop with default to avoid KeyError
 
         if self.albu_transforms:
@@ -300,6 +301,38 @@ class CSVDataset(Dataset):
                         label_fields=list(label_fields.keys())
                     )
                 )
+
+                actual_height, actual_width = image.size
+                # Check for out-of-bounds keypoints and fix them
+                # if len(target['annos']) > 0:
+                #     valid_keypoints = []
+                #     invalid_count = 0
+                #     for i, keypoint in enumerate(target['annos']):
+                #         x, y = keypoint[0], keypoint[1]
+                #
+                #         # Check if keypoint is out of bounds
+                #         if x < 0 or x >= actual_width or y < 0 or y >= actual_height:
+                #             invalid_count += 1
+                #             logger.warning(f"Invalid keypoint {i}: ({x}, {y}) for image {actual_height}x{actual_width}")
+                #
+                #             # Skip invalid keypoints (uncomment if preferred)
+                #             logger.info(f"Skipping invalid keypoint {i}: ({x}, {y})")
+                #
+                #
+                #         else:
+                #             valid_keypoints.append(keypoint)
+                #
+                #     if invalid_count > 0:
+                #         logger.warning(f"Found {invalid_count} invalid keypoints in image {target['original_image_name']}")
+                #
+                #     target['annos'] = valid_keypoints
+                #
+                # if target['original_image_name'] == ['aed_train___ce9bb27cdf1dae236c66d2b7554acd6add44eccb.jpg']:
+                #     pass
+                # if len(target['annos']) > 0 and target['annos'][0][1] ==3663:
+                #     print(target['annos'])
+
+                # logger.info(f"original image name: {target['original_image_name']}")
 
                 transformed = transform_pipeline(
                     image=numpy.array(image),

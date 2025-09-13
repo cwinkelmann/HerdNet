@@ -18,8 +18,8 @@ train:
   # name: 'CSVDataset'
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_points.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/Default'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_points.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/Default'
 
 
   sampler: null
@@ -106,8 +106,12 @@ validate:
 #  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/Default'
 #  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/herdnet_format_512_0_crops.csv'
 #  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/crops_512_numNone_overlap0'
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
+
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/Default'
+#
+#  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
+#  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
 
 
   albu_transforms:

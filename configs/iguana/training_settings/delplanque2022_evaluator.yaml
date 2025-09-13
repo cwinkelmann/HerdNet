@@ -2,15 +2,15 @@ trainer: 'Trainer'
 epochs: 100
 valid_freq: 1
 print_freq: 125
-batch_size: 10
+batch_size: 45
 # optimizer: 'SGD'
 optimizer: 'adam'
-lr: 0.001
+lr: 0.00001
 weight_decay: 0.005
 num_workers: 12
 auto_lr:
   mode: 'max'
-  patience: 50
+  patience: 15
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10
@@ -25,11 +25,11 @@ visualiser:
   output_dir: ./visualizations
 
 
-loss_evaluation: null
-#loss_evaluation:
-#  name: 'LossEvaluator'
-#  select_mode: 'min'
-#  validate_on: 'total_loss'
+#loss_evaluation: null
+loss_evaluation:
+  name: 'LossEvaluator'
+  select_mode: 'min'
+  validate_on: 'total_loss'
 
 #evaluator: null
 evaluator:
@@ -42,15 +42,15 @@ evaluator:
     lmds_kwargs:
       kernel_size: [9, 9]
       adapt_ts: 0.3
-      scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
+      scale_factor: 2 # dr=2 -> scale_factor 16, dr=4 -> 8, dr=8 -> 4, dr=16 -> 2 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True
 
-stitcher:
-  name: 'HerdNetStitcher'
-  kwargs:
-    overlap: 120
-    down_ratio: ${model.kwargs.down_ratio}
-    up: False
-    reduction: 'mean'
-#stitcher: null
+#stitcher:
+#  name: 'HerdNetStitcher'
+#  kwargs:
+#    overlap: 120
+#    down_ratio: ${model.kwargs.down_ratio}
+#    up: False
+#    reduction: 'mean'
+stitcher: null

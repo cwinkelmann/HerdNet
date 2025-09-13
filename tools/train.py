@@ -35,8 +35,7 @@ from animaloc.utils.useful_funcs import current_date
 from tools.train_helper import _get_collate_fn, _build_sampler, _load_albu_transforms, _load_end_transforms, \
     _build_model, _load_losses, _define_evaluator, _define_visualiser, get_least_occupied_gpu_nvidia_smi, \
     _get_show_batch_fn
-from animaloc.vizual.custom_vis import plot_heatmaps
-
+from animaloc.vizual.custom_vis import plot_heatmaps, plot_heatmaps_combined
 
 
 def main(cfg: DictConfig) -> Path:
@@ -184,7 +183,7 @@ def main(cfg: DictConfig) -> Path:
         # wandb.run.name = f'{cfg.wandb_run}'
         wandb.run.tags = [f"train_ds: {cfg.datasets.train.name}", f"val_ds: {cfg.datasets.validate.name}"] + cfg.wandb_tags
         # TODO this is the time to upload metrics about the data
-
+        wandb.run.notes = cfg.wandb_notes if cfg.wandb_notes is not None else ""
 
     train_dl_kwargs = dict(
         batch_size=cfg.training_settings.batch_size,
@@ -210,14 +209,27 @@ def main(cfg: DictConfig) -> Path:
 
             heatmap = target[0].squeeze(0)
             cls_map = target[1]
+            cfg.datasets.num_classes
 
-            fig, axes = plot_heatmaps(img_tensor.squeeze(0),
-                                      heatmap,
-                                      show_argmax_overlay=False,
-                                      max_channels=cfg.datasets.num_classes,)
 
-            wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
-            fig.savefig(Path( f'augmented_dataset_example_{i}.png').resolve())
+            if hasattr(cfg.training_settings, 'visualiser'):
+                if cfg.training_settings.visualiser is not None and cfg.training_settings.visualiser.output_dir is not None:
+                    output_dir = Path(cfg.training_settings.visualiser.output_dir)
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    # fig, axes = plot_heatmaps(img_tensor.squeeze(0),
+                    #                           heatmap,
+                    #                           show_argmax_overlay=False,
+                    #                           max_channels=cfg.datasets.num_classes-2)
+                    #
+                    # wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
+                    # fig.savefig((output_dir /  f'augmented_dataset_example_{i}.png'))
+
+                    fig, axes = plot_heatmaps_combined(img_tensor.squeeze(0),
+                                              heatmap,
+                                              )
+
+                    wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
+                    fig.savefig((output_dir / f'augmented_dataset_example_{i}.png'))
 
             plt.close(fig)
 

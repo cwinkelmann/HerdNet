@@ -7,8 +7,11 @@ import torch
 from matplotlib.patches import Circle
 from matplotlib.patches import Circle, Rectangle
 import torch.nn.functional as F
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
 
-__all__ = ['model_vizual', 'plot_heatmaps', 'denormalize_image']
+__all__ = ['model_vizual', 'plot_heatmaps', 'plot_heatmaps_combined', 'denormalize_image']
 
 def model_vizual(image: torch.Tensor, target: torch.Tensor, output: List[torch.Tensor]) -> plt.Figure:
     """
@@ -122,9 +125,7 @@ def _tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
     return array
 
 
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
+
 
 def denormalize_image(img_tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
     """
@@ -168,7 +169,13 @@ def plot_heatmaps(image_tensor, heatmap_tensor,
     num_channels = min(heatmap_tensor.shape[0], max_channels)
     num_subplots = num_channels + 1 if show_argmax_overlay else num_channels
 
-    fig, axes = plt.subplots(1, num_subplots+1, figsize=(8 * num_subplots, 8))
+    img_aspect = W / H
+
+    # Adjust figure size - reduce height, optimize width
+    fig_width = 4 * (num_subplots + 1)  # Reduced from 8 to 4 per subplot
+    fig_height = 4 * (1 / img_aspect) if img_aspect > 1 else 4
+
+    fig, axes = plt.subplots(1, num_subplots+1, figsize=(fig_width, fig_height))
     # if num_subplots == 1:
     #     axes = [axes]
 
@@ -201,16 +208,70 @@ def plot_heatmaps(image_tensor, heatmap_tensor,
         axes[ax_idx].set_title(f"Overlay: Channel {overlay_channel}")
         axes[ax_idx].axis("off")
 
-    # # Argmax overlay
-    # if show_argmax_overlay:
-    #     argmax_map = torch.argmax(heatmap_tensor, dim=0).numpy()
-    #     ax_idx = num_channels + 2 if overlay_channel < heatmap_tensor.shape[0] else num_channels + 1
-    #     axes[ax_idx].imshow(image_np)
-    #     # upscale the argmax_map to match the image size using down_ratio
-    #
-    #     axes[ax_idx].imshow(argmax_map, cmap="tab10", alpha=alpha)
-    #     axes[ax_idx].set_title("Argmax Overlay")
-    #     axes[ax_idx].axis("off")
 
-    plt.tight_layout()
+    plt.tight_layout(pad=1.5)
+    return fig, axes
+
+
+def plot_heatmaps_combined(image_tensor, heatmap_tensor,
+                           combine_method='max', alpha=0.5,
+                           cmap="inferno", threshold=0.05):
+    """
+    Visualize the original image and the image with combined heatmap overlay.
+
+    Parameters:
+    - image_tensor: (3, H, W) torch.Tensor
+    - heatmap_tensor: (C, H, W) torch.Tensor
+    - combine_method: how to combine heatmaps ('max', 'mean', 'argmax')
+    - alpha: transparency for overlays
+    - cmap: colormap for heatmap
+    - threshold: minimum value to show in overlay (for transparency)
+    """
+    image_np = denormalize_image(image_tensor)
+    heatmap_tensor = heatmap_tensor.detach().cpu()
+
+    H, W = image_tensor.shape[1], image_tensor.shape[2]
+    heatmap_tensor = F.interpolate(heatmap_tensor.unsqueeze(0),
+                                   size=(H, W), mode='bilinear', align_corners=False)[0]
+    heatmap_tensor = torch.where(heatmap_tensor < 0.01, 0.0, heatmap_tensor)
+
+    # Combine heatmaps across channels
+    if combine_method == 'max':
+        combined_heatmap = torch.max(heatmap_tensor, dim=0)[0]
+    elif combine_method == 'mean':
+        combined_heatmap = torch.mean(heatmap_tensor, dim=0)
+    elif combine_method == 'argmax':
+        # Create a heatmap showing the max activation value at each pixel
+        combined_heatmap = torch.max(heatmap_tensor, dim=0)[0]
+    else:
+        raise ValueError("combine_method must be 'max', 'mean', or 'argmax'")
+
+    combined_heatmap = combined_heatmap.numpy()
+
+    # Create figure with 2 subplots
+    img_aspect = W / H
+    fig_width = 5  # Total width for 2 subplots
+    fig_height = 5 * (1 / img_aspect) if img_aspect > 1 else 5
+
+    fig, axes = plt.subplots(1, 1, figsize=(fig_width, fig_height))
+    #
+    # # Original image
+    # axes[0].imshow(image_np)
+    # axes[0].set_title("Augmented Image")
+    # axes[0].axis("off")
+    #
+    # # Image with combined heatmap overlay
+    axes.imshow(image_np)
+
+    # Create a masked array to make low values transparent
+    heat_masked = np.ma.masked_where(combined_heatmap < threshold, combined_heatmap)
+
+    im = axes.imshow(heat_masked, cmap=cmap, alpha=alpha)
+    # axes.set_title(f"Augmented Annotation Heatmap")
+    axes.axis("off")
+
+    # Add colorbar
+    # plt.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
+
+    plt.tight_layout(pad=1.5)
     return fig, axes

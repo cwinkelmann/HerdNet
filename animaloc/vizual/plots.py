@@ -132,16 +132,17 @@ class HeatMapVisualizer(Visualiser):
         Returns:
             matplotlib.figure.Figure: The created figure
         """
-        output_name = f"{target['original_image_name'][0][0]}_{epoch}_heatmap_overlay.png"
+        output_name = f"heatmap_overlay_{target['original_image_name'][0][0]}_{epoch}.png"
 
         fig = visualize_sample(image, target, output)
         Path(self.output_path).mkdir(parents=True, exist_ok=True)
+
         fig.savefig(Path(self.output_path) / output_name )
         wandb.log({output_name: wandb.Image(fig)})
         plt.close(fig)
 
 
-        output_name = f"{target['original_image_name'][0][0]}_{epoch}_heatmap.png"
+        output_name = f"heatmap_{target['original_image_name'][0][0]}_{epoch}.png"
         heatmap_fig = visualise_full_res_heatmap(image,
                                                  target,
                                                  output
@@ -195,7 +196,7 @@ def visualise_full_res_heatmap(
         output_name (str): Name of the output file
         output_path (str): Path to save the output file
     """
-    fig, ax = plt.subplots(1, 1, figsize=(20, 20))
+
 
     cls_map = output[1]
     obj_heatmap = output[0]
@@ -219,6 +220,23 @@ def visualise_full_res_heatmap(
 
     heatmap_np = heatmap_tensor.squeeze(0).cpu().numpy()
 
+    aspect_ratio = W / H
+
+    # Set a reasonable maximum size and scale appropriately
+    max_size = 6  # Reduced from 20
+
+    if aspect_ratio > 1:
+        # Wide image - limit width, scale height
+        fig_width = max_size
+        fig_height = max_size / aspect_ratio
+    else:
+        # Tall image - limit height, scale width
+        fig_height = max_size
+        fig_width = max_size * aspect_ratio
+
+    fig, ax = plt.subplots(1, 1, figsize=(fig_width, fig_height))
+
+
     ax.imshow(image_np)
     ax.imshow(heatmap_np, cmap='jet', alpha=0.5)
 
@@ -226,8 +244,10 @@ def visualise_full_res_heatmap(
     points = points * dr_x
     # plot these points
     for (x, y) in points:
-        ax.plot(x, y, 'wo', markersize=1, markeredgewidth=1.0)
-    ax.set_title("Image with Heatmap Overlay")
+        ax.plot(x, y, '+', markersize=16, markeredgewidth=2.0, markeredgecolor='w')
+    ax.set_title(f"{target['original_image_name'][0][0]} with Heatmap Overlay")
     ax.axis("off")
+
+    plt.tight_layout(pad=0.2)
 
     return fig

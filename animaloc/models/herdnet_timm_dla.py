@@ -131,6 +131,25 @@ class HerdNetTimmDLA(nn.Module):
             logger.info(f"First level for feature selection: {self.first_level}")
             self._test_forward()
 
+    def freeze_backbone_completely(self):
+        """Freeze all parameters in the backbone."""
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
+    def check_trainable_parameters(self):
+        """Check which parameters are trainable."""
+        total_params = 0
+        trainable_params = 0
+
+        for name, param in self.named_parameters():
+            total_params += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+
+        logger.info(f"Total parameters: {total_params:,}")
+        logger.info(f"Trainable parameters: {trainable_params:,}")
+        logger.info(f"Percentage trainable: {100 * trainable_params / total_params:.2f}%")
+
     def _test_forward(self):
         """Debug function to test forward pass"""
         logger.debug(f"\nTesting forward pass with dummy input:")
@@ -218,7 +237,7 @@ class HerdNetTimmDLA(nn.Module):
 
 
     def freeze_backbone_completely(self):
-        """Freeze all parameters in the DINOv2 backbone."""
+        """Freeze all parameters backbone."""
         for param in self.backbone.parameters():
             param.requires_grad = False
 

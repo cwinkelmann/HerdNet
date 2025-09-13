@@ -1,29 +1,30 @@
-# Training Data is corrected here by Double Checking them by predictions from a model which are labeles as false positves
+# Iguana head marks marks on Low quality data, i.e. Drone Deploy orthomosaics
 
-img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
+img_size: [512, 512]
 anno_type: 'point'
-num_classes: 3 # One class more for the background
+num_classes: 7 # One class more for the background
 collate_fn: null
 
 class_def:
   1: 'iguana_point'
   2: 'hard_negative' # these next 6 are just there so I can use the pretrained model
-#  3: 'Kob'
-#  4: 'Warthog'
-#  5: 'Waterbuck'
-#  6: 'Elephant'
+  3: 'Kob'
+  4: 'Warthog'
+  5: 'Waterbuck'
+  6: 'Elephant'
 #  7: 'Impala'
 
+
+
+
 train:
-  # name: 'CSVDataset'
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_points.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/Default'
-
+  csv_file: '/raid/cwinkelmann/training_data/iguana/Fernandina_s_single_sample/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/Fernandina_s_single_sample/train/Default'
 
   sampler: null
-  augmentation_multiplier: 35
+  augmentation_multiplier: 10
 
   albu_transforms:
     ObjectAwareRandomCrop:
@@ -87,37 +88,36 @@ train:
       edge_black_blobs: true
     Normalize:
       p: 1.0
+
+
   end_transforms:
     MultiTransformsWrapper:
       FIDT:
         num_classes: ${datasets.num_classes}
         down_ratio: ${model.kwargs.down_ratio}
-        radius: 3
       PointsToMask:
         radius: 2
         num_classes: ${datasets.num_classes}
-        squeeze: true
+        squeeze: True
         down_ratio: 32
 
 validate:
   name: 'CSVDataset'
 
-#  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/herdnet_format_points.csv'
-#  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/Default'
-#  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/herdnet_format_512_0_crops.csv'
-#  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/val/crops_512_numNone_overlap0'
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/Fernandina_s_single_sample/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/Fernandina_s_single_sample/train/Default'
 
 
+# data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
   albu_transforms:
-#      ObjectAwareRandomCrop:
+#      RandomCrop:
 #        height: 512
 #        width: 512
 #        p: 1.0
-#        attempts: 10
-#        edge_black_blobs: True
-
+    Resize:
+      height: 512
+      width: 512
+      p: 1.0
     Normalize:
       p: 1.0
 
@@ -125,4 +125,3 @@ validate:
     DownSample:
       down_ratio: ${model.kwargs.down_ratio}
       anno_type: ${datasets.anno_type}
-

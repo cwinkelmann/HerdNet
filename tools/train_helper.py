@@ -13,29 +13,20 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-from pathlib import Path
 import random
-
-import pandas as pd
-import torch
-import hydra
-import animaloc
-import wandb
-import pandas
-import os
-import torchvision
-from loguru import logger
-import albumentations as A
 import subprocess
-from torch.utils.data import DataLoader, Dataset
-from omegaconf import DictConfig
 from typing import Callable, Optional
 
-from animaloc.models.utils import LossWrapper, load_model
-from animaloc.eval import Evaluator, PointsMetrics, Stitcher, BoxesMetrics, ImageLevelMetrics
+import albumentations as A
+import pandas
+import torch
+import torchvision
+from loguru import logger
+from omegaconf import DictConfig
+from torch.utils.data import Dataset
 
-from animaloc.utils.seed import set_seed
-from animaloc.utils.useful_funcs import current_date
+import animaloc
+from animaloc.eval import Evaluator, PointsMetrics, Stitcher, BoxesMetrics, ImageLevelMetrics
 from animaloc.vizual.plots import Visualiser
 
 
@@ -60,7 +51,7 @@ def _load_albu_transforms(tr_cfg: dict) -> list:
             transforms.append(A.__dict__[name](**kwargs))
         except KeyError as e:
 
-            from utils import augmentations as ca
+            from animaloc.utils import augmentations as ca
             transforms.append(ca.__dict__.get(name, None)(**kwargs))
 
 
