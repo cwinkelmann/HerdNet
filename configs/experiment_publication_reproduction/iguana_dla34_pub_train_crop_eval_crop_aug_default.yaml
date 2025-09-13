@@ -1,17 +1,17 @@
 wandb_notes: |
-  "train on crops of floreana, evaluate on full size floreana images"
+  "train on crops of floreana, evaluate on crops floreana images"
 
 defaults:
   - /losses: herdnet_publication
-  - /datasets: floreana_crop_train_classic_val_classic
-  - /training_settings: delplanque2022_evaluator_stitcher
+  - /datasets: floreana_crop_train_classic_crop_val_classic
+  - /training_settings: delplanque2022_evaluator
   - /model: HerdNetTimmDLA34_dr2_imagenet
   - _self_  # Include this config's content
 
 wandb_flag: True
 wandb_project: 'herdnet_iguana'
 wandb_entity: 'karisu'
-wandb_run: 'iguana_dla34_pub_train_crop_eval_full_aug_default'
+wandb_run: 'iguana_dla34_pub_train_crop_eval_crop_aug_default'
 wandb_tags: ['timmDLA', 'iguana__sample','dla34', 'default_setting', "exp1", "eval_full", "train_crop"]
 seed: 1
 device_name: null

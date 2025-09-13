@@ -42,7 +42,7 @@ evaluator:
     lmds_kwargs:
       kernel_size: [9, 9]
       adapt_ts: 0.3
-      scale_factor: 2 # dr=2 -> scale_factor 16, dr=4 -> 8, dr=8 -> 4, dr=16 -> 2 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
+      scale_factor: 16 # dr=2 -> scale_factor 16, dr=4 -> 8, dr=8 -> 4, dr=16 -> 2 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True
 

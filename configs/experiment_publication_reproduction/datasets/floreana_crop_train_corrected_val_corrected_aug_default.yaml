@@ -1,4 +1,4 @@
-# Training Data from Floreana exported from hasty.ai
+# Training Data is corrected here by Double Checking them by predictions from a model which are labeles as false positves
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
@@ -12,23 +12,25 @@ class_def:
   4: 'Warthog'
   5: 'Waterbuck'
   6: 'Elephant'
-#  7: 'Impala'
 
 train:
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/train/crops_512_numNone_overlap0'
+  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
 
 
   sampler: null
-  augmentation_multiplier: 10
+  augmentation_multiplier: 1
 
   albu_transforms:
+
     HorizontalFlip:
       p: 0.5
     VerticalFlip:
       p: 0.5
+    MotionBlur:
+      p: 0.2
     Normalize:
       p: 1.0
   end_transforms:
@@ -36,7 +38,7 @@ train:
       FIDT:
         num_classes: ${datasets.num_classes}
         down_ratio: ${model.kwargs.down_ratio}
-        radius: 1
+        radius: 3
       PointsToMask:
         radius: 2
         num_classes: ${datasets.num_classes}
@@ -45,11 +47,11 @@ train:
 
 validate:
   name: 'CSVDataset'
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/herdnet_format_points.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/Default'
+
+  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/herdnet_format_512_0_crops.csv'
+  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/crops_512_numNone_overlap0'
 
   albu_transforms:
-
     Normalize:
       p: 1.0
 
