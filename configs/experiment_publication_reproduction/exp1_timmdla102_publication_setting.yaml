@@ -3,7 +3,7 @@ defaults:
   - /losses: herdnet_publication
   - /datasets: delplanque2022
   - /training_settings: delplanque2022_val_loss
-  - /model: HerdnetTimm102_dr2_imagenet
+  - /model: HerdnetTimmDLA102_dr2_imagenet
   - _self_  # Include this config's content
 
 wandb_flag: True

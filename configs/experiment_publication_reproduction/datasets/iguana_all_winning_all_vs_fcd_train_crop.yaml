@@ -2,7 +2,7 @@
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 7 # One class more for the background
+num_classes: 8 # One class more for the background
 collate_fn: null
 
 class_def:
@@ -15,23 +15,16 @@ class_def:
   7: 'Impala'
 
 train:
-  # name: 'CSVDataset'
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_points.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/Default'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/crops_512_numNone_overlap0'
 
 
   sampler: null
-  augmentation_multiplier: 1
+  augmentation_multiplier: 35
 
   albu_transforms:
-    ObjectAwareRandomCrop:
-      height: 1000
-      width: 1000
-      p: 1.0
-      attempts: 10
-      edge_black_blobs: true
     RandomScale:
       scale_limit:
         - 0.8
@@ -92,9 +85,9 @@ train:
       FIDT:
         num_classes: ${datasets.num_classes}
         down_ratio: ${model.kwargs.down_ratio}
-        radius: 1
+        radius: 2
       PointsToMask:
-        radius: 1
+        radius: 2
         num_classes: ${datasets.num_classes}
         squeeze: true
         down_ratio: 32
@@ -102,8 +95,8 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val/Default'
 
   albu_transforms:
 

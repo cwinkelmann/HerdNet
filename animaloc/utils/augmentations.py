@@ -1,9 +1,5 @@
 import random
-import numpy as np
-import cv2
-from albumentations.core.transforms_interface import DualTransform
 
-import math
 import numpy as np
 from typing import Dict, List, Tuple, Union, Optional
 from albumentations.core.transforms_interface import DualTransform
@@ -56,6 +52,8 @@ class ObjectAwareRandomCrop(DualTransform):
 
         for x, y in keypoints:
             if crop_x <= x <= crop_x_max and crop_y <= y <= crop_y_max:
+            # if crop_x <= x < crop_x_max and crop_y <= y < crop_y_max:
+
                 return True
         return False
 
@@ -114,8 +112,8 @@ class ObjectAwareRandomCrop(DualTransform):
 
         # Extract x,y coordinates from keypoints
         keypoint_coords = [(kp[0], kp[1]) for kp in keypoints]
-        if len(keypoint_coords) > 1:
-            pass
+        # if len(keypoint_coords) > 1:
+        #     pass
         if not keypoint_coords:
             # If no keypoints, fall back to regular random crop
             max_crop_x = image_width - self.width
@@ -298,3 +296,242 @@ class PasspartoutAugmentation(DualTransform):
             "randomize_center",
             "randomize_radius"
         )
+
+
+# import random
+# import numpy as np
+# from typing import Dict, List, Tuple, Union, Optional
+# from albumentations.core.transforms_interface import DualTransform
+
+#
+# class ObjectAwareRandomCropV2(DualTransform):
+#     """
+#     Random crop that guarantees at least one keypoint remains within the cropped area.
+#
+#     This transformation attempts to find a valid crop position multiple times before falling back
+#     to a crop that ensures at least one keypoint is included.
+#
+#     Args:
+#         height (int): Height of the crop.
+#         width (int): Width of the crop.
+#         attempts (int): Number of random attempts to try before using guaranteed method. Default: 10.
+#         always_apply (bool): Whether to always apply this transform. Default: False.
+#         p (float): Probability of applying the transform. Default: 1.0.
+#     """
+#
+#     def __init__(
+#             self,
+#             height: int,
+#             width: int,
+#             attempts: int = 10,
+#             always_apply: bool = False,
+#             p: float = 1.0,
+#             edge_black_blobs=False,
+#             empty_probability=0.0
+#     ):
+#         super().__init__(always_apply, p)
+#         self.last_crop = None
+#         self.height = height
+#         self.width = width
+#         self.attempts = attempts
+#         self.empty_probability = empty_probability
+#         self.edge_black_blobs = edge_black_blobs
+#
+#         if self.attempts < 1:
+#             raise ValueError("attempts must be at least 1")
+#
+#     def _has_keypoint_in_crop(
+#             self,
+#             crop_x: int,
+#             crop_y: int,
+#             keypoints: List[Tuple[float, float]]
+#     ) -> bool:
+#         """Check if at least one keypoint is within the crop area."""
+#         crop_x_max = crop_x + self.width
+#         crop_y_max = crop_y + self.height
+#
+#         for x, y in keypoints:
+#             if crop_x <= x < crop_x_max and crop_y <= y < crop_y_max:
+#                 return True
+#         return False
+#
+#     def _get_random_crop_position(
+#             self,
+#             image_height: int,
+#             image_width: int,
+#             keypoints: List[Tuple[float, float]],
+#             want_keypoint: bool
+#     ) -> Optional[Tuple[int, int]]:
+#         """
+#         Try to find a random crop position that satisfies the keypoint requirement.
+#
+#         Args:
+#             image_height: Height of the source image
+#             image_width: Width of the source image
+#             keypoints: List of keypoint coordinates
+#             want_keypoint: If True, crop should contain keypoints. If False, crop should be empty.
+#
+#         Returns:
+#             (crop_x, crop_y) if valid position found, None otherwise
+#         """
+#         max_crop_x = image_width - self.width
+#         max_crop_y = image_height - self.height
+#
+#         for _ in range(self.attempts):
+#             crop_x = random.randint(0, max_crop_x)
+#             crop_y = random.randint(0, max_crop_y)
+#
+#             has_keypoint = self._has_keypoint_in_crop(crop_x, crop_y, keypoints)
+#
+#             # Return if we found what we're looking for
+#             if has_keypoint == want_keypoint:
+#                 return crop_x, crop_y
+#
+#         return None
+#
+#     def _get_guaranteed_crop_position(
+#             self,
+#             image_height: int,
+#             image_width: int,
+#             keypoints: List[Tuple[float, float]]
+#     ) -> Tuple[int, int]:
+#         """Get a crop position that guarantees at least one keypoint is included."""
+#         if not keypoints:
+#             # If no keypoints, just do a random crop
+#             max_crop_x = image_width - self.width
+#             max_crop_y = image_height - self.height
+#             return random.randint(0, max_crop_x), random.randint(0, max_crop_y)
+#
+#         # Pick a random keypoint to center the crop around
+#         target_keypoint = random.choice(keypoints)
+#         target_x, target_y = target_keypoint
+#
+#         # Center the crop on this keypoint
+#         crop_x = int(target_x - self.width // 2)
+#         crop_y = int(target_y - self.height // 2)
+#
+#         # Ensure crop stays within image bounds
+#         crop_x = max(0, min(crop_x, image_width - self.width))
+#         crop_y = max(0, min(crop_y, image_height - self.height))
+#
+#         return crop_x, crop_y
+#
+#     def _get_guaranteed_empty_crop_position(
+#             self,
+#             image_height: int,
+#             image_width: int,
+#             keypoints: List[Tuple[float, float]]
+#     ) -> Tuple[int, int]:
+#         """Get a crop position that guarantees NO keypoints are included."""
+#         if not keypoints:
+#             # If no keypoints, any random crop is empty
+#             max_crop_x = image_width - self.width
+#             max_crop_y = image_height - self.height
+#             return random.randint(0, max_crop_x), random.randint(0, max_crop_y)
+#
+#         # Try to find areas far from all keypoints
+#         max_crop_x = image_width - self.width
+#         max_crop_y = image_height - self.height
+#
+#         best_crop = None
+#         max_min_distance = 0
+#
+#         # Sample multiple random positions and pick the one farthest from keypoints
+#         for _ in range(self.attempts * 2):  # More attempts for empty crops
+#             crop_x = random.randint(0, max_crop_x)
+#             crop_y = random.randint(0, max_crop_y)
+#
+#             # If this crop has no keypoints, return it immediately
+#             if not self._has_keypoint_in_crop(crop_x, crop_y, keypoints):
+#                 return crop_x, crop_y
+#
+#             # Otherwise, calculate minimum distance to any keypoint
+#             crop_center_x = crop_x + self.width // 2
+#             crop_center_y = crop_y + self.height // 2
+#
+#             min_distance = min(
+#                 np.sqrt((crop_center_x - kx) ** 2 + (crop_center_y - ky) ** 2)
+#                 for kx, ky in keypoints
+#             )
+#
+#             if min_distance > max_min_distance:
+#                 max_min_distance = min_distance
+#                 best_crop = (crop_x, crop_y)
+#
+#         # Return the crop farthest from keypoints (might still contain some)
+#         return best_crop if best_crop else (random.randint(0, max_crop_x), random.randint(0, max_crop_y))
+#
+#     def apply(self, img: np.ndarray, crop_x: int = 0, crop_y: int = 0, **params) -> np.ndarray:
+#         """Apply the crop to the image."""
+#         return img[crop_y:crop_y + self.height, crop_x:crop_x + self.width]
+#
+#     def apply_to_keypoint(self, keypoint: Tuple[float, float, float, float],
+#                           crop_x: int = 0,
+#                           crop_y: int = 0,
+#                           **params) -> Tuple[float, float, float, float]:
+#         """Apply the crop to keypoints."""
+#         x, y, angle, scale = keypoint
+#         x_new = x - crop_x
+#         y_new = y - crop_y
+#         # Adjust keypoint coordinates relative to the crop
+#         eps = 1e-6
+#         x_new = max(0.0, min(x_new, self.width - eps))
+#         y_new = max(0.0, min(y_new, self.height - eps))
+#
+#         return x_new, y_new, angle, scale
+#
+#     def get_params_dependent_on_targets(self, params: Dict) -> Dict:
+#         """Generate parameters for the transformation."""
+#         img = params['image']
+#         keypoints = params.get('keypoints', [])
+#         image_height, image_width = img.shape[:2]
+#
+#         # Decide if we want a crop with keypoints or empty crop
+#         want_keypoint = random.uniform(0, 1) > self.empty_probability
+#
+#         # Validate crop size
+#         if self.height > image_height or self.width > image_width:
+#             raise ValueError(
+#                 f"Crop size ({self.width}x{self.height}) is larger than image size ({image_width}x{image_height})")
+#
+#         # Extract x,y coordinates from keypoints
+#         keypoint_coords = [(kp[0], kp[1]) for kp in keypoints]
+#
+#         # If no keypoints, just do random crop
+#         if not keypoint_coords:
+#             max_crop_x = image_width - self.width
+#             max_crop_y = image_height - self.height
+#             crop_x = random.randint(0, max_crop_x)
+#             crop_y = random.randint(0, max_crop_y)
+#             self.last_crop = (crop_x, crop_y)
+#             return {'crop_x': crop_x, 'crop_y': crop_y}
+#
+#         # Try to find a random crop position that meets our requirements
+#         crop_position = self._get_random_crop_position(
+#             image_height, image_width, keypoint_coords, want_keypoint
+#         )
+#
+#         if crop_position is not None:
+#             crop_x, crop_y = crop_position
+#             self.last_crop = (crop_x, crop_y)
+#             return {'crop_x': crop_x, 'crop_y': crop_y}
+#
+#         # If random attempts failed, use guaranteed method
+#         if want_keypoint:
+#             crop_x, crop_y = self._get_guaranteed_crop_position(
+#                 image_height, image_width, keypoint_coords
+#             )
+#         else:
+#             crop_x, crop_y = self._get_guaranteed_empty_crop_position(
+#                 image_height, image_width, keypoint_coords
+#             )
+#
+#         self.last_crop = (crop_x, crop_y)
+#         return {'crop_x': crop_x, 'crop_y': crop_y}
+#
+#     @property
+#     def targets_as_params(self) -> List[str]:
+#         return ['image', 'keypoints']
+#
+#     def get_transform_init_args_names(self) -> Tuple[str, ...]:
+#         return ('height', 'width', 'attempts')

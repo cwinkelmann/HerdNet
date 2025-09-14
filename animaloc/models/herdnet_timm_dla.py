@@ -22,7 +22,6 @@ def _load_backbone_checkpoint(model, pretrained_path):
     else:
         state_dict = checkpoint
 
-    # Optionally remove "module." if trained with DataParallel
     state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 
     # 3. Load weights

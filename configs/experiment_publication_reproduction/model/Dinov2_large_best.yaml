@@ -1,0 +1,17 @@
+# base mode for https://wandb.ai/karisu/herdnet/runs/hb555gel?nw=nwuserkarisu
+# model created with: https://wandb.ai/karisu/herdnet/runs/bbi5p5ip/overview
+
+name: 'HerdNetDINOv2'
+from_torchvision: False
+
+#load_from: null
+load_from: /home/cwinkelmann/work/Herdnet/best_models/f6kqq8bd/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
+resume_from: null
+
+kwargs:
+  backbone: 'timm/vit_large_patch14_dinov2.lvd142m'
+
+  pretrained: True
+  down_ratio: 4  # was two before
+  head_conv: 64 # was 64
+freeze: null

@@ -58,11 +58,38 @@ PYTHONPATH=$PYTHONPATH:../ python train_cli.py \
   hydra.launcher.n_jobs=3
 ```
 
-## Experiment 4: Run DinoV2 Backbone
-# pip install hydra-joblib-launcher
-PYTHONPATH=$PYTHONPATH:../ python train_cli.py \
-  --config-name=experiment_publication_reproduction \
-  --multirun \
-  hydra/launcher=joblib \
-  hydra.launcher.n_jobs=3
+
+### Experiment Setup for Summer School
+```shell
+
+# Optional, start a screen session
+screen -S herdnet
+
+screen -ls
+
+screen -r Herdnet
+
+# list all windows
+ctrl-A w
+# switch between windows
+ctrl-A n  (next)
+
+cd tools
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dla34_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dinoS_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"  > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dinoL_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"   > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dinoS_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dinoL_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"
+
+HerdNet/tools/train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+
 ```

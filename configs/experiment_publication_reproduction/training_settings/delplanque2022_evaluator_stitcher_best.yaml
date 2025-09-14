@@ -1,22 +1,22 @@
 trainer: 'Trainer'
-epochs: 10
+epochs: 100
 valid_freq: 1
 print_freq: 125
-batch_size: 10
+batch_size: 25
 # optimizer: 'SGD'
-optimizer: 'adam'
-lr: 0.001
-weight_decay: 0.005
+optimizer: 'adamW'
+lr: 1.0e-05
+weight_decay: 0.0005
 num_workers: 12
 auto_lr:
   mode: 'max'
   patience: 50
   threshold: 1e-4
   threshold_mode: 'rel'
-  cooldown: 10
-  min_lr: 1e-6
+  cooldown: 20
+  min_lr: 1e-7
   verbose: True
-warmup_iters: 100
+warmup_iters: 1000
 
 # vizual_fn: "model_vizual"
 vizual_fn: visualize_sample
@@ -31,7 +31,7 @@ evaluator:
   name: 'HerdNetEvaluator'
   threshold: 25
   select_mode: 'max'
-  validate_on: 'f1_score'
+  validate_on: 'f5_score'
   kwargs:
     print_freq: 25
     lmds_kwargs:

@@ -1,0 +1,27 @@
+wandb_notes: |
+  """default Settings from From crowd to herd counting on eikelboom 2019 dataset with timm DLA34 model"""
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: eikelboom2019_full_train_full_val_aug_default
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: HerdnetTimmDLA102_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_eikelboom'
+wandb_entity: 'karisu'
+wandb_run: 'eikelboom_dla102_train_full_eval_full_publication_aug_default'
+wandb_tags: ['timmDLA', 'eikelboom','dla102', 'default_setting', "exp1", "eval_full", "train_full", "aug_default"]
+seed: 1
+device_name: null
+
+model:
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/10-28-13/best_loss_model.pth # dla102 dr2 - https://wandb.ai/karisu/herdnet_eikelboom/runs/cgvruc7f/logs
+
+#training_settings:
+#  lr: 0.0001
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

@@ -16,8 +16,11 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
+#  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
+#  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
+
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/train/crops_512_numNone_overlap0'
 
 
   sampler: null
@@ -38,9 +41,9 @@ train:
       FIDT:
         num_classes: ${datasets.num_classes}
         down_ratio: ${model.kwargs.down_ratio}
-        radius: 3
+        radius: 1
       PointsToMask:
-        radius: 2
+        radius: 1
         num_classes: ${datasets.num_classes}
         squeeze: true
         down_ratio: 32
@@ -48,8 +51,8 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_classic/val/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/val/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/val/crops_512_numNone_overlap0'
 
   albu_transforms:
     Normalize:

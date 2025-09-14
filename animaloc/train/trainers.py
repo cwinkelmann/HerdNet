@@ -23,7 +23,7 @@ import wandb
 import matplotlib
 
 import matplotlib.pyplot as plt
-from dacite.types import is_instance
+# from dacite.types import is_instance
 
 
 matplotlib.use('Agg')
@@ -341,7 +341,7 @@ class Trainer:
                     val_flag = True
                     val_loss_output = self.evaluate(epoch, wandb_flag=wandb_flag, returns="all",
                                                     custom_val_dataloader=self.val_loss_dataloader)
-                    if wandb_flag and is_instance(val_loss_output, dict):
+                    if wandb_flag and isinstance(val_loss_output, dict):
                         for key, value in val_loss_output.items():
                             wandb.log({f'val_{key}': value, 'epoch': epoch})
                     val_output_total_loss = val_loss_output["total_loss"]

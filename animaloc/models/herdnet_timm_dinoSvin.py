@@ -258,8 +258,8 @@ class HerdNetDINOv2(nn.Module):
             head_conv: int = 64,
             pretrained_path=None,
             debug=True,
-            attention_layers: List[int] = [-8, -4, -3, -2, -1],
-            output_channels=[256, 512, 1024, 1536],
+            attention_layers: List[int] = [-4, -3, -2, -1],
+            output_channels=[256, 512, 1024],
             input_resolution=(512, 512)  # Which transformer layers to extract attention from
     ):
         super().__init__()
@@ -281,7 +281,7 @@ class HerdNetDINOv2(nn.Module):
         if pretrained_path:
             dinov2_model = _load_backbone_checkpoint(dinov2_model, pretrained_path)
 
-        self.backbone = dinov2_model
+        # self.backbone = dinov2_model
 
         # Extract model info
         self.patch_size = dinov2_model.patch_embed.patch_size[0]

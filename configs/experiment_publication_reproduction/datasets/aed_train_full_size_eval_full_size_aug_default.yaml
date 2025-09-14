@@ -17,8 +17,8 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/herdnet_format.csv'
-  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/Default'
+  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_train/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_train/train/Default'
   sampler: null
   augmentation_multiplier: 1
 

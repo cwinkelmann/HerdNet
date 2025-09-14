@@ -5,7 +5,7 @@ defaults:
   - /losses: herdnet_publication
   - /datasets: floreana_crop_train_classic_val_classic
   - /training_settings: delplanque2022_evaluator_stitcher
-  - /model: HerdnetTimm102_dr2_imagenet
+  - /model: HerdnetTimmDLA102_dr2_imagenet
   - _self_  # Include this config's content
 
 wandb_flag: True
