@@ -1,10 +1,9 @@
-# Delplanque et al. 2022 dataset reference with simple augmentations ULG/MIRUU5_2023 https://dataverse.uliege.be/dataset.xhtml?persistentId=doi:10.58119/ULG/MIRUU5
+# Training Data is corrected here by Double Checking them by predictions from a model which are labeles as false positves
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 7 # One class more for the background
+num_classes: 8 # One class more for the background
 collate_fn: null
-
 
 class_def:
   1: 'Alcelaphinae'
@@ -13,6 +12,7 @@ class_def:
   4: 'Warthog'
   5: 'Waterbuck'
   6: 'Elephant'
+  7: 'f'
 
 train:
   name: 'CSVDataset'
@@ -20,23 +20,78 @@ train:
   csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_train/detection_train_0_512/herdnet_format_512_0_crops.csv'
   root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_train/detection_train_0_512/crops_512_numNone_overlap0'
 
+
   sampler: null
   augmentation_multiplier: 1
 
   albu_transforms:
+#    ObjectAwareRandomCrop:
+#      height: 1000
+#      width: 1000
+#      p: 1.0
+#      attempts: 10
+#      edge_black_blobs: true
+    RandomScale:
+      scale_limit:
+        - 0.8
+        - 1.2
+      p: 0.5
+    ShiftScaleRotate:
+      shift_limit: 0.1
+      scale_limit: 0.15
+      rotate_limit: 45
+      p: 0.5
+      border_mode: 4
+    Perspective:
+      scale:
+        - 0.05
+        - 0.15
+      p: 0.3
+    Affine:
+      scale:
+        - 0.9
+        - 1.1
+      translate_percent:
+        - 0.1
+        - 0.1
+      rotate:
+        - -45
+        - 45
+      shear:
+        - -10
+        - 10
+      p: 0.2
     HorizontalFlip:
-      p: 0.5
+      p: 0.2
+    VerticalFlip:
+      p: 0.2
     MotionBlur:
+      p: 0.2
+    RandomRotate90:
       p: 0.5
+    RandomBrightnessContrast:
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      p: 0.1
+    Blur:
+      blur_limit: 15
+      p: 0.1
+    ToGray:
+      p: 0.1
+    ObjectAwareRandomCropEdgeBlackout:
+      height: 512
+      width: 512
+      p: 1.0
+      attempts: 10
+      edge_black_blobs: true
     Normalize:
       p: 1.0
-
   end_transforms:
     MultiTransformsWrapper:
       FIDT:
         num_classes: ${datasets.num_classes}
         down_ratio: ${model.kwargs.down_ratio}
-        radius: 1
+        radius: 2
       PointsToMask:
         radius: 2
         num_classes: ${datasets.num_classes}
@@ -63,3 +118,12 @@ test:
 
   csv_file: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_test/detection_test_0_512/herdnet_format_512_0_crops.csv'
   root_dir: '/raid/cwinkelmann/training_data/delplanque/general_dataset/hasty_style/Delplanque2022_512_overlap_0/delplanque_test/detection_test_0_512/crops_512_numNone_overlap0'
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}

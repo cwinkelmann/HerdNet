@@ -19,7 +19,7 @@ device_name: null
 #model:
 #  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-12/10-40-54/best_loss_model.pth # dla34 dr2 - https://wandb.ai/karisu/herdnet_aed/runs/70nu9hbg/logs
 training_settings:
-  batch_size: 40
+  batch_size: 25
 
 #  kwargs:
 #    down_ratio: 4

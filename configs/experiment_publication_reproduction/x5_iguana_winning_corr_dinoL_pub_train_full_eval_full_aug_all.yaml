@@ -18,25 +18,39 @@ wandb_tags: [ 'floreana','dinov2', 'Dinov2_small', 'default_setting', "exp1", "e
 seed: 1
 device_name: null
 
+#model:
+#  # load_from: /raid/cwinkelmann/herdnet/outputs/2025-08-10/23-21-57/best_model.pth # dinoL
+#  #  load_from: /home/cwinkelmann/work/Herdnet/best_models/f6kqq8bd/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
+#
+#  # f6kqq8bd
+#  #  kwargs:
+#  #    output_channels: [256, 512, 1024, 1536]
+#  #    attention_layers: [-8, -4, -3, -2, -1]
+#
+#
+#  # bbi5p5ip
+#  load_from: /home/cwinkelmann/work/Herdnet/best_models/bbi5p5ip/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
+#  #   hb555gel
+##  load_from: /home/cwinkelmann/work/Herdnet/best_models/hb555gel/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
+#
+#  kwargs:
+#    output_channels: [ 256, 512, 1024 ]
+#    attention_layers: [ -4, -3, -2, -1 ]
+##  freeze_backbone: True
+
+
+training_settings:
+  lr: 1.0e-06
+  epochs: 5
+  warmup_iters: 50
 model:
-  # load_from: /raid/cwinkelmann/herdnet/outputs/2025-08-10/23-21-57/best_model.pth # dinoL
-  #  load_from: /home/cwinkelmann/work/Herdnet/best_models/f6kqq8bd/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
-
-  # f6kqq8bd
-  #  kwargs:
-  #    output_channels: [256, 512, 1024, 1536]
-  #    attention_layers: [-8, -4, -3, -2, -1]
-
-
-  # bbi5p5ip
-  load_from: /home/cwinkelmann/work/Herdnet/best_models/bbi5p5ip/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
-  #   hb555gel
-#  load_from: /home/cwinkelmann/work/Herdnet/best_models/hb555gel/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/f6kqq8bd/workspace?nw=nwuserkarisu
-
-  kwargs:
-    output_channels: [ 256, 512, 1024 ]
-    attention_layers: [ -4, -3, -2, -1 ]
-#  freeze_backbone: True
+    # dla34 dr2
+    load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-20-05/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/jsrgboks/logs?nw=nwuserkarisu
+datasets:
+  validate:
+    albu_transforms:
+      ObjectAwareRandomCropEdgeBlackout:
+        p: 0.0
 
 
 hydra:

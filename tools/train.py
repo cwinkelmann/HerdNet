@@ -231,7 +231,7 @@ def main(cfg: DictConfig) -> Path:
                     wandb.log({f'augmented_dataset_examples': wandb.Image(fig)})
                     fig.savefig((output_dir / f'augmented_dataset_example_{i}.png'))
 
-            plt.close(fig)
+                    plt.close(fig)
 
 
 

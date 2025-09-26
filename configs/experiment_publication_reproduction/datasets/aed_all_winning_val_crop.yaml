@@ -6,25 +6,31 @@ num_classes: 8 # One class more for the background
 collate_fn: null
 
 class_def:
-  1: 'iguana_point'
-  2: 'hard_negative' # these next 6 are just there so I can use the pretrained model
-  3: 'Kob'
-  4: 'Warthog'
-  5: 'Waterbuck'
-  6: 'Elephant'
-  7: 'Impala'
+  1: 'Elephant'
+  2: 'a'
+  3: 'b'
+  4: 'c'
+  5: 'd'
+  6: 'e'
+  7: 'f'
 
 train:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_train/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_train/train/Default'
 
 
   sampler: null
   augmentation_multiplier: 10
 
   albu_transforms:
+    ObjectAwareRandomCrop:
+      height: 1000
+      width: 1000
+      p: 1.0
+      attempts: 10
+      edge_black_blobs: true
     RandomScale:
       scale_limit:
         - 0.8
@@ -95,16 +101,10 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val/herdnet_format.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val/Default'
+  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/crops_512_numNone_overlap0'
 
   albu_transforms:
-    ObjectAwareRandomCropEdgeBlackout:
-      height: 512
-      width: 512
-      p: 1.0
-      attempts: 10
-      edge_black_blobs: true
     Normalize:
       p: 1.0
 
@@ -113,3 +113,8 @@ validate:
       down_ratio: ${model.kwargs.down_ratio}
       anno_type: ${datasets.anno_type}
 
+test:
+  name: 'CSVDataset'
+
+  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/Default'

@@ -152,7 +152,7 @@ def main(cfg: DictConfig, plain_inference = True) -> None:
         img_cpy = img.copy()
         pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
 
-        logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
+        # logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
         pts = [(y, x) for y, x in pts]
         output = draw_points(img, pts, color='red', size=30)
         output.save(os.path.join(dest_plots, img_name), format="JPEG", quality=95)

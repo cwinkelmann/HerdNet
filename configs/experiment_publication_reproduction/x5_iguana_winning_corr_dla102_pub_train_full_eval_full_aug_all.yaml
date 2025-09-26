@@ -17,9 +17,20 @@ wandb_tags: ['dla', 'dla_102', 'default_setting', "exp1", "eval_crop", "train_fu
 seed: 1
 device_name: null
 
+
+# overrides
 training_settings:
-  lr: 1.0e-03
+  lr: 1.0e-06
+  epochs: 5
   warmup_iters: 50
+model:
+    # dla102 dr2
+    load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-22-35/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/ja0rztai/logs
+datasets:
+  validate:
+    albu_transforms:
+      ObjectAwareRandomCropEdgeBlackout:
+        p: 0.0
 
 hydra:
   run:

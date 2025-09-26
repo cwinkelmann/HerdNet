@@ -17,14 +17,20 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/train/Default'
 
 
   sampler: null
   augmentation_multiplier: 10
 
   albu_transforms:
+    ObjectAwareRandomCrop:
+      height: 1000
+      width: 1000
+      p: 1.0
+      attempts: 10
+      edge_black_blobs: true
     RandomScale:
       scale_limit:
         - 0.8
@@ -95,8 +101,8 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val/herdnet_format.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val/Default'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val_fcd_m/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val_fcd_m/Default'
 
   albu_transforms:
     ObjectAwareRandomCropEdgeBlackout:
@@ -105,6 +111,21 @@ validate:
       p: 1.0
       attempts: 10
       edge_black_blobs: true
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+
+test:
+  name: 'CSVDataset'
+
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val_fcd_m/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/All_detection_winning/val_fcd_m/Default'
+
+  albu_transforms:
     Normalize:
       p: 1.0
 

@@ -76,20 +76,85 @@ ctrl-A n  (next)
 
 cd tools
 
+
+### best setting
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dinoS_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"  > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dinoL_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"   > /dev/null 2>&1 & 
 PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dla34_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
 PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
 
-PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dinoS_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"  > /dev/null 2>&1 & 
-PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_aed_winning_corr_dinoL_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"   > /dev/null 2>&1 & 
+# offline crops
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_crop_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+#### aed with default loss
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x4_aed_winning_corr_dla34_pub_train_full_eval_full_aug_all_loss_defaul" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x4_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all_loss_defaul" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x4_aed_winning_corr_dinoL_pub_train_full_eval_full_aug_all_loss_defaul" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x4_aed_winning_corr_dinoS_pub_train_full_eval_full_aug_all_loss_defaul" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+## aed with default loss, offline crops and default augmentations
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x3_aed_corr_dla34_pub_train_crop_eval_full_aug_def_loss_def" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 &
+
+## aed with with winning loss, offline crops and default augmentations
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x3_aed_corr_dla34_pub_train_crop_eval_full_aug_def_loss_def" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 &
+
 
 PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dinoS_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
 PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dinoL_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_crop_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_crop_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
 
 
-PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"
-PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/"
 
-HerdNet/tools/train_cli.py --config-name="x5_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+#### Train the delplanque general dataset
+```shell
 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x3_GD_dla34_train_crop_eval_crop_aug_all_loss_def" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x3_GD_dla102_train_crop_eval_crop_aug_all_loss_def" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x3_GD_dinoS_train_crop_eval_crop_aug_all_loss_def" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x3_GD_dinoL_train_crop_eval_crop_aug_all_loss_def" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
 
 ```
+
+
+### Train Eikelboom Experiment 1
+```shell
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x1_eikelboom_dinoL_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x1_eikelboom_dinoB_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x1_eikelboom_dinoS_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x1_eikelboom_dla34_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x1_eikelboom_dla60_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x1_eikelboom_dla102_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+```
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x2_eikelboom_dinoL_train_crop_eval_crop_publication_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x2_eikelboom_dinoB_train_crop_eval_crop_publication_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x2_eikelboom_dinoS_train_crop_eval_crop_publication_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x2_eikelboom_dla34_train_crop_eval_crop_publication_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x2_eikelboom_dla60_train_crop_eval_crop_publication_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 train_cli.py --config-name="x2_eikelboom_dla102_train_crop_eval_crop_publication_aug_all" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+
+full size image inference and evaluation, use inference_test
+```shell 
+
+```
+
+

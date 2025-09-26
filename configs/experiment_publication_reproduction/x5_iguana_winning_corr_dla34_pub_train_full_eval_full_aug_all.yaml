@@ -6,7 +6,7 @@ defaults:
   - /losses: herdnet_winning
   - /datasets: iguana_all_winning_all_vs_fcd
   - /training_settings: delplanque2022_evaluator_stitcher_best
-  - /model: Herdnet34_dr2_imagenet
+  - /model: HerdNetTimmDLA34_dr2_imagenet
   - _self_  # Include this config's content
 
 wandb_flag: True
@@ -18,8 +18,17 @@ seed: 1
 device_name: null
 
 training_settings:
-  lr: 1.0e-03
+  lr: 1.0e-06
+  epochs: 5
   warmup_iters: 50
+model:
+    # dla34 dr2
+    load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-20-05/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/jsrgboks/logs?nw=nwuserkarisu
+datasets:
+  validate:
+    albu_transforms:
+      ObjectAwareRandomCropEdgeBlackout:
+        p: 0.0
 
 hydra:
   run:

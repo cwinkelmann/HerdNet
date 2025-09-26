@@ -1,4 +1,4 @@
-# Delplanque et al. 2022 dataset reference with simple augmentations
+# Eikelboom2019 dataset full size configuration file
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
@@ -17,8 +17,8 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_train/detection_train_0_512/herdnet_format_512_0_crops.csv'
-  root_dir: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_train/detection_train_0_512/crops_512_numNone_overlap0'
+  csv_file: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_train/detection_train_0_512/herdnet_format.csv'
+  root_dir: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_train/detection_train_0_512/Default'
 
   sampler: null
   augmentation_multiplier: 1

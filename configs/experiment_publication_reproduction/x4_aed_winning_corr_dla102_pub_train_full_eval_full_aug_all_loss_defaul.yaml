@@ -1,24 +1,32 @@
 wandb_notes: |
-  "train on random crops of floreana, evaluate on crops floreana images"
-  "trained with Herdnet34_dr2_imagenet"
+  ""
 
 defaults:
   - /losses: herdnet_winning
-  - /datasets: aed_all_winning
-  - /training_settings: delplanque2022_evaluator_stitcher_best
-  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - /datasets: aed_all_winning_val_crop
+  - /training_settings: delplanque2022_evaluator_stitcher_best_quick
+  - /model: HerdnetTimmDLA102_dr2_imagenet
   - _self_  # Include this config's content
 
 wandb_flag: True
 wandb_project: 'herdnet_aed'
 wandb_entity: 'karisu'
-wandb_run: 'x5_aed_winning_dla34_pub_train_full_eval_full_aug_all'
-wandb_tags: ['floreana','dla', 'dla34', 'default_setting', "exp1", "eval_crop", "train_full"]
+wandb_run: 'x4_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all_loss_defaul'
+wandb_tags: ['aed','dla', 'dla102', "exp4", "eval_crop", "train_full"]
 seed: 1
 device_name: null
 
+
+model:
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-21-32/best_model.pth # https://wandb.ai/karisu/herdnet_aed/runs/g7db37hl/logs
+
 training_settings:
   lr: 1.0e-04
+losses:
+  FocalLoss:
+    kwargs:
+      alpha: 2
+      beta: 4
 
 #model:
 #  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-13/20-54-35/best_loss_model.pth # https://wandb.ai/karisu/herdnet_aed/runs/n8p4vjj2/logs

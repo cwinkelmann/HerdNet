@@ -10,7 +10,7 @@ defaults:
 wandb_flag: True
 wandb_project: 'herdnet_eikelboom'
 wandb_entity: 'karisu'
-wandb_run: 'eikelboom_dla102_train_crop_eval_crop_publication'
+wandb_run: 'x1_eikelboom_dla102_train_crop_eval_crop_publication'
 wandb_tags: ['timmDLA', 'eikelboom','dla102', 'default_setting', "exp1"]
 seed: 1
 device_name: null

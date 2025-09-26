@@ -223,7 +223,7 @@ def visualise_full_res_heatmap(
     aspect_ratio = W / H
 
     # Set a reasonable maximum size and scale appropriately
-    max_size = 6  # Reduced from 20
+    max_size = 10  # Reduced from 20
 
     if aspect_ratio > 1:
         # Wide image - limit width, scale height

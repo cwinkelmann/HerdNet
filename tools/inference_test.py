@@ -154,11 +154,33 @@ def _define_evaluator(
 
 # config_name="config_2025_04_14_dla"
 # config_name = "config_2025_07_27_iguana_timm_DinoV2"
-config_name = "config_2025_08_08_dinov2_train_val_inverted_val_corrected"
-config_name = "config_2025_08_10_dinov2_floreana_all_val_fernandina"
+
+# config_name = "config_2025_08_08_dinov2_train_val_inverted_val_corrected"
+# config_name = "x5_aed_winning_corr_dinoS_pub_train_full_eval_full_aug_all"
+# config_name = "x5_aed_winning_corr_dinoL_pub_train_full_eval_full_aug_all"
+# config_name = "x5_aed_winning_corr_dla34_pub_train_full_eval_full_aug_all"
+ # config_name = "x5_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all"
+
+# config_name = "config_2025_08_08_dinov2_train_val_inverted_val_corrected"
+# config_name = "x6_aed_winning_corr_dinoS_pub_train_full_eval_full_aug_all"
+# config_name = "x6_aed_winning_corr_dinoL_pub_train_full_eval_full_aug_all"
+# config_name = "x6_aed_winning_corr_dla34_pub_train_full_eval_full_aug_all"
+# config_name = "x6_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all"
+
+# config_name = "x6_iguana_winning_corr_dinoL_pub_train_full_eval_full_aug_all"
+# config_name = "x6_iguana_winning_corr_dinoS_pub_train_full_eval_full_aug_all"
+config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all"
+# config_name = "x6_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all"
+
+# config_name = "x6_iguana_winning_corr_dinoL_pub_train_full_eval_full_aug_all_ds_fcdm"
+# config_name = "x6_iguana_winning_corr_dinoS_pub_train_full_eval_full_aug_all_ds_fcdm"
+# config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all_ds_fcdm"
+# config_name = "x6_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all_ds_fcdm"
 
 
-@hydra.main(config_path='../configs/iguana/label_correction', config_name=config_name)
+config_path = "../configs/experiment_publication_reproduction/"
+
+@hydra.main(config_path=config_path, config_name=config_name)
 def main(cfg: DictConfig) -> None:
     """
     Main function to run the inference test with the given configuration.
@@ -235,8 +257,8 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
     test_dataset = animaloc.datasets.__dict__[cfg.datasets.test.name](
         csv_file=test_df,
         root_dir=cfg.datasets.test.root_dir,
-        albu_transforms=_load_albu_transforms(cfg.datasets.validate.albu_transforms),
-        end_transforms=_load_end_transforms(cfg.datasets.validate.end_transforms)
+        albu_transforms=_load_albu_transforms(cfg.datasets.test.albu_transforms),
+        end_transforms=_load_end_transforms(cfg.datasets.test.end_transforms)
     )
         # TODO figure out how a bigger batch size is possible
     test_dataloader = DataLoader(test_dataset,
@@ -265,7 +287,7 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
 
     # Start testing
     logger.info(f'Starting testing ...')
-    out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=True)
+    out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=True, dont_finish=True)
     logger.info(f'Done with predictions ...')
 
     # Save results
@@ -284,6 +306,7 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
             pr_curve.feed(rec, pre, label=cls_dict[c])
         try:
             pr_curve.save(plots_path / 'precision_recall_curve.png')
+            wandb.log({"precision_recall_curve": wandb.Image(pr_curve.fig)})
         except IndexError:
             logger.error('Weird index error, skipping PR curve plot')
 
@@ -313,6 +336,20 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
     detections['y'] = detections['y'] * down_ratio
     detections.to_csv(current_directory / 'detections.csv', index=False)
 
+    # Method 2: With metadata and description
+    artifact = wandb.Artifact(
+        name='detections',
+        type='predictions',
+        description='Model predictions with confidence scores and point coordinates'
+    )
+    artifact.add_file(current_directory / 'detections.csv')
+    artifact.metadata = {
+        'model': cfg.model.name,
+        'loaded_from': cfg.model.load_from,
+        'dataset': cfg.datasets.test.csv_file,
+    }
+    wandb.log_artifact(artifact)
+
     # plot only false positves
     # fp = detections[detections['FP'] == 1]
 
@@ -333,7 +370,7 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
         img_cpy = img.copy()
         pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
 
-        logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
+        # logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
         pts = [(y, x) for y, x in pts]
         output = draw_points(img, pts, color='red', size=30)
         output.save(os.path.join(dest_plots, img_name), format="JPEG", quality=95)
@@ -342,6 +379,8 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
         # Create and export thumbnails
         sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
         for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):
+            if score < 0.3:
+                continue
             off = ts // 2
             # TODO the fact this fails if an image is empty shows the code was never evaluated with empty images/or never predicted nothing even if the image was empty
             coords = (x - off, y - off, x + off, y + off)
@@ -353,7 +392,13 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
             thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
             thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
 
+            wandb.log({"thumbnails": wandb.Image(thumbnail)})
+
+
     logger.info(f'Testing done, wrote results to: {os.getcwd()}')
+
+
+    wandb.finish()
 
     return detections
 

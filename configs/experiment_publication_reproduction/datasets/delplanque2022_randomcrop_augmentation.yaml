@@ -1,4 +1,5 @@
 # Two Stage Cropping. First Crop a random large crop, which attempts to include objects, then from that crop a random 512x512 crop
+# https://dataverse.uliege.be/dataset.xhtml?persistentId=doi:10.58119/ULG/MIRUU5
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'

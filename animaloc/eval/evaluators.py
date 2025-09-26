@@ -161,7 +161,7 @@ class Evaluator:
     
     @torch.no_grad()
     def evaluate(self, returns: str = 'recall', wandb_flag: bool = False, viz: bool = False,
-        log_meters: bool = True) -> float:
+        log_meters: bool = True, dont_finish=False) -> float:
         ''' Evaluate the model
         
         Args:
@@ -288,7 +288,10 @@ class Evaluator:
 
             print(f"Wandb summary: {wandb.run.summary}")
 
-            wandb.run.finish()
+            if dont_finish:
+                loguru_logger.info("wandb.run.finish() has been disabled")
+            else:
+                wandb.run.finish()
 
         if returns == 'recall':
             return self.metrics.recall()
@@ -500,7 +503,7 @@ class FasterRCNNEvaluator(Evaluator):
             labels = output['labels'].tolist(),
             scores = output['scores'].tolist()
             )
-        
+
         num_classes = self.metrics.num_classes - 1
         counts = [preds['labels'].count(i+1) for i in range(num_classes)]
 
