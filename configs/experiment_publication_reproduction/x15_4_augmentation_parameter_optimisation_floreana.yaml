@@ -1,0 +1,32 @@
+wandb_notes: |
+  Overlapping tile like in eikelboom 
+  
+
+defaults:
+  - /losses: iguana_herdnet_publication
+  - /datasets: floreana_crop_train_corrected_crop_val_corrected_aug_guesswork
+  - /training_settings: delplanque2022_evaluator_quick
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x15_aug_floreana'
+wandb_entity: 'karisu'
+wandb_run: 'x15_4_augmentation_parameter_optimisation_floreana'
+wandb_tags: ['dla', 'dla_34', 'dr2', "exp15", "eval_crop", "train_crop", "corrected"]
+seed: 1
+device_name: null
+
+model:
+  kwargs:
+    down_ratio: 4
+
+
+training_settings:
+  epochs: 350
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

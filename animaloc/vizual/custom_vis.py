@@ -181,15 +181,15 @@ def plot_heatmaps(image_tensor, heatmap_tensor,
 
     # Original image
     axes[0].imshow(image_np)
-    axes[0].set_title("Image")
+    # axes[0].set_title("Image")
     # axes[0].axis("off")
 
     # Heatmaps
     for i in range(num_channels):
         heat = heatmap_tensor[i].numpy()
         axes[i + 1].imshow(heat, cmap=cmap)
-        title = f"Heatmap {i}" if class_names is None else class_names[i]
-        axes[i + 1].set_title(title)
+        # title = f"Heatmap {i}" if class_names is None else class_names[i]
+        # axes[i + 1].set_title(title)
         axes[i + 1].axis("off")
 
     # Overlay selected channel
@@ -205,7 +205,7 @@ def plot_heatmaps(image_tensor, heatmap_tensor,
         axes[ax_idx].imshow(heat_masked, cmap="inferno", alpha=alpha)
 
         # axes[ax_idx].imshow(heat_overlay, cmap="inferno", alpha=alpha)
-        axes[ax_idx].set_title(f"Overlay: Channel {overlay_channel}")
+        # axes[ax_idx].set_title(f"Overlay: Channel {overlay_channel}")
         axes[ax_idx].axis("off")
 
 
@@ -231,8 +231,12 @@ def plot_heatmaps_combined(image_tensor, heatmap_tensor,
     heatmap_tensor = heatmap_tensor.detach().cpu()
 
     H, W = image_tensor.shape[1], image_tensor.shape[2]
-    heatmap_tensor = F.interpolate(heatmap_tensor.unsqueeze(0),
+    try:
+        heatmap_tensor = F.interpolate(heatmap_tensor.unsqueeze(0).unsqueeze(0),
                                    size=(H, W), mode='bilinear', align_corners=False)[0]
+    except:
+        heatmap_tensor = F.interpolate(heatmap_tensor.unsqueeze(0),
+                                       size=(H, W), mode='bilinear', align_corners=False)[0]
     heatmap_tensor = torch.where(heatmap_tensor < 0.01, 0.0, heatmap_tensor)
 
     # Combine heatmaps across channels

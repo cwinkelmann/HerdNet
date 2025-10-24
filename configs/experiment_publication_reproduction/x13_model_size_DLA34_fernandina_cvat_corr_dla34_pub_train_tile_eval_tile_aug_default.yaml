@@ -1,0 +1,42 @@
+wandb_notes: |
+  Testing the effect of the model size  leads to better numbers, here DLA34
+  
+
+defaults:
+  - /losses: iguana_herdnet_publication
+  - /datasets: fernandina_crop_train_corrected_crop_val_corrected_aug_default
+  - /training_settings: delplanque2022_evaluator_quick
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x13_model_size'
+wandb_entity: 'karisu'
+wandb_run: 'DLA-34 Fernandina'
+wandb_tags: ['dla', 'dla_34', 'dr2', "exp12", "eval_crop", "train_crop", "corrected"]
+seed: 1
+device_name: null
+
+
+# overrides
+# overrides
+training_settings:
+  lr: 1.0e-05
+  epochs: 150
+  batch_size: 4
+  valid_freq: 1
+
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        scale_factor: 16 # # dr=2 -> scale_factor 16, dr=4 -> 8, dr=8 -> 4, dr=16 -> 2 in the non patching case
+
+model:
+  kwargs:
+    down_ratio: 2
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

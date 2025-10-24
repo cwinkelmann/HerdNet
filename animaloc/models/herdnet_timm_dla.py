@@ -235,31 +235,3 @@ class HerdNetTimmDLA(nn.Module):
         self.num_classes = num_classes
 
 
-    def freeze_backbone_completely(self):
-        """Freeze all parameters backbone."""
-        for param in self.backbone.parameters():
-            param.requires_grad = False
-
-    def check_trainable_parameters(self):
-        """Check which parameters are trainable."""
-        total_params = 0
-        trainable_params = 0
-
-        for name, param in self.named_parameters():
-            total_params += param.numel()
-            if param.requires_grad:
-                trainable_params += param.numel()
-
-        logger.info(f"Total parameters: {total_params:,}")
-        logger.info(f"Trainable parameters: {trainable_params:,}")
-        logger.info(f"Percentage trainable: {100 * trainable_params / total_params:.2f}%")
-
-        # Check specifically DINOv2 parameters
-        dinov2_total = 0
-        dinov2_trainable = 0
-
-
-        return {
-            'total_params': total_params,
-            'trainable_params': trainable_params,
-        }

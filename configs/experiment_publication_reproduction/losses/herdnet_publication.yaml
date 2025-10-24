@@ -28,5 +28,6 @@ CrossEntropyLoss:
       - 0.045 # Warthog
       - 0.02 # Waterbuck
       - 0.28 # Elephant
+      - 0.0 # extra
      # One weight for each class including the background
     #weight: [0.9, 0.001, 1.0] # From the notebook

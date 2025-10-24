@@ -1,0 +1,144 @@
+# The Dataset which contains the optimised hyperparameters from the hyperparameter optimization
+# https://wandb.ai/karisu/herdnet_iguana_sweep_aug_2/sweeps/6yzvbjce?nw=nwuserkarisu
+#  https://wandb.ai/karisu/ig_Floreana_learning_curve/
+img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
+anno_type: 'point'
+num_classes: 2 # One class more for the background
+collate_fn: null
+
+class_def:
+  1: 'iguana_point'
+
+
+train:
+  name: 'CSVDataset'
+
+#  csv_file: "/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv"
+  csv_file: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/train/herdnet_format_512_0_crops.csv"
+#  root_dir: "/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0"
+  root_dir: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/train/crops_512_numNone_overlap0"
+
+
+  sampler: null
+  augmentation_multiplier: 1
+
+
+
+  albu_transforms:
+
+    RandomScale:
+      scale_limit:
+        - 0.85
+        - 1.15
+      p: 0.3
+    ShiftScaleRotate:
+      shift_limit: 0.15
+      scale_limit: 0.15
+      rotate_limit: 60
+      p: 0
+      border_mode: 4
+    Perspective:
+      scale:
+        - 0.05
+        - 0.1
+      p: 0
+    Affine:
+      scale:
+        - 0.9
+        - 1.1
+      translate_percent:
+        - 0.1
+        - 0.1
+      rotate:
+        - -30
+        - 30
+      shear:
+        - -10
+        - 10
+      p: 0.1
+    HorizontalFlip:
+      p: 0.17249420748064187
+    VerticalFlip:
+      p: 0.0714769353567844
+    MotionBlur:
+      p: 0.1
+    RandomRotate90:
+      p: 0.3622583775580133
+
+
+    RandomShadow:
+      shadow_roi:
+        - 0
+        - 0.5
+        - 1
+        - 1
+      num_shadows_lower: 1
+      num_shadows_upper: 2
+      shadow_dimension: 5
+      p: 0.1
+
+    RandomFog:
+      fog_coef_lower: 0.1
+      fog_coef_upper: 0.5
+      alpha_coef: 0.08
+      p: 0.05
+
+    ImageCompression:
+      quality_lower: 60
+      quality_upper: 95
+      compression_type: 0  # 0 for JPEG
+      p: 0.1
+
+    RandomBrightnessContrast:
+      brightness_limit: 0.4
+      contrast_limit: 0.3
+      p: 0.1
+    Blur:
+      blur_limit: 11
+      p: 0.2
+    HueSaturationValue:
+      hue_shift_limit: 15
+      sat_shift_limit: 0
+      val_shift_limit: 15
+      p: 0.1
+    CLAHE:
+      clip_limit: 2.0
+      p: 0.1
+    ToGray:
+      p: 0.1
+    CenterCrop:
+      height: 512
+      width: 512
+      p: 1.0
+    Normalize:
+      p: 1.0
+
+
+
+  end_transforms:
+    MultiTransformsWrapper:
+      FIDT:
+        num_classes: ${datasets.num_classes}
+        down_ratio: ${model.kwargs.down_ratio}
+        radius: 1
+      PointsToMask:
+        radius: 1
+        num_classes: ${datasets.num_classes}
+        squeeze: true
+        down_ratio: 32
+
+validate:
+  name: 'CSVDataset'
+
+  csv_file: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/val/herdnet_format_512_0_crops.csv"
+  root_dir: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/val/crops_512_numNone_overlap0"
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+

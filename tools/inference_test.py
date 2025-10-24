@@ -177,8 +177,15 @@ config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all"
 # config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all_ds_fcdm"
 # config_name = "x6_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all_ds_fcdm"
 
-
+config_name = "x1_eikelboom_dla34_train_crop_eval_crop_publication"
+config_name = "x1_eikelboom_dla60_train_crop_eval_crop_publication"
+config_name = "x1_eikelboom_dla102_train_crop_eval_crop_publication"
 config_path = "../configs/experiment_publication_reproduction/"
+
+config_name = "genovesa_dla34"
+config_path = "../configs/submission/"
+
+
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def main(cfg: DictConfig) -> None:

@@ -1,0 +1,54 @@
+wandb_notes: |
+  Testing the effect of the model size  leads to better numbers, here DinoV2 Large
+  
+
+defaults:
+  - /losses: iguana_herdnet_publication
+  - /datasets: floreana_crop_train_corrected_crop_val_corrected_aug_default
+  - /training_settings: delplanque2022_evaluator_quick
+  - /model: Dinov2_large
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x13_model_size'
+wandb_entity: 'karisu'
+wandb_run: 'DinoV2L Floreana'
+wandb_tags: ['dla', 'dla_34', 'dr2', "exp12", "eval_crop", "train_crop", "corrected"]
+seed: 1
+device_name: null
+
+
+# overrides
+# overrides
+training_settings:
+  lr: 1.0e-04
+  epochs: 150
+  batch_size: 5
+  valid_freq: 5
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        scale_factor: 8
+
+
+model:
+
+  kwargs:
+    down_ratio: 4
+    backbone: 'timm/vit_large_patch14_dinov2.lvd142m'
+
+    # 0:32
+    #1:64
+    #2:128
+    #3:256
+    #4:512
+    #5:768
+    #6:1,024
+#    output_channels: [512, 768, 1024]
+    output_channels: [32,64,128,256,512, 768, 1024]
+#    attention_layers: [-12, -10, -8, -6, -4, -2, -1]
+    attention_layers: [-12, -10, -8, -6, -4, -2, -1]
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

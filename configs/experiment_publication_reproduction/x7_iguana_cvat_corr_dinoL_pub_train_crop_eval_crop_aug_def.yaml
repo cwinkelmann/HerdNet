@@ -1,0 +1,37 @@
+wandb_notes: |
+  "training with corrected body annotations"
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: iguana_cvat_corr_crop_train_crop_val_aug_default
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: Dinov2_large_best
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_iguana_cvat_corr'
+wandb_entity: 'karisu'
+wandb_run: 'x7_iguana_cvat_corr_dinoL_pub_train_crop_eval_crop_aug_def'
+wandb_tags: [ 'floreana','dinov2', 'Dinov2_large', 'default_setting', "exp1", "eval_crop", "train_full", "corrected" ]
+seed: 1
+device_name: null
+
+
+training_settings:
+  lr: 1.0e-04
+  epochs: 150
+  batch_size: 15
+model:
+    # dinov2 L
+    load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-17-52/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/e5l1foy0/logs
+#datasets:
+#  validate:
+#    albu_transforms:
+#      ObjectAwareRandomCropEdgeBlackout:
+#        p: 0.0
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

@@ -1,41 +1,36 @@
-# Training Data is corrected here by Double Checking them by predictions from a model which are labeles as false positves
-
+# The Dataset which contains the optimised hyperparameters from the hyperparameter optimization
+# https://wandb.ai/karisu/herdnet_iguana_sweep_aug/runs/i630eogl/overview
+#  https://wandb.ai/karisu/ig_Floreana_learning_curve/
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 7 # One class more for the background
+num_classes: 3 # One class more for the background
 collate_fn: null
 
 class_def:
   1: 'iguana_point'
-  2: 'hard_negative' # these next 6 are just there so I can use the pretrained model
-  3: 'Kob'
-  4: 'Warthog'
-  5: 'Waterbuck'
-  6: 'Elephant'
+  2: 'hard_negative'
+
 
 train:
   name: 'CSVDataset'
 
-#  csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv'
-#  root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0'
-
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/train/crops_512_numNone_overlap0'
+#  csv_file: "/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/herdnet_format_512_0_crops.csv"
+  csv_file: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/train/herdnet_format_512_0_crops.csv"
+#  root_dir: "/home/cwinkelmann/work/Herdnet/data/2025_07_10_Floreana_val_corrected/Floreana_detection_corrected/train/crops_512_numNone_overlap0"
+  root_dir: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/train/crops_512_numNone_overlap0"
 
 
   sampler: null
   augmentation_multiplier: 1
 
   albu_transforms:
-
     HorizontalFlip:
       p: 0.5
-    VerticalFlip:
-      p: 0.5
     MotionBlur:
-      p: 0.2
+      p: 0.5
     Normalize:
       p: 1.0
+
   end_transforms:
     MultiTransformsWrapper:
       FIDT:
@@ -51,8 +46,8 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/val/herdnet_format_512_0_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_08_10_endgame/Floreana_detection/val/crops_512_numNone_overlap0'
+  csv_file: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/val/herdnet_format_512_0_crops.csv"
+  root_dir: "/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana_detection/val/crops_512_numNone_overlap0"
 
   albu_transforms:
     Normalize:

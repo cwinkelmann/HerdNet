@@ -78,9 +78,11 @@ class Metrics:
     
         self._sum_absolute_error = self._init_attr()
         self._sum_squared_error = self._init_attr()
+        self._sum_error = self._init_attr()
         self._n_calls = self._init_attr()
         self._agg_sum_absolute_error = 0
         self._agg_sum_squared_error = 0
+        self._agg_sum_error = 0
         self._total_calls = 0
         self._total_count = self._init_attr()
 
@@ -267,6 +269,18 @@ class Metrics:
         c = c - 1
         return float(self._sum_squared_error[c] / self._n_calls[c]) \
             if self._n_calls[c] else 0.
+
+    def me(self, c: int = 1) -> float:
+        ''' Mean Error
+        Args:
+            c (int, optional): class id. Defaults to 1.
+
+        Returns:
+            float
+        '''
+        c = c - 1
+        return float(self._sum_error[c] / self._n_calls[c]) \
+            if self._n_calls[c] else 0.
     
     def rmse(self, c: int = 1) -> float:
         ''' Root Mean Squared Error 
@@ -397,14 +411,19 @@ class Metrics:
         for i, (count, est) in enumerate(zip(gt_count, est_count)):
             error = abs(count - est)
             squared_error = error**2
+            signed_error = est - count
 
             self._sum_absolute_error[i] += error
             self._sum_squared_error[i] += squared_error
+            self._sum_error[i] += signed_error
         
         agg_error = abs(sum(gt_count) - sum(est_count))
         agg_squared_error = agg_error**2
+        agg_signed_error = sum(est_count) - sum(gt_count)
+
         self._agg_sum_absolute_error += agg_error
         self._agg_sum_squared_error += agg_squared_error
+        self._agg_sum_error += agg_signed_error
     
     def _no_gt(self, gt: dict, preds: dict) -> None:
 

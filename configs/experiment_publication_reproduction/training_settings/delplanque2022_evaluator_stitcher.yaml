@@ -1,16 +1,21 @@
+
+
+# Configuration which evaluates the loss and the end metric (F1 score) on the validation set.
+
+
 trainer: 'Trainer'
-epochs: 10
+epochs: 50
 valid_freq: 1
-print_freq: 125
+print_freq: 225
 batch_size: 10
 # optimizer: 'SGD'
 optimizer: 'adam'
 lr: 0.001
 weight_decay: 0.005
-num_workers: 12
+num_workers: 2
 auto_lr:
   mode: 'max'
-  patience: 50
+  patience: 15
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10
@@ -25,15 +30,18 @@ visualiser:
   output_dir: ./visualizations
 
 
-loss_evaluation: null
+loss_evaluation:
+  name: 'LossEvaluator'
+  select_mode: 'min'
+  validate_on: 'total_loss'
 
 evaluator:
   name: 'HerdNetEvaluator'
-  threshold: 25
+  threshold: 100
   select_mode: 'max'
   validate_on: 'f1_score'
   kwargs:
-    print_freq: 25
+    print_freq: 5
     lmds_kwargs:
       kernel_size: [9, 9]
       adapt_ts: 0.3

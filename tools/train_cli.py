@@ -3,7 +3,7 @@ from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
-from tools.train import main
+from train import main
 # Defaults
 config_name = "dinoV2_large_publication_setting"
 config_path="../configs/experiment_publication_reproduction"

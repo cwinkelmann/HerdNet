@@ -188,7 +188,7 @@ def plot_metric_over_epochs(df, main_metric="f1_score", aux_metrics=None, figsiz
 if __name__ == "__main__":
     best_run_metric_value = 0
     best_run_name = None
-    
+
     api = wandb.Api()
     metric: str = "f1_score"
     run = api.run("karisu/herdnet_delplanque2022_full_eval/kg4sok4r")
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     plot_metric_over_epochs(history_df,
                             main_metric=metric,
                             aux_metrics=["precision", "recall"],
-                            title_suffix=f"{run.name} Scores Over Training Epochs",)
+                            title_suffix=f"{run.name} Scores Over Training Epochs", )
 
     # history_df.to_csv("metrics.csv")
     best_epoch = get_best_epoch(history_df, metric=metric)
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     runs = wandb.Api().runs(
         path="karisu/herdnet_delplanque2022_full_eval", filters={"config.batch_size": 4}
     )
-    
+
     for run in runs:
         logger.info(f"Processing run: {run.name}")
         history_df = get_history(run)
@@ -224,6 +224,5 @@ if __name__ == "__main__":
         if best_epoch[metric] > best_run_metric_value:
             best_run_metric_value = best_epoch[metric]
             best_run_name = run.name
-
 
     print(f"DONE, best run: {best_run_name} with {metric}={best_run_metric_value}")

@@ -1,0 +1,133 @@
+# Compare Hyperparameters for timmdla34
+
+program: ./tools/train_cli.py
+method: bayes
+
+project: 'herdnet_iguana_sweep_aug'
+entity: 'karisu'
+
+#metric:
+#  goal: maximize
+#  name: f1_score
+
+metric:
+  goal: minimize
+  name: total_loss
+
+# Add early termination
+early_terminate:
+  type: hyperband
+  min_iter: 10
+  eta: 3
+
+parameters:
+  # Reduce training epochs for sweep
+  training_settings.epochs:
+    value: 50  # Much shorter than full training
+
+  training_settings.batch_size:
+    values: [64, 32]
+
+  # Geometric augmentations
+  datasets.train.albu_transforms.RandomScale.p:
+    values: [0.0, 0.3, 0.5]
+
+  datasets.train.albu_transforms.RandomScale.scale_limit:
+    values: [[0.8, 1.2], [0.85, 1.15], [0.9, 1.1]]
+
+  datasets.train.albu_transforms.ShiftScaleRotate.p:
+    values: [0.0, 0.3, 0.5]
+
+  datasets.train.albu_transforms.ShiftScaleRotate.shift_limit:
+    values: [0.05, 0.1, 0.15]
+
+  datasets.train.albu_transforms.ShiftScaleRotate.scale_limit:
+    values: [0.1, 0.15, 0.2]
+
+  datasets.train.albu_transforms.ShiftScaleRotate.rotate_limit:
+    values: [30, 45, 60]
+
+  datasets.train.albu_transforms.Perspective.p:
+    values: [0.0, 0.2, 0.3]
+
+  datasets.train.albu_transforms.Perspective.scale:
+    values: [[0.05, 0.1], [0.05, 0.15], [0.1, 0.15]]
+
+  datasets.train.albu_transforms.Affine.p:
+    values: [0.0, 0.1, 0.2]
+
+  datasets.train.albu_transforms.Affine.scale:
+    values: [[0.9, 1.1], [0.85, 1.15]]
+
+  datasets.train.albu_transforms.Affine.rotate:
+    values: [[-30, 30], [-45, 45]]
+
+  datasets.train.albu_transforms.Affine.shear:
+    values: [[-5, 5], [-10, 10]]
+
+  # Basic augmentations
+  datasets.train.albu_transforms.HorizontalFlip.p:
+    distribution: uniform
+    min: 0.0
+    max: 0.5
+
+  datasets.train.albu_transforms.VerticalFlip.p:
+    distribution: uniform
+    min: 0.0
+    max: 0.5
+
+  datasets.train.albu_transforms.RandomRotate90.p:
+    distribution: uniform
+    min: 0.2
+    max: 0.8
+
+  # Reduce parameter space for brightness/contrast
+  datasets.train.albu_transforms.RandomBrightnessContrast.p:
+    values: [0.0, 0.1, 0.2, 0.3]  # Discrete instead of continuous
+
+  datasets.train.albu_transforms.RandomBrightnessContrast.brightness_limit:
+    values: [0.1, 0.2, 0.3, 0.4]  # Discrete values
+
+  datasets.train.albu_transforms.RandomBrightnessContrast.contrast_limit:
+    values: [0.1, 0.2, 0.3, 0.4]  # Discrete values
+
+  # Simplified blur parameters
+  datasets.train.albu_transforms.Blur.p:
+    values: [0.0, 0.1, 0.2]  # Discrete instead of continuous
+
+  datasets.train.albu_transforms.Blur.blur_limit:
+    values: [3, 7, 11]  # Fewer options
+
+  # Remove some less critical parameters or fix them
+  datasets.train.albu_transforms.ToGray.p:
+    value: 0.1  # Fixed value instead of sweep
+
+  datasets.train.albu_transforms.MotionBlur.p:
+    values: [0.0, 0.1, 0.2]  # Discrete values
+
+  # Keep HSV but reduce complexity
+  datasets.train.albu_transforms.HueSaturationValue.p:
+    values: [0.0, 0.1, 0.2, 0.3]
+
+  datasets.train.albu_transforms.HueSaturationValue.hue_shift_limit:
+    values: [0, 15, 30]  # Fewer options
+
+  datasets.train.albu_transforms.HueSaturationValue.sat_shift_limit:
+    values: [0, 20, 40]  # Fewer options
+
+  datasets.train.albu_transforms.HueSaturationValue.val_shift_limit:
+    values: [0, 15, 30]  # Fewer options
+
+  # Fix CLAHE parameters
+  datasets.train.albu_transforms.CLAHE.p:
+    value: 0.1  # Fixed instead of sweep
+
+
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --config-name=exp2_timmdla34_wandb_opt
+  - --config-path=../configs/experiment_publication_reproduction
+  - ${args_no_hyphens}

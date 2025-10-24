@@ -1,7 +1,9 @@
+
 # Do not Evaluate on F1 score, only on validation loss
 
+
 trainer: 'Trainer'
-epochs: 100
+epochs: 50
 valid_freq: 1
 print_freq: 125
 batch_size: 4
@@ -9,9 +11,9 @@ batch_size: 4
 optimizer: 'adam'
 lr: 0.001
 weight_decay: 0.005
-num_workers: 12
+num_workers: 2
 auto_lr:
-  mode: 'max'
+  mode: 'min'
   patience: 5
   threshold: 1e-4
   threshold_mode: 'rel'
@@ -20,7 +22,6 @@ auto_lr:
   verbose: True
 warmup_iters: 100
 
-# vizual_fn: "model_vizual"
 vizual_fn: visualize_sample
 visualiser:
   name: 'HeatMapVisualizer'

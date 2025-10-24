@@ -29,14 +29,14 @@ loss_evaluation: null
 
 evaluator:
   name: 'HerdNetEvaluator'
-  threshold: 25
+  threshold: 125
   select_mode: 'max'
   validate_on: 'f5_score'
   kwargs:
     print_freq: 25
     lmds_kwargs:
       kernel_size: [9, 9]
-      adapt_ts: 0.3
+      adapt_ts: 0.5
       scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True

@@ -16,7 +16,7 @@ auto_lr:
   cooldown: 10
   min_lr: 1e-7
   verbose: True
-warmup_iters: 10000
+warmup_iters: 1000
 
 # vizual_fn: "model_vizual"
 vizual_fn: visualize_sample

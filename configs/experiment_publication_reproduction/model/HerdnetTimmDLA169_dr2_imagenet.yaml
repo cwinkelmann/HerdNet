@@ -1,0 +1,13 @@
+name: 'HerdNetTimmDLA'
+from_torchvision: False
+load_from: null
+# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-19/21-56-48/best_model.pth"
+
+resume_from: null
+kwargs:
+  backbone: 'dla169.in1k'
+
+  pretrained: True
+  down_ratio: 2  # was two before
+  head_conv: 64 # was 64
+freeze: null

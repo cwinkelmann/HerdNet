@@ -243,6 +243,7 @@ def main(cfg: DictConfig) -> Path:
     except AttributeError as e:
         logger.error(f"The model has not check for trainable_parameters: {e}")
 
+    # model.reshape_classes(num_classes=cfg.datasets.num_classes)
     # Prepare for training
     logger.info('Preparing for training ...')
     criterions = _load_losses(cfg)
@@ -287,7 +288,8 @@ def main(cfg: DictConfig) -> Path:
     # Watch the model's gradients during training
     visualiser = None
     if cfg.wandb_flag:
-        wandb.watch(model)
+
+        # wandb.watch(model) # TODO make this configurable
 
         if cfg.training_settings.visualiser is not None:
             visualiser = _define_visualiser(cfg)
@@ -356,22 +358,24 @@ def main(cfg: DictConfig) -> Path:
             )
 
 
+    try:
+        # Add information in .pth files
+        for pth_name in ['best_model.pth', 'latest_model.pth']:
+            path = current_directory / pth_name
+            if not path.exists():
+                raise FileNotFoundError(f'\'{pth_name}\' not found in {current_directory}')
 
-    # Add information in .pth files
-    for pth_name in ['best_model.pth', 'latest_model.pth']:
-        path = current_directory / pth_name
-        if not path.exists():
-            raise FileNotFoundError(f'\'{pth_name}\' not found in {current_directory}')
+            # TODO add this to the training loop somehow
+            pth_file = torch.load(path)
+            norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
+            pth_file['classes'] = dict(cfg.datasets.class_def)
+            pth_file['mean'] =  list(norm_trans.mean)
+            pth_file['std'] = list(norm_trans.std)
 
-        # TODO add this to the training loop somehow
-        pth_file = torch.load(path)
-        norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
-        pth_file['classes'] = dict(cfg.datasets.class_def)
-        pth_file['mean'] =  list(norm_trans.mean)
-        pth_file['std'] = list(norm_trans.std)
-
-        torch.save(pth_file, path)
-        logger.info(f"Saved Model {pth_name} with added information in {path}")
+            torch.save(pth_file, path)
+            logger.info(f"Saved Model {pth_name} with added information in {path}")
+    except Exception as e:
+        logger.error(f"Could not add information to pth files: {e}")
 
     if cfg.wandb_flag:
         wandb.finish()

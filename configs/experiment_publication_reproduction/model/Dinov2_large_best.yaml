@@ -10,7 +10,8 @@ resume_from: null
 
 kwargs:
   backbone: 'timm/vit_large_patch14_dinov2.lvd142m'
-
+  output_channels: [768, 1024, 1280]
+  attention_layers: [-8, -6, -4, -3, -2, -1]
   pretrained: True
   down_ratio: 4  # was two before
   head_conv: 64 # was 64

@@ -1,0 +1,25 @@
+wandb_notes: |
+  "General dataset, all default settings, Timm DLA34, train crop eval crop"
+
+defaults:
+  - /losses: herdnet_winning
+  - /datasets: delplanque2022
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x1_gd_herdnet_experiment_reproduction'
+wandb_entity: 'karisu'
+wandb_run: 'x2_GD_dla34_train_crop_eval_crop_aug_def_loss_def'
+wandb_tags: ['general_dataset','dla', 'dla34', "exp1", "eval_crop", "train_crop"]
+seed: 1
+device_name: null
+
+
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

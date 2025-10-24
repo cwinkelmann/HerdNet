@@ -105,7 +105,14 @@ class DINOv2AttentionExtractor(nn.Module):
 class DINOv2SpatialProcessor(nn.Module):
     """Process DINOv2 features to create multi-scale representations."""
 
-    def __init__(self, feature_dim: int = 1024, output_channels: List[int] = [256, 512, 1024]):
+    def __init__(self,
+                 feature_dim: int = 1024,
+                 output_channels: List[int] = [256, 512, 1024]):
+        """
+        Args:
+            feature_dim: Dimension of DINOv2 patch features
+            output_channels: List of output channels for different scales
+        """
         super().__init__()
         self.feature_dim = feature_dim
         self.output_channels = output_channels

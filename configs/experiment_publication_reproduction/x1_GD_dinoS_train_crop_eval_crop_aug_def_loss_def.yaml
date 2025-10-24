@@ -1,0 +1,42 @@
+wandb_notes: |
+  "General dataset, all default settings, Timm Dinov2_small, train crop eval crop
+  
+  training_settings:
+    lr: 0.0001
+    weight_decay: 0.0005
+    auto_lr:
+      mode: 'max'
+      patience: 5
+    warmup_iters: 1000
+  
+  
+  "
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: delplanque2022
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: Dinov2_small
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x1_gd_herdnet_experiment_reproduction'
+wandb_entity: 'karisu'
+wandb_run: 'x1_GD_DinovS_small_train_crop_eval_crop_aug_def_loss_def'
+wandb_tags: ['general_dataset', 'DINOv2' , 'DinovS_small', "exp1", "eval_crop", "train_crop"]
+seed: 1
+device_name: null
+
+training_settings:
+  lr: 0.0001
+  weight_decay: 0.0005
+  auto_lr:
+    mode: 'max'
+    patience: 5
+  warmup_iters: 1000
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

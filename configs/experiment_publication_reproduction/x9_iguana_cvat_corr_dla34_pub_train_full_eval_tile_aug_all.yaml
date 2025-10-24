@@ -1,0 +1,34 @@
+wandb_notes: |
+  "using more aggressive augmentations for training and the random Crop augmentation, training on the full training set"
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: iguana_cvat_corr_full_train_crop_val_aug_all
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_iguana_cvat_corr'
+wandb_entity: 'karisu'
+wandb_run: 'x9_iguana_cvat_corr_dla34_pub_train_full_eval_tile_aug_all'
+wandb_tags: ['dla', 'dla_34', 'default_setting', "exp8", "eval_crop", "train_full", "corrected"]
+seed: 1
+device_name: null
+
+
+# overrides
+# overrides
+training_settings:
+  lr: 1.0e-04
+  epochs: 50
+  batch_size: 5
+model:
+#     dla34 dr2
+    load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-06/20-54-02/best_model.pth # https://wandb.ai/karisu/herdnet_iguana_cvat_corr/runs/foygf9rd/logs
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

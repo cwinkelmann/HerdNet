@@ -2,17 +2,18 @@
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 7 # One class more for the background
+num_classes: 8 # One class more for the background
 collate_fn: null
 
 
 class_def:
-  1: 'Alcelaphinae'
-  2: 'Buffalo'
-  3: 'Kob'
-  4: 'Warthog'
-  5: 'Waterbuck'
-  6: 'Elephant'
+  1: 'Giraffe'
+  2: 'Elephant'
+  3: 'Zebra'
+  4: '-'
+  5: '-'
+  6: '-'
+  7: '-'
 
 train:
   name: 'CSVDataset'
@@ -28,8 +29,8 @@ train:
       height: 1000
       width: 1000
       p: 1.0
-      attempts: 10
-      edge_black_blobs: true
+#      attempts: 10
+#      edge_black_blobs: true
     RandomScale:
       scale_limit:
         - 0.8
@@ -41,25 +42,25 @@ train:
       rotate_limit: 45
       p: 0.5
       border_mode: 4
-    Perspective:
-      scale:
-        - 0.05
-        - 0.15
-      p: 0.3
-    Affine:
-      scale:
-        - 0.9
-        - 1.1
-      translate_percent:
-        - 0.1
-        - 0.1
-      rotate:
-        - -45
-        - 45
-      shear:
-        - -10
-        - 10
-      p: 0.2
+#    Perspective:
+#      scale:
+#        - 0.05
+#        - 0.15
+#      p: 0.3
+#    Affine:
+#      scale:
+#        - 0.9
+#        - 1.1
+#      translate_percent:
+#        - 0.1
+#        - 0.1
+#      rotate:
+#        - -45
+#        - 45
+#      shear:
+#        - -10
+#        - 10
+#      p: 0.2
     HorizontalFlip:
       p: 0.2
     VerticalFlip:
@@ -82,7 +83,7 @@ train:
       width: 512
       p: 1.0
       attempts: 10
-      edge_black_blobs: true
+#      edge_black_blobs: true
     Normalize:
       p: 1.0
   end_transforms:

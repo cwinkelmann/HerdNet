@@ -13,7 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
+import pandas as pd
 import torch
 import pandas
 import os
@@ -200,17 +200,18 @@ class Evaluator:
                 # output, _ = self.model(images, targets)  
                 model_output, _ = self.model(images)
 
-            if viz and self.vizual_fn is not None:
-                if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
-                    fig = self._vizual(image = images,
-                                       target = targets,
-                                       output = model_output)
+
 
 
 
             # the model output is a list of 2 tensors, one heatmap one class map
             output_prediction = self.prepare_feeding(targets, model_output)
 
+            if viz and self.vizual_fn is not None:
+                if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
+                    fig = self._vizual(image = images,
+                                       target = targets,
+                                       output = model_output, visualise_predictions = pd.DataFrame(output_prediction["preds"]))
 
             # for each image feed outputs and aggregate metrics, should look like
             """
@@ -235,6 +236,7 @@ class Evaluator:
                 logger.add_meter('f2_score', round(iter_metrics.fbeta_score(beta=2), 2))
                 logger.add_meter('f5_score', round(iter_metrics.fbeta_score(beta=5), 2))
                 logger.add_meter('MAE', round(iter_metrics.mae(), 2))
+                logger.add_meter('ME', round(iter_metrics.me(), 2))
                 logger.add_meter('MSE', round(iter_metrics.mse(), 2))
                 logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
                 logger.add_meter('avg_score', round(iter_metrics.avg_score(), 2))
@@ -252,6 +254,7 @@ class Evaluator:
                     'f2_score': iter_metrics.fbeta_score(beta=2),
                     'f5_score': iter_metrics.fbeta_score(beta=5),
                     'MAE': iter_metrics.mae(),
+                    'ME': iter_metrics.me(),
                     'MSE': iter_metrics.mse(),
                     'RMSE': iter_metrics.rmse(),
                     'avg_score': iter_metrics.avg_score(),
@@ -275,6 +278,8 @@ class Evaluator:
             wandb.run.summary['f2_score'] =  self.metrics.fbeta_score(beta=2)
             wandb.run.summary['f5_score'] =  self.metrics.fbeta_score(beta=5)
             wandb.run.summary['MAE'] =  self.metrics.mae()
+            wandb.run.summary['ME'] =  iter_metrics.me()
+
             wandb.run.summary['MSE'] =  self.metrics.mse()
             wandb.run.summary['RMSE'] =  self.metrics.rmse()
             wandb.run.summary['accuracy'] =  self.metrics.accuracy()
@@ -305,8 +310,12 @@ class Evaluator:
             return self.metrics.fbeta_score(beta=5)
         elif returns == 'mse':
             return self.metrics.mse()
+        elif returns == 'mse':
+            return self.metrics.me()
         elif returns == 'mae':
             return self.metrics.mae()
+        elif returns == 'me':
+            return self.metrics.me()
         elif returns == 'rmse':
             return self.metrics.rmse()
         elif returns == 'accuracy':
@@ -316,7 +325,7 @@ class Evaluator:
         else:
             raise ValueError(f'Unknown return value: {returns}. Possible values are: '
                              '\'recall\', \'precision\', \'f1_score\', \'f2_score\', '
-                             '\'f5_score\', \'mse\', \'mae\', \'rmse\', \'accuracy\' and \'mAP\'.')
+                             '\'f5_score\', \'mse\', \'mae\',\'me\', \'rmse\', \'accuracy\' and \'mAP\'.')
     
     @property
     def results(self) -> pandas.DataFrame:
@@ -338,6 +347,7 @@ class Evaluator:
                 'f1_score': metrics_cpy.fbeta_score(c),
                 'confusion': metrics_cpy.confusion(c), 
                 'mae': metrics_cpy.mae(c),
+                'me': metrics_cpy.me(c),
                 'mse': metrics_cpy.mse(c),
                 'rmse': metrics_cpy.rmse(c),
                 'ap': metrics_cpy.ap(c),
@@ -353,6 +363,7 @@ class Evaluator:
             'f1_score': metrics_cpy.fbeta_score(),
             'confusion': metrics_cpy.confusion(),
             'mae': metrics_cpy.mae(),
+            'me': metrics_cpy.me(),
             'mse': metrics_cpy.mse(),
             'rmse': metrics_cpy.rmse(),
             'ap': metrics_cpy.ap()
@@ -375,14 +386,11 @@ class Evaluator:
 
         return pandas.DataFrame(data = dets)
     
-    def _vizual(self, image: Any, target: Any, output: Any) -> None:
+    def _vizual(self, image: Any, target: Any, output: Any, visualise_predictions: pd.DataFrame = None) -> None:
         fig = self.vizual_fn(image=image,
                              target=target,
                              output=output,
-                             epoch=self.current_epoch)
-
-
-
+                             epoch=self.current_epoch, visualise_predictions=visualise_predictions)
 
 
 

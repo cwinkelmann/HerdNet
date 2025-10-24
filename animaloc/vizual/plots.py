@@ -16,6 +16,7 @@ __version__ = "0.2.1"
 import typing
 from pathlib import Path
 
+import pandas as pd
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt 
@@ -112,13 +113,15 @@ class Visualiser:
         Path(self.output_path).mkdir(parents=True, exist_ok=True)
 
 class HeatMapVisualizer(Visualiser):
-    def __init__(self, output_path):
+    def __init__(self, output_path, down_ratio: int = 2):
         super().__init__(output_path)
+        self.down_ratio = down_ratio
 
     def __call__(self, image: Tensor, target: Dict,
                  output: typing.Tuple[Tensor, Tensor],
                  epoch: int,
                  output_name: str = 'heatmap.png',
+                 visualise_predictions: pd.DataFrame | None = None
                  ):
 
         """
@@ -147,6 +150,20 @@ class HeatMapVisualizer(Visualiser):
                                                  target,
                                                  output
                                    )
+        if visualise_predictions is not None and len(visualise_predictions):
+
+
+            for idx, row in visualise_predictions.iterrows():
+                y = row['loc'][0] * self.down_ratio
+                x = row['loc'][1] * self.down_ratio
+                circ = Circle((x, y), radius=2, color='white', fill=False, linewidth=2)
+                heatmap_fig.axes[0].add_patch(circ)
+
+                # Add text label next to the circle
+                heatmap_fig.axes[0].text(x + 3, y, f"sc: {row['scores']:.2f}, ds: {row['dscores']:.2f}",
+                                         color='white', fontsize=8, va='center',
+                                         bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.5))
+
         wandb.log({output_name: wandb.Image(heatmap_fig)})
         heatmap_fig.savefig(Path(self.output_path) / output_name)
         plt.close(heatmap_fig)
@@ -245,7 +262,7 @@ def visualise_full_res_heatmap(
     # plot these points
     for (x, y) in points:
         ax.plot(x, y, '+', markersize=16, markeredgewidth=2.0, markeredgecolor='w')
-    ax.set_title(f"{target['original_image_name'][0][0]} with Heatmap Overlay")
+    # ax.set_title(f"{target['original_image_name'][0][0]} with Heatmap Overlay")
     ax.axis("off")
 
     plt.tight_layout(pad=0.2)

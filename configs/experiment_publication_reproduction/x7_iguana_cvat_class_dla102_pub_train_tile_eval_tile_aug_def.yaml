@@ -1,0 +1,38 @@
+wandb_notes: |
+  "train on random crops of floreana, evaluate on crops floreana images"
+  "trained with dla102"
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: iguana_cvat_class_crop_train_crop_val_aug_default
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: HerdnetTimmDLA102_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_iguana_cvat_corr'
+wandb_entity: 'karisu'
+wandb_run: 'x7_iguana_cvat_class_dla102_pub_train_tile_eval_tile_aug_def'
+wandb_tags: ['dla', 'dla_102', 'default_setting', "exp7", "eval_crop", "train_full", "not_corrected"]
+seed: 1
+device_name: null
+
+
+# overrides
+training_settings:
+  lr: 1.0e-04
+  epochs: 20
+  batch_size: 5
+model:
+    # dla102 dr2
+    load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-22-35/best_model.pth # https://wandb.ai/karisu/herdnet_iguana/runs/ja0rztai/logs
+#datasets:
+#  validate:
+#    albu_transforms:
+#      ObjectAwareRandomCropEdgeBlackout:
+#        p: 0.0
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

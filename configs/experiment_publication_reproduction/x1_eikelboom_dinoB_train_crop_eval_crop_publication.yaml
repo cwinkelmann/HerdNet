@@ -3,12 +3,12 @@ wandb_notes: |
 defaults:
   - /losses: herdnet_publication
   - /datasets: eikelboom2019_crop_train_crop_val_aug_default
-  - /training_settings: delplanque2022_val_loss
+  - /training_settings: delplanque2022_evaluator_stitcher
   - /model: Dinov2_base
   - _self_  # Include this config's content
 
 wandb_flag: True
-wandb_project: 'herdnet_eikelboom'
+wandb_project: 'x1_eikelboom_herdnet_experiment_reproduction'
 wandb_entity: 'karisu'
 wandb_run: 'x1_eikelboom_dinoB_train_crop_eval_crop_publication'
 wandb_tags: ['timmDLA', 'eikelboom','dinov2_B', 'default_setting', "exp1"]

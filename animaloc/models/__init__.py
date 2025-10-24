@@ -22,7 +22,7 @@ from .herdnet import *
 from .herdnet_timm_dla import *
 from .herdnet_timm_convnext import *
 from .herdnet_timm_dinoSvin import *
-from .herdnet_dinov32 import *
+from .herdnet_timm_dino_fpn import *
 from .utils import *
 from .ss_dla import *
 

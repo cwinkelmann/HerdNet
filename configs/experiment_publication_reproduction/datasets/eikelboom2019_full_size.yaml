@@ -7,12 +7,13 @@ collate_fn: null
 
 
 class_def:
-  1: 'Alcelaphinae'
-  2: 'Buffalo'
-  3: 'Kob'
-  4: 'Warthog'
-  5: 'Waterbuck'
-  6: 'Elephant'
+  1: 'Giraffe'
+  2: 'Elephant'
+  3: 'Zebra'
+  4: '-'
+  5: '-'
+  6: '-'
+  7: '-'
 
 train:
   name: 'CSVDataset'

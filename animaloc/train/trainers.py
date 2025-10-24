@@ -332,6 +332,7 @@ class Trainer:
                         wandb.log({"precision": self.evaluator.metrics.precision(), 'epoch': epoch})
                         wandb.log({"mse": self.evaluator.metrics.mse(), 'epoch': epoch})
                         wandb.log({"mae": self.evaluator.metrics.mae(), 'epoch': epoch})
+                        wandb.log({"me": self.evaluator.metrics.me(), 'epoch': epoch})
                         wandb.log({"rmse": self.evaluator.metrics.rmse(), 'epoch': epoch})
                         wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
                         wandb.log({"avg_scores": self.evaluator.metrics.avg_score(), 'epoch': epoch})
@@ -383,6 +384,7 @@ class Trainer:
                             "best_precision": self.evaluator.metrics.precision(),
                             "best_mse": self.evaluator.metrics.mse(),
                             "best_mae": self.evaluator.metrics.mae(),
+                            "best_me": self.evaluator.metrics.me(),
                             "best_rmse": self.evaluator.metrics.rmse(),
                             "best_accuracy": self.evaluator.metrics.accuracy(),
                             "best_avg_scores": self.evaluator.metrics.avg_score(),

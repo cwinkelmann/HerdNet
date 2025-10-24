@@ -2,6 +2,10 @@
 
 # Produced F1 score of 0.92, recall 0.93 and precision 0.91
 #
+wandb_flag: True
+wandb_notes: |
+  "training curve using Fernandina Single images and validate on single images too"
+
 wandb_project: 'herdnet'
 wandb_entity: 'karisu'
 wandb_run: 'ig_FLoreana_dr2'
@@ -24,7 +28,7 @@ model:
     num_layers: 34
     # backbone: 'dla'
     pretrained: True
-    down_ratio: 4  # was two before
+    down_ratio: 2  # was two before
     head_conv: 64 # was 64
   freeze: null
 
@@ -86,7 +90,7 @@ datasets:
   train:
     # name: 'CSVDataset'
     name: 'CSVDataset'
-
+    augmentation_multiplier: 1
     csv_file: 'TODO'
     root_dir: 'TODO'
 
@@ -94,22 +98,22 @@ datasets:
 
     albu_transforms:
       HorizontalFlip:
-        p: 0.2
-      VerticalFlip:
-        p: 0.2
-      MotionBlur:
-        p: 0.2
-      RandomRotate90:
         p: 0.5
-      RandomBrightnessContrast:
-        brightness_limit: 0.2
-        contrast_limit: 0.2
-        p: 0.1
-      Blur:
-        blur_limit: 15
-        p: 0.1
-      ToGray:
-        p: 0.1
+#      VerticalFlip:
+#        p: 0.5
+      MotionBlur:
+        p: 0.5
+#      RandomRotate90:
+#        p: 0.5
+#      RandomBrightnessContrast:
+#        brightness_limit: 0.2
+#        contrast_limit: 0.2
+#        p: 0.1
+#      Blur:
+#        blur_limit: 15
+#        p: 0.1
+#      ToGray:
+#        p: 0.1
       #      ShiftScaleRotate:
       #        shift_limit: 0.0625
       #        scale_limit: 0.1
@@ -118,14 +122,14 @@ datasets:
       #      Perspective:
       #        scale: 0.05
       #        p: 0.3
-      HueSaturationValue:
-        hue_shift_limit: 20
-        sat_shift_limit: 30
-        val_shift_limit: 20
-        p: 0.1
-      CLAHE:
-        clip_limit: 2.0
-        p: 0.1
+#      HueSaturationValue:
+#        hue_shift_limit: 20
+#        sat_shift_limit: 30
+#        val_shift_limit: 20
+#        p: 0.1
+#      CLAHE:
+#        clip_limit: 2.0
+#        p: 0.1
       #      Solarize:
       #        threshold: 128
       #        p: 0.2
@@ -156,8 +160,8 @@ datasets:
     # name: 'FolderDataset'
     name: 'CSVDataset'
 
-    csv_file: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection/Floreana_detection/val/herdnet_format_512_0_crops.csv'
-    root_dir: '/home/cwinkelmann/work/Herdnet/data/2025_07_10_final_point_detection/Floreana_detection/val/crops_512_numNone_overlap0'
+    csv_file: 'TODO'
+    root_dir: 'TODO'
 
 
 # data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
@@ -180,25 +184,28 @@ datasets:
 
 training_settings:
   trainer: 'Trainer'
-  epochs: 500
-  valid_freq: 25
+  epochs: 75
+  valid_freq: 1
   print_freq: 100
-  batch_size: 30
+  batch_size: 5
   optimizer: 'adamW'
   lr: 1e-3
   weight_decay: 0.0005
   num_workers: 12
   auto_lr:
     mode: 'max'
-    patience: 250
+    patience: 5
     threshold: 1e-4
     threshold_mode: 'rel'
     cooldown: 20
     min_lr: 1e-6
     verbose: True
-  warmup_iters: 10000
+  warmup_iters: 100
 
   vizual_fn: null
+  visualiser:
+    name: 'HeatMapVisualizer'
+    output_dir: ./visualizations
 
 
   evaluator:
@@ -207,9 +214,9 @@ training_settings:
     select_mode: 'max'
     validate_on: 'f1_score'
     kwargs:
-      print_freq: 10
+      print_freq: 200
       lmds_kwargs:
-        kernel_size: [25, 25]
+        kernel_size: [9, 9]
         adapt_ts: 0.5
 
   stitcher:
