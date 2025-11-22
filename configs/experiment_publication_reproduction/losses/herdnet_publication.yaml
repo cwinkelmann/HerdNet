@@ -22,12 +22,13 @@ CrossEntropyLoss:
     reduction: 'mean'
     weight:
       - ${losses.CrossEntropyLoss.background_class_weight}
-      - 0.24 # Alcelaphinae
-      - 0.15 # Buffalo
-      - 0.248 # Kob
-      - 0.045 # Warthog
-      - 0.02 # Waterbuck
-      - 0.28 # Elephant
-      - 0.0 # extra
+      - 1.0  # Alcelaphinae / Topi
+      - 2.0  # Buffalo
+      - 1.0  # Kob
+      - 6.0  # Warthog
+      - 12.0 # Waterbuck
+      - 1.0  # Elephant
+      - 0.5  # extra
      # One weight for each class including the background
-    #weight: [0.9, 0.001, 1.0] # From the notebook
+    #weight: https://github.com/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb
+    # 0.1, 1.0, 2.0, 1.0, 6.0, 12.0, 1.0

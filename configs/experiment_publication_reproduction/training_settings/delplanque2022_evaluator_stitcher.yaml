@@ -4,18 +4,18 @@
 
 
 trainer: 'Trainer'
-epochs: 50
+epochs: 100
 valid_freq: 1
 print_freq: 225
 batch_size: 10
 # optimizer: 'SGD'
 optimizer: 'adam'
-lr: 0.001
+lr: 0.0001
 weight_decay: 0.005
 num_workers: 2
 auto_lr:
   mode: 'max'
-  patience: 15
+  patience: 5
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10
@@ -45,6 +45,7 @@ evaluator:
     lmds_kwargs:
       kernel_size: [9, 9]
       adapt_ts: 0.3
+      neg_ts: 0.1
       scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True

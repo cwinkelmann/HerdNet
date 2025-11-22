@@ -169,7 +169,7 @@ def _define_evaluator(
 
 # config_name = "x6_iguana_winning_corr_dinoL_pub_train_full_eval_full_aug_all"
 # config_name = "x6_iguana_winning_corr_dinoS_pub_train_full_eval_full_aug_all"
-config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all"
+# config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all"
 # config_name = "x6_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all"
 
 # config_name = "x6_iguana_winning_corr_dinoL_pub_train_full_eval_full_aug_all_ds_fcdm"
@@ -177,14 +177,21 @@ config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all"
 # config_name = "x6_iguana_winning_corr_dla34_pub_train_full_eval_full_aug_all_ds_fcdm"
 # config_name = "x6_iguana_winning_corr_dla102_pub_train_full_eval_full_aug_all_ds_fcdm"
 
-config_name = "x1_eikelboom_dla34_train_crop_eval_crop_publication"
-config_name = "x1_eikelboom_dla60_train_crop_eval_crop_publication"
-config_name = "x1_eikelboom_dla102_train_crop_eval_crop_publication"
-config_path = "../configs/experiment_publication_reproduction/"
+# config_name = "x1_eikelboom_dla34_train_crop_eval_crop_publication"
+# config_name = "x1_eikelboom_dla60_train_crop_eval_crop_publication"
+# config_name = "x1_eikelboom_dla102_train_crop_eval_crop_publication"
+# config_name = "x02_reference_DLA34_eikelboom_ObjectAwareCrop_full_validation"
 
-config_name = "genovesa_dla34"
+# config_path = "../configs/experiment_publication_reproduction/"
+#
+# config_name = "genovesa_dla34"
+# config_path = "../configs/submission/"
+
+# config_name = "x02_INFERENCE_DLA34_delplanque" # for inferecning we need to use a config with a stitcher.
+# config_path = "../configs/experiment_publication_reproduction/"
+
+config_name = "f1_alldata_all_best_dla34"
 config_path = "../configs/submission/"
-
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
@@ -343,19 +350,20 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
     detections['y'] = detections['y'] * down_ratio
     detections.to_csv(current_directory / 'detections.csv', index=False)
 
-    # Method 2: With metadata and description
-    artifact = wandb.Artifact(
-        name='detections',
-        type='predictions',
-        description='Model predictions with confidence scores and point coordinates'
-    )
-    artifact.add_file(current_directory / 'detections.csv')
-    artifact.metadata = {
-        'model': cfg.model.name,
-        'loaded_from': cfg.model.load_from,
-        'dataset': cfg.datasets.test.csv_file,
-    }
-    wandb.log_artifact(artifact)
+    if cfg.wandb_flag:
+        # Method 2: With metadata and description
+        artifact = wandb.Artifact(
+            name='detections',
+            type='predictions',
+            description='Model predictions with confidence scores and point coordinates'
+        )
+        artifact.add_file(current_directory / 'detections.csv')
+        artifact.metadata = {
+            'model': cfg.model.name,
+            'loaded_from': cfg.model.load_from,
+            'dataset': cfg.datasets.test.csv_file,
+        }
+        wandb.log_artifact(artifact)
 
     # plot only false positves
     # fp = detections[detections['FP'] == 1]
@@ -399,13 +407,15 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
             thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
             thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
 
-            wandb.log({"thumbnails": wandb.Image(thumbnail)})
+            if cfg.wandb_flag:
+
+                wandb.log({"thumbnails": wandb.Image(thumbnail)})
 
 
     logger.info(f'Testing done, wrote results to: {os.getcwd()}')
 
-
-    wandb.finish()
+    if cfg.wandb_flag:
+        wandb.finish()
 
     return detections
 

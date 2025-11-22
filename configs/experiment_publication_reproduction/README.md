@@ -17,10 +17,32 @@ ctrl-A n  (next)
 ctrl-A c  (new window)
 
 cd HerdNet
+
+conda activate HerdNetCarrotConda
+```
+
+## Experiments
+### 1.Delplanque 2022 Publication Reproduction
+dataset and training parameter defaults as in the publication, i.e. patch overlap 160, learning rate 1e-5, batch size 4, focal loss 4/2, etc.
+
+```shell
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x02_reference_DLA34_delplanque" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+sleep 10
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x02_reference_RefDLA34_delplanque" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+sleep 10
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x02_reference_DLA34_BS64_LR04_delplanque" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+sleep 10
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x02_reference_DLA34_delplanque_ObjectAwareCrop" --config-path="../configs/experiment_publication_reproduction/" > /dev/null 2>&1 & 
+sleep 10
+
 ```
 
 
-### Training Data Curve
+
+### Learning Data Curve
 
 ```shell
 PYTHONPATH=$PYTHONPATH:./ python3 tools/train_wrapper.py > /dev/null 2>&1 & 
@@ -28,9 +50,12 @@ PYTHONPATH=$PYTHONPATH:./ python3 tools/train_wrapper.py > /dev/null 2>&1 &
 
 
 ## Experiment 1: Reproduce Publication Results
-First the Timm model is compared to the custom DLA34 implementation from the publication on eikelboom and delplanque dataset
+First the Timm model is compared to the custom DLA34 implementation from the publication on eikelboom, delplanque dataset then iguana floreana and fernandina dataset
 
+```shell
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x1_model_size_DLA34_fernandina_patchOverlap160" --config-path="../configs/experiment_publication_reproduction/"
 
+```
 
 ```shell
 PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x1_eikelboom_dla34_train_crop_eval_crop_publication" --config-path="../configs/experiment_publication_reproduction/"  > /dev/null 2>&1 & 
@@ -91,19 +116,30 @@ sleep 10
 This will optimise the dla34 model and look for better batch_sizes, learning rates, weight decays. To get this running, do the following:
 
 ```shell
-# Optional, start a screen session
+# start a screen session
 screen -S herdnet_sweep
+# or reconnect
+screen -r herdnet
+
 # in your HerdNet BaseFolder
 conda activate <your conda environemt> # activate the conda environment you use for this repo
 
 # training hyperparameter sweep
 wandb sweep configs/experiment_publication_reproduction/exp2_sweep_hyp.yaml  # create a sweep with
 
+
+
 # augmentation hyperparameter sweep optimising for a low val_focal_loss
 wandb sweep configs/experiment_publication_reproduction/x10_sweep_hyp_aug.yaml  # create a sweep with
 # the sweep config. This creates an ID for the sweep
 # It will output sth. like: wandb: Run sweep agent with: wandb agent username/herdnet_delplanque2022_exp2_hyp_sweep/uuxyz7ch
 
+# inference hyperparameter sweep optimising f1
+wandb sweep configs/experiment_publication_reproduction/x10_sweep_inference_f1.yaml  # create a sweep with
+PYTHONPATH=$PYTHONPATH:./ wandb agent karisu/herdnet_iguana_inference_sweep_fernandina_fwk/v4at60fx > /dev/null 2>&1 & 
+
+wandb sweep configs/experiment_publication_reproduction/x10_sweep_inference_floreana_f1.yaml  # create a sweep with
+PYTHONPATH=$PYTHONPATH:./ wandb agent karisu/herdnet_iguana_inference_sweep_floreana/2rdtb4zs > /dev/null 2>&1 & 
 # Run sweep agent with on multiple GPUS
 
 CUDA_VISIBLE_DEVICES=0 PYTHONPATH=./ wandb agent <The sweep ID> --count 100
@@ -120,7 +156,10 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=./ wandb agent <The sweep ID> --count 100
 PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x15_2_hyper_parameter_optimisation_floreana" --config-path="../configs/experiment_publication_reproduction/"  > /dev/null 2>&1 & 
 
 wandb sweep configs/experiment_publication_reproduction/x15_sweep_hyp_train.yaml
-PYTHONPATH=./ wandb agent  karisu/iguana_train_sweep/x3eo08es --count 100  > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ wandb agent  karisu/iguana_train_sweep/x3eo08es --count 100  > /dev/null 2>&1 & 
+
+wandb sweep configs/experiment_publication_reproduction/x10_sweep_hyp_aug_f1.yaml
+PYTHONPATH=$PYTHONPATH:./ wandb agent  wandb agent karisu/herdnet_iguana_sweep_florean_aug_2/lsl3syz4  > /dev/null 2>&1 & 
 
 ```
 

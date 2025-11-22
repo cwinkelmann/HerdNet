@@ -3,14 +3,14 @@ wandb_notes: |
   
 
 defaults:
-  - /losses: herdnet_publication
-  - /datasets: floreana_crop_train_corrected_crop_val_corrected_aug_hypopt_2
+  - /losses: iguana_herdnet_publication
+  - /datasets: floreana_crop_train_corrected_crop_val_corrected_aug_default
   - /training_settings: delplanque2022_evaluator_stitcher
   - /model: HerdNetTimmDLA34_dr2_imagenet
   - _self_  # Include this config's content
 
 wandb_flag: True
-wandb_project: 'x10_hyp_aug_opt'
+wandb_project: 'x10_hyp_aug_opt_f1'
 wandb_entity: 'karisu'
 wandb_run: 'x10_hyp_opt__floreana_cvat_corr_dla34_pub_train_tile_eval_tile_aug_hypopt_2'
 wandb_tags: ['dla', 'dla_34', 'aug_optt', "exp10", "eval_crop", "train_crop", "corrected"]
@@ -19,13 +19,12 @@ device_name: null
 
 
 # overrides
-# overrides
-training_settings:
-  lr: 1.0e-03
-  epochs: 75
-  batch_size: 5
+#training_settings:
+#  lr: 1.0e-03
+#  epochs: 75
+#  batch_size: 15
 #model:
-##     dla34 dr2
+#   dla34 dr2
 #    load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-06/20-54-02/best_model.pth # https://wandb.ai/karisu/herdnet_iguana_cvat_corr/runs/foygf9rd/logs
 
 

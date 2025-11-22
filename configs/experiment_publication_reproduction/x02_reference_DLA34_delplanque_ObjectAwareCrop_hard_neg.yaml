@@ -1,0 +1,34 @@
+wandb_notes: |
+  DLA34 model on delplanque dataset using the random crop with 
+  object awareness 
+  hard negatives.
+  
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: delplanque2022_objectAwareRandomCrop_hard_neg
+  - /training_settings: delplanque2022_evaluator_quick
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x02_referenee'
+wandb_entity: 'karisu'
+wandb_run: 'x02_reference_DLA34_delplanque_ObjectAwareCrop_hard_neg'
+wandb_tags: ['dla', 'dla_34', 'dr2', "hard_neg"]
+seed: 1
+device_name: null
+
+training_settings:
+  batch_size: 32
+  lr: 1.0e-06
+  num_workers: 24
+
+model:
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-24/11-23-05/best_model.pth
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

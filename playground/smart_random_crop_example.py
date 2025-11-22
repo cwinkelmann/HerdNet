@@ -1,141 +1,291 @@
-import random
+"""
+Simple test script with fake data to demonstrate ObjectAwareRandomCrop.
+Generates synthetic images with colored circles as "animals" and applies the augmentation.
+"""
+
 import numpy as np
-from typing import Dict, List, Tuple, Union, Optional
-from albumentations.core.transforms_interface import DualTransform
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import cv2
+import sys
 
-from utils.augmentations import ObjectAwareRandomCrop
+from ObjectAwareRandomCrop_CORRECT import ObjectAwareRandomCrop
 
-# Example usage with visualization
-if __name__ == "__main__":
+# Try to import albumentations
+try:
     import albumentations as A
-    import matplotlib.pyplot as plt
-    import cv2
+
+    HAS_ALBUMENTATIONS = True
+except ImportError:
+    HAS_ALBUMENTATIONS = False
+    print("Note: Albumentations not found, using direct transform application")
 
 
-    def draw_keypoints(image, keypoints, color=(0, 255, 0), radius=5):
-        """Draw keypoints on image."""
-        img_copy = image.copy()
-        for i, (x, y) in enumerate(keypoints):
-            cv2.circle(img_copy, (int(x), int(y)), radius, color, -1)
-            cv2.putText(img_copy, str(i), (int(x) + 10, int(y)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 2, color, 2)
-        return img_copy
+def generate_fake_image(width=800, height=600, num_animals=5):
+    """
+    Generate a fake image with colored circles representing animals.
+    Returns image and keypoints (center of each circle).
+    """
+    # Create gradient background (like sky/grass)
+    image = np.zeros((height, width, 3), dtype=np.uint8)
 
+    # Sky gradient (blue)
+    for i in range(height // 2):
+        blue = int(200 - (i / (height // 2)) * 50)
+        image[i, :] = [100, 150, blue]
 
-    def draw_crop_area(image, crop_x, crop_y, width, height, color=(255, 255, 0), thickness=5):
-        """Draw crop area on image."""
-        img_copy = image.copy()
-        cv2.rectangle(img_copy, (crop_x, crop_y), (crop_x + width, crop_y + height), color, thickness)
-        return img_copy
+    # Grass gradient (green)
+    for i in range(height // 2, height):
+        green = int(150 + ((i - height // 2) / (height // 2)) * 50)
+        image[i, :] = [50, green, 80]
 
-
-    # Create a large synthetic image (5000x4000 as in your example)
-    image = np.zeros((4000, 5000, 3), dtype=np.uint8)
-
-    # Add some background patterns to see the structure
-    for i in range(0, 5000, 200):
-        cv2.line(image, (i, 0), (i, 4000), (30, 30, 30), 2)
-    for i in range(0, 4000, 200):
-        cv2.line(image, (0, i), (5000, i), (30, 30, 30), 2)
-
-    # Add some colored regions scattered around
-    cv2.rectangle(image, (1000, 800), (1500, 1200), (100, 150, 200), -1)
-    cv2.rectangle(image, (3000, 2500), (3800, 3200), (200, 100, 150), -1)
-    cv2.rectangle(image, (500, 3000), (1200, 3600), (150, 200, 100), -1)
-    cv2.rectangle(image, (2100, 1500), (2700, 1800), (110, 250, 200), -1)
-
-    # Add some noise
-    noise = np.random.randint(0, 30, image.shape, dtype=np.uint8)
-    image = cv2.add(image, noise)
-
-    # Create sparse keypoints in the middle area (like your example)
-    keypoints = [
-        (2500, 2000, 0, 1),  # center-ish
-        (2200, 1800, 0, 1),  # near center
-        (2800, 2200, 0, 1),  # near center
-        (2600, 1900, 0, 1),  # near center
+    # Generate random "animals" (colored circles)
+    keypoints = []
+    animal_colors = [
+        (255, 100, 100),  # Red
+        (100, 255, 100),  # Green
+        (100, 100, 255),  # Blue
+        (255, 255, 100),  # Yellow
+        (255, 100, 255),  # Magenta
+        (100, 255, 255),  # Cyan
     ]
 
-    print(f"Original image shape: {image.shape}")
-    print(f"Keypoints: {[(int(kp[0]), int(kp[1])) for kp in keypoints]}")
+    np.random.seed(42)
+    for i in range(num_animals):
+        # Random position
+        x = np.random.randint(50, width - 50)
+        y = np.random.randint(50, height - 50)
 
-    first_crop_length = 1000
+        # Random size
+        radius = np.random.randint(20, 40)
 
-    # Create the transform with a reasonable crop size
-    transform = A.Compose([
-        ObjectAwareRandomCrop(
-            height=first_crop_length,  # Much smaller than the image
-            width=first_crop_length,
-            attempts=10,
-            empty_probability=0.1,
-            p=1.0
-        ),
-        # Rotate
-        A.Rotate(limit=180, p=0.5),  # Optional rotation for variety
-        ObjectAwareRandomCrop(
-            height=512,  # Much smaller than the image
-            width=512,
-            attempts=10,
-            p=1.0,
-            edge_black_blobs=True,  # Optional: add black edges to the crop
+        # Draw circle (animal)
+        color = animal_colors[i % len(animal_colors)]
+        cv2.circle(image, (x, y), radius, color, -1)
+
+        # Add border
+        cv2.circle(image, (x, y), radius, (0, 0, 0), 2)
+
+        # Add label
+        label = f"A{i + 1}"
+        cv2.putText(image, label, (x - 10, y + 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+        keypoints.append((x, y, 0, 1))  # (x, y, angle, scale)
+
+    return image, keypoints
+
+
+def visualize_augmentation(original_img, original_kps, augmented_img, augmented_kps,
+                           crop_params=None, transform=None):
+    """
+    Visualize original and augmented images side by side.
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    # Original image
+    ax1.imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
+    ax1.set_title('Original Image', fontsize=14, fontweight='bold')
+
+    # Draw keypoints
+    for i, (x, y, _, _) in enumerate(original_kps):
+        ax1.plot(x, y, 'o', color='yellow', markersize=12,
+                 markeredgecolor='black', markeredgewidth=2)
+        ax1.text(x + 5, y - 5, f'A{i + 1}', color='white', fontweight='bold',
+                 bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.7))
+
+    # Draw crop region if available
+    if crop_params and transform:
+        crop_x = crop_params.get('crop_x', 0)
+        crop_y = crop_params.get('crop_y', 0)
+
+        rect = patches.Rectangle(
+            (crop_x, crop_y), transform.width, transform.height,
+            linewidth=3, edgecolor='lime', facecolor='none', linestyle='--'
         )
-    ], keypoint_params=A.KeypointParams(format='xy'))
+        ax1.add_patch(rect)
 
-    # Apply the transform
-    transformed = transform(image=image, keypoints=keypoints)
-    cropped_image = transformed['image']
-    cropped_keypoints = transformed['keypoints']
+        # Draw safe zone
+        if transform.min_edge_distance > 0:
+            inner_rect = patches.Rectangle(
+                (crop_x + transform.min_edge_distance,
+                 crop_y + transform.min_edge_distance),
+                transform.width - 2 * transform.min_edge_distance,
+                transform.height - 2 * transform.min_edge_distance,
+                linewidth=2, edgecolor='cyan', facecolor='none', linestyle=':'
+            )
+            ax1.add_patch(inner_rect)
 
-    # Get crop parameters for visualization
-    crop_params = transform.transforms[0].get_params_dependent_on_targets({'image': image, 'keypoints': keypoints})
+        ax1.text(crop_x + 5, crop_y - 10, 'Crop Region',
+                 color='lime', fontweight='bold',
+                 bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.7))
 
-    crop_x, crop_y = transform.transforms[0].last_crop
-    crop_x, crop_y = crop_params['crop_x'], crop_params['crop_y']
+    ax1.set_xlim(0, original_img.shape[1])
+    ax1.set_ylim(original_img.shape[0], 0)
+    ax1.grid(True, alpha=0.3)
 
-    # Create visualizations
-    fig, axes = plt.subplots(1, 2, figsize=(20, 8))
+    # Augmented image
+    ax2.imshow(cv2.cvtColor(augmented_img, cv2.COLOR_BGR2RGB))
+    ax2.set_title('After ObjectAwareRandomCrop', fontsize=14, fontweight='bold')
 
-    # Original image (downsampled for display) with keypoints and crop area
-    scale_factor = 0.2  # Downsample for display
-    small_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
-    small_keypoints = [(kp[0] * scale_factor, kp[1] * scale_factor) for kp in [(k[0], k[1]) for k in keypoints]]
+    # Draw transformed keypoints
+    for i, (x, y, _, _) in enumerate(augmented_kps):
+        ax2.plot(x, y, 'o', color='yellow', markersize=12,
+                 markeredgecolor='black', markeredgewidth=2)
+        ax2.text(x + 5, y - 5, f'A{i + 1}', color='white', fontweight='bold',
+                 bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
 
-    img_with_kp = draw_keypoints(small_image, small_keypoints, color=(0, 255, 0), radius=15)
-    img_with_crop = draw_crop_area(img_with_kp,
-                                   int(crop_x * scale_factor),
-                                   int(crop_y * scale_factor),
-                                   int(first_crop_length * scale_factor),
-                                   int(first_crop_length * scale_factor),
-                                   color=(255, 255, 0), thickness=8)
+        # Calculate distance to edges
+        if transform:
+            dist_left = x
+            dist_right = transform.width - x
+            dist_top = y
+            dist_bottom = transform.height - y
+            min_dist = min(dist_left, dist_right, dist_top, dist_bottom)
 
-    axes[0].imshow(cv2.cvtColor(img_with_crop, cv2.COLOR_BGR2RGB))
-    axes[0].set_title(
-        f'Original Image (5000x4000, shown at 20%)\nGreen=Keypoints, Yellow=Crop Area\nCrop at ({crop_x}, {crop_y})',
-        fontsize=12)
-    axes[0].axis('off')
+            # Show distance for each keypoint
+            status = '✓' if min_dist >= transform.min_edge_distance else '·'
+            ax2.text(x + 5, y + 15, f'{status} {min_dist:.0f}px',
+                     color='lime' if min_dist >= transform.min_edge_distance else 'orange',
+                     fontsize=8, fontweight='bold',
+                     bbox=dict(boxstyle='round,pad=0.2', facecolor='black', alpha=0.7))
 
-    # Cropped image with preserved keypoints
-    cropped_keypoint_coords = [(kp[0], kp[1]) for kp in cropped_keypoints]
-    cropped_with_kp = draw_keypoints(cropped_image, cropped_keypoint_coords, color=(0, 255, 0), radius=10)
+    # Draw safe zone boundary
+    if transform and transform.min_edge_distance > 0:
+        boundary_rect = patches.Rectangle(
+            (transform.min_edge_distance, transform.min_edge_distance),
+            transform.width - 2 * transform.min_edge_distance,
+            transform.height - 2 * transform.min_edge_distance,
+            linewidth=2, edgecolor='cyan', facecolor='none', linestyle=':'
+        )
+        ax2.add_patch(boundary_rect)
+        ax2.text(10, 25, f'Safe Zone\n(≥{transform.min_edge_distance}px)',
+                 color='cyan', fontsize=10, fontweight='bold',
+                 bbox=dict(boxstyle='round,pad=0.4', facecolor='black', alpha=0.8))
 
-    axes[1].imshow(cv2.cvtColor(cropped_with_kp, cv2.COLOR_BGR2RGB))
-    axes[1].set_title(f'Cropped Image ({first_crop_length}x{first_crop_length})\nKeypoints preserved: {len(cropped_keypoints)}/{len(keypoints)}',
-                      fontsize=12)
-    axes[1].axis('off')
+    ax2.set_xlim(0, augmented_img.shape[1])
+    ax2.set_ylim(augmented_img.shape[0], 0)
+    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+    return fig
 
-    # Print detailed information
-    print(f"\nCropped image shape: {cropped_image.shape}")
-    print(f"Crop position: ({crop_x}, {crop_y})")
-    print(f"\nOriginal keypoints: {[(int(kp[0]), int(kp[1])) for kp in keypoints]}")
-    print(f"Cropped keypoints: {[(int(kp[0]), int(kp[1])) for kp in cropped_keypoints]}")
-    print(f"Keypoints preserved: {len(cropped_keypoints)}/{len(keypoints)}")
 
-    # Show which keypoints are in the crop area
-    print(f"\nKeypoints in crop area:")
-    for i, (orig_kp, crop_kp) in enumerate(zip(keypoints, cropped_keypoints)):
-        if 0 <= crop_kp[0] <= first_crop_length and 0 <= crop_kp[1] <= first_crop_length:
-            print(
-                f"  Keypoint {i}: Original({int(orig_kp[0])}, {int(orig_kp[1])}) -> Cropped({int(crop_kp[0])}, {int(crop_kp[1])})")
+def main():
+    print("=" * 70)
+    print("ObjectAwareRandomCrop - Fake Data Test")
+    print("=" * 70)
+
+    # Generate fake data
+    print("\n1. Generating fake image with 5 'animals'...")
+    image, keypoints = generate_fake_image(width=800, height=600, num_animals=5)
+    print(f"   Image shape: {image.shape}")
+    print(f"   Number of animals: {len(keypoints)}")
+    print(f"   Animal positions: {[(int(x), int(y)) for x, y, _, _ in keypoints]}")
+
+    # Create transform
+    print("\n2. Creating ObjectAwareRandomCrop transform...")
+    transform = ObjectAwareRandomCrop(
+        height=400,
+        width=400,
+        min_edge_distance=30,
+        empty_probability=0.0,  # Always include animals for this demo
+        max_attempts=20,
+        p=1.0
+    )
+    print(f"   Crop size: {transform.width}x{transform.height}")
+    print(f"   Min edge distance: {transform.min_edge_distance}px")
+
+    # Apply transform multiple times
+    print("\n3. Applying augmentation 3 times...")
+
+    if HAS_ALBUMENTATIONS:
+        # Use Albumentations pipeline
+        aug = A.Compose([
+            transform,
+        ], keypoint_params=A.KeypointParams(format='xysa', remove_invisible=True))
+
+        for i in range(3):
+            print(f"\n   --- Sample {i + 1} ---")
+            result = aug(image=image.copy(), keypoints=keypoints)
+
+            augmented_img = result['image']
+            augmented_kps = result['keypoints']
+
+            print(f"   Animals in crop: {len(augmented_kps)}/{len(keypoints)}")
+
+            # Get crop params for visualization
+            params = transform.get_params_dependent_on_targets({
+                'image': image,
+                'keypoints': keypoints
+            })
+
+            # Visualize
+            fig = visualize_augmentation(
+                image, keypoints,
+                augmented_img, augmented_kps,
+                crop_params=params, transform=transform
+            )
+
+            filename = f'outputs_demo_sample_{i + 1}.png'
+            fig.savefig(filename, dpi=150, bbox_inches='tight')
+            print(f"   Saved: demo_sample_{i + 1}.png")
+            plt.close(fig)
+
+    else:
+        # Direct application without Albumentations
+        for i in range(3):
+            print(f"\n   --- Sample {i + 1} ---")
+
+            # Get crop parameters
+            params = transform.get_params_dependent_on_targets({
+                'image': image,
+                'keypoints': keypoints
+            })
+
+            # Apply crop
+            augmented_img = transform.apply(
+                image.copy(),
+                crop_x=params['crop_x'],
+                crop_y=params['crop_y']
+            )
+
+            # Transform keypoints
+            augmented_kps = []
+            for kp in keypoints:
+                new_kp = transform.apply_to_keypoint(
+                    kp,
+                    crop_x=params['crop_x'],
+                    crop_y=params['crop_y']
+                )
+                # Only keep if within bounds
+                if 0 <= new_kp[0] < transform.width and 0 <= new_kp[1] < transform.height:
+                    augmented_kps.append(new_kp)
+
+            print(f"   Animals in crop: {len(augmented_kps)}/{len(keypoints)}")
+
+            # Visualize
+            fig = visualize_augmentation(
+                image, keypoints,
+                augmented_img, augmented_kps,
+                crop_params=params, transform=transform
+            )
+
+            filename = f'outputs_demo_sample_{i + 1}.png'
+            fig.savefig(filename, dpi=150, bbox_inches='tight')
+            print(f"   Saved: demo_sample_{i + 1}.png")
+            plt.close(fig)
+
+    print("\n" + "=" * 70)
+    print("✅ Test complete! Check the demo_sample_*.png files.")
+    print("=" * 70)
+
+    print("\nKey observations:")
+    print("- The crop is positioned to keep at least one animal well-framed")
+    print("- Selected animal is ≥30px from all crop edges (✓)")
+    print("- Other animals may be closer to edges (·) - this is OK!")
+    print("- Cyan dotted line shows the 'safe zone'")
+
+
+if __name__ == "__main__":
+    main()

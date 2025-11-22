@@ -3,11 +3,12 @@
 #  https://wandb.ai/karisu/ig_Floreana_learning_curve/
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 2 # One class more for the background
+num_classes: 3 # One class more for the background
 collate_fn: null
 
 class_def:
   1: 'iguana_point'
+  2: 'hard_negative'
 
 
 train:

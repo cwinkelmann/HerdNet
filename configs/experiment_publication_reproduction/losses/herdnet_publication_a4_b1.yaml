@@ -1,32 +1,32 @@
-
-FocalLoss:
-  print_name: 'focal_loss'
-  from_torch: False
-  output_idx: 0
-  target_idx: 0
-  lambda_const: 1.0
-  kwargs:
-    alpha: 4
-    beta: 1
-    reduction: 'mean'
-    normalize: False
-
-CrossEntropyLoss:
-  print_name: 'ce_loss'
-  from_torch: True
-  output_idx: 1
-  target_idx: 1
-  lambda_const: 1.0
-  background_class_weight: 0.1
-  kwargs:
-    reduction: 'mean'
-    weight:
-      - ${losses.CrossEntropyLoss.background_class_weight}
-      - 0.24 # Alcelaphinae
-      - 0.15 # Buffalo
-      - 0.248 # Kob
-      - 0.045 # Warthog
-      - 0.02 # Waterbuck
-      - 0.28 # Elephant
-     # One weight for each class including the background
-    #weight: [0.9, 0.001, 1.0] # From the notebook
+#
+#FocalLoss:
+#  print_name: 'focal_loss'
+#  from_torch: False
+#  output_idx: 0
+#  target_idx: 0
+#  lambda_const: 1.0
+#  kwargs:
+#    alpha: 4
+#    beta: 1
+#    reduction: 'mean'
+#    normalize: False
+#
+#CrossEntropyLoss:
+#  print_name: 'ce_loss'
+#  from_torch: True
+#  output_idx: 1
+#  target_idx: 1
+#  lambda_const: 1.0
+#  background_class_weight: 0.1
+#  kwargs:
+#    reduction: 'mean'
+#    weight:
+#      - ${losses.CrossEntropyLoss.background_class_weight}
+#      - 0.24 # Alcelaphinae
+#      - 0.15 # Buffalo
+#      - 0.248 # Kob
+#      - 0.045 # Warthog
+#      - 0.02 # Waterbuck
+#      - 0.28 # Elephant
+#     # One weight for each class including the background
+#    #weight: [0.9, 0.001, 1.0] # From the notebook

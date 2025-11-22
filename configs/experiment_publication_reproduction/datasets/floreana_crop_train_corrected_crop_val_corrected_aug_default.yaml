@@ -8,7 +8,12 @@ collate_fn: null
 
 class_def:
   1: 'iguana_point'
-  2: 'hard_negative'
+  2: 'hard_negative' # these next 6 are just there so I can use the pretrained model
+#  3: 'Kob'
+#  4: 'Warthog'
+#  5: 'Waterbuck'
+#  6: 'Elephant'
+#  7: '-'
 
 
 train:

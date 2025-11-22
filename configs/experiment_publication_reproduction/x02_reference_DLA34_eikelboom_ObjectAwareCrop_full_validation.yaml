@@ -1,0 +1,40 @@
+wandb_notes: |
+  DLA34 model on delplanque dataset
+  
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: eikelboom2019_objectAwareRandomCrop_full_validation
+  - /training_settings: delplanque2022_evaluator_stitcher_full_size
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x2_eikelboom'
+wandb_entity: 'karisu'
+wandb_run: 'x02_reference_DLA34_eikelboom_ObjectAwareCrop_full_validation_a0.8_b6.0'
+wandb_tags: ['dla', 'dla_34', 'dr2', "x2", "eval_crop", "train_crop", "corrected"]
+seed: 1
+device_name: null
+
+training_settings:
+  batch_size: 32
+  lr: 1.0e-04
+  num_workers: 24
+  epochs: 100
+
+losses:
+  FocalLoss:
+    kwargs:
+      alpha: 0.8
+      beta: 6
+
+model:
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-24/11-23-05/best_model.pth
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-29/18-31-21/best_model.pth
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

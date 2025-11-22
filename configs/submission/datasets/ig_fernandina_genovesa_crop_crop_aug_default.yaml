@@ -2,12 +2,12 @@
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 2 # One class more for the background
+num_classes: 3 # One class more for the background
 collate_fn: null
 
 class_def:
   1: 'iguana_point'
-#  2: 'b'
+  2: 'hard_negative'
 #  3: 'c'
 #  4: 'd'
 #  5: 'e'
@@ -17,8 +17,8 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana__Fernandina_detection/train/herdnet_format_512_0_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_10_11/Floreana__Fernandina_detection/train/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_10_11/Genovesa_detection/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_10_11/Genovesa_detection/train/crops_512_numNone_overlap0'
 
 
   sampler: null

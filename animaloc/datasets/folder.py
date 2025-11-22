@@ -56,7 +56,8 @@ class FolderDataset(CSVDataset):
         csv_file: str, 
         root_dir: str, 
         albu_transforms: Optional[list] = None,
-        end_transforms: Optional[list] = None
+        end_transforms: Optional[list] = None,
+            augmentation_multiplier=None
         ) -> None:
         ''' 
         Args:

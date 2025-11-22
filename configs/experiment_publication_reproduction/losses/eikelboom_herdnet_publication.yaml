@@ -1,0 +1,34 @@
+
+FocalLoss:
+  print_name: 'focal_loss'
+  from_torch: False
+  output_idx: 0
+  target_idx: 0
+  lambda_const: 1.0
+  kwargs:
+    alpha: 2
+    beta: 4
+    reduction: 'mean'
+    normalize: False
+
+CrossEntropyLoss:
+  print_name: 'ce_loss'
+  from_torch: True
+  output_idx: 1
+  target_idx: 1
+  lambda_const: 1.0
+  background_class_weight: 0.1
+  kwargs:
+    reduction: 'mean'
+    weight:
+      - ${losses.CrossEntropyLoss.background_class_weight}
+      - 1.0  # Alcelaphinae / Topi
+      - 2.0  # Buffalo
+      - 1.0  # Kob
+      - 6.0  # Warthog
+      - 12.0 # Waterbuck
+      - 1.0  # Elephant
+      - 0.5  # hard_negative
+     # One weight for each class including the background
+    #weight: https://github.com/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb
+    # 0.1, 1.0, 2.0, 1.0, 6.0, 12.0, 1.0

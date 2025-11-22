@@ -152,6 +152,26 @@ from albumentations.core.transforms_interface import DualTransform
 #     def get_transform_init_args_names(self) -> Tuple[str, ...]:
 #         return ('height', 'width', 'attempts')
 
+"""
+Fixed ObjectAwareRandomCrop transform with proper min_edge_distance enforcement.
+"""
+
+import numpy as np
+import random
+from typing import List, Tuple, Dict
+import warnings
+
+"""
+Fixed ObjectAwareRandomCrop transform - Albumentations compatible.
+Only enforces min_edge_distance for the SELECTED keypoint.
+"""
+
+import numpy as np
+import random
+from typing import List, Tuple, Dict
+import warnings
+from albumentations import DualTransform
+
 
 class ObjectAwareRandomCrop(DualTransform):
     """
@@ -163,8 +183,9 @@ class ObjectAwareRandomCrop(DualTransform):
     Args:
         height (int): Height of the crop.
         width (int): Width of the crop.
-        min_edge_distance (int): Minimum distance in pixels between keypoint and crop edge. Default: 10.
+        min_edge_distance (int): Minimum distance in pixels between THE SELECTED keypoint and crop edge. Default: 10.
         empty_probability (float): Probability of creating a crop without any keypoints. Default: 0.0.
+        max_attempts (int): Maximum attempts to find a valid crop with min_edge_distance. Default: 10.
         always_apply (bool): Whether to always apply this transform. Default: False.
         p (float): Probability of applying the transform. Default: 1.0.
     """
@@ -175,6 +196,7 @@ class ObjectAwareRandomCrop(DualTransform):
             width: int,
             min_edge_distance: int = 10,
             empty_probability: float = 0.0,
+            max_attempts: int = 10,
             always_apply: bool = False,
             p: float = 1.0,
     ):
@@ -183,11 +205,49 @@ class ObjectAwareRandomCrop(DualTransform):
         self.width = width
         self.min_edge_distance = min_edge_distance
         self.empty_probability = empty_probability
+        self.max_attempts = max_attempts
 
         if self.min_edge_distance < 0:
             raise ValueError("min_edge_distance must be non-negative")
         if not 0.0 <= self.empty_probability <= 1.0:
             raise ValueError("empty_probability must be between 0.0 and 1.0")
+        if self.max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1")
+
+    def _is_keypoint_valid_for_crop(
+            self,
+            keypoint_x: float,
+            keypoint_y: float,
+            image_height: int,
+            image_width: int
+    ) -> bool:
+        """
+        Check if a keypoint can satisfy min_edge_distance constraint given image and crop size.
+
+        Returns:
+            True if it's possible to create a crop with this keypoint at min_edge_distance from edges.
+        """
+        # Check if there's enough space in the image for a crop with this keypoint
+        # at min_edge_distance from all crop edges
+
+        # For the keypoint to be at least min_edge_distance from left edge:
+        # keypoint_x - crop_x >= min_edge_distance
+        # => crop_x <= keypoint_x - min_edge_distance
+        # Also: crop_x >= 0
+        # So we need: keypoint_x >= min_edge_distance
+
+        # For the keypoint to be at least min_edge_distance from right edge:
+        # (crop_x + width) - keypoint_x >= min_edge_distance
+        # => keypoint_x <= crop_x + width - min_edge_distance
+        # Also: crop_x <= image_width - width
+        # So we need: keypoint_x <= image_width - min_edge_distance
+
+        can_fit_x = (keypoint_x >= self.min_edge_distance and
+                     keypoint_x <= image_width - self.min_edge_distance)
+        can_fit_y = (keypoint_y >= self.min_edge_distance and
+                     keypoint_y <= image_height - self.min_edge_distance)
+
+        return can_fit_x and can_fit_y
 
     def _get_valid_crop_range(
             self,
@@ -201,21 +261,25 @@ class ObjectAwareRandomCrop(DualTransform):
 
         Returns:
             Tuple of (x_range, y_range) where each range is (min, max) inclusive.
+            Returns invalid range (min > max) if no valid crop exists.
         """
-        # For the keypoint to be at least min_edge_distance from left edge:
-        # keypoint_x - crop_x >= min_edge_distance
-        # crop_x <= keypoint_x - min_edge_distance
+        # X coordinate constraints
+        # Keypoint must be at least min_edge_distance from left edge of crop
+        crop_x_max = int(keypoint_x - self.min_edge_distance)
+        # Keypoint must be at least min_edge_distance from right edge of crop
+        crop_x_min = int(keypoint_x - self.width + self.min_edge_distance)
 
-        # For the keypoint to be at least min_edge_distance from right edge:
-        # crop_x + width - keypoint_x >= min_edge_distance
-        # crop_x <= keypoint_x - min_edge_distance
-        # crop_x >= keypoint_x - width + min_edge_distance
+        # Also constrain by image boundaries
+        crop_x_min = max(0, crop_x_min)
+        crop_x_max = min(image_width - self.width, crop_x_max)
 
-        crop_x_min = max(0, int(keypoint_x - self.width + self.min_edge_distance))
-        crop_x_max = min(image_width - self.width, int(keypoint_x - self.min_edge_distance))
+        # Y coordinate constraints
+        crop_y_max = int(keypoint_y - self.min_edge_distance)
+        crop_y_min = int(keypoint_y - self.height + self.min_edge_distance)
 
-        crop_y_min = max(0, int(keypoint_y - self.height + self.min_edge_distance))
-        crop_y_max = min(image_height - self.height, int(keypoint_y - self.min_edge_distance))
+        # Also constrain by image boundaries
+        crop_y_min = max(0, crop_y_min)
+        crop_y_max = min(image_height - self.height, crop_y_max)
 
         return (crop_x_min, crop_x_max), (crop_y_min, crop_y_max)
 
@@ -233,34 +297,96 @@ class ObjectAwareRandomCrop(DualTransform):
 
         return crop_x, crop_y
 
+    def _verify_crop_constraint(
+            self,
+            keypoint_x: float,
+            keypoint_y: float,
+            crop_x: int,
+            crop_y: int
+    ) -> Tuple[bool, float]:
+        """
+        Verify if a crop satisfies the min_edge_distance constraint for a given keypoint.
+
+        Returns:
+            Tuple of (is_valid, min_distance)
+        """
+        # Calculate keypoint position within crop
+        kp_x_in_crop = keypoint_x - crop_x
+        kp_y_in_crop = keypoint_y - crop_y
+
+        # Calculate distances to all edges
+        dist_left = kp_x_in_crop
+        dist_right = self.width - kp_x_in_crop
+        dist_top = kp_y_in_crop
+        dist_bottom = self.height - kp_y_in_crop
+
+        min_dist = min(dist_left, dist_right, dist_top, dist_bottom)
+
+        # Check if constraint is satisfied (use >= for inclusive comparison)
+        is_valid = min_dist >= self.min_edge_distance
+
+        return is_valid, min_dist
+
     def _get_crop_with_keypoint(
             self,
             keypoint_coords: List[Tuple[float, float]],
             image_height: int,
             image_width: int
     ) -> Tuple[int, int]:
-        """Get a crop position that includes a random keypoint with min edge distance."""
-        # Select a random keypoint
+        """
+        Get a crop position that includes a random keypoint with min edge distance.
+
+        Returns:
+            Tuple of (crop_x, crop_y)
+        """
+        # Shuffle keypoints to try them in random order
+        available_keypoints = keypoint_coords.copy()
+        random.shuffle(available_keypoints)
+
+        # Try to find a valid keypoint and crop position
+        for attempt in range(min(int(self.max_attempts), len(available_keypoints) * 2)):
+            # Select keypoint (cycle through if needed)
+            target_x, target_y = available_keypoints[attempt % len(available_keypoints)]
+
+            # Check if this keypoint can possibly satisfy the constraint
+            if not self._is_keypoint_valid_for_crop(target_x, target_y, image_height, image_width):
+                # Try another keypoint
+                continue
+
+            # Get valid crop ranges
+            (x_min, x_max), (y_min, y_max) = self._get_valid_crop_range(
+                target_x, target_y, image_height, image_width
+            )
+
+            # Check if valid crop is possible
+            if x_min <= x_max and y_min <= y_max:
+                # Random position within valid range
+                crop_x = random.randint(x_min, x_max)
+                crop_y = random.randint(y_min, y_max)
+
+                # Verify the constraint is satisfied for the selected keypoint
+                is_valid, min_dist = self._verify_crop_constraint(target_x, target_y, crop_x, crop_y)
+
+                if is_valid:
+                    return crop_x, crop_y
+
+        # If we couldn't find a valid crop after max_attempts, use best-effort
+        # This happens when all keypoints are too close to image edges
+        # warnings.warn(
+        #     f"Could not find a crop satisfying min_edge_distance={self.min_edge_distance} "
+        #     f"after {self.max_attempts} attempts. Using best-effort crop. "
+        #     f"Consider using a smaller min_edge_distance or larger image/crop size.",
+        #     UserWarning
+        # )
+
+        # Best-effort: select a random keypoint and center on it
         target_x, target_y = random.choice(keypoint_coords)
+        crop_x = int(target_x - self.width // 2)
+        crop_y = int(target_y - self.height // 2)
 
-        # Get valid crop ranges
-        (x_min, x_max), (y_min, y_max) = self._get_valid_crop_range(
-            target_x, target_y, image_height, image_width
-        )
-
-        # Check if valid crop is possible
-        if x_min > x_max or y_min > y_max:
-            # Keypoint is too close to image edge, fall back to centering on keypoint
-            crop_x = int(target_x - self.width // 2)
-            crop_y = int(target_y - self.height // 2)
-
-            # Clamp to image bounds
-            crop_x = max(0, min(crop_x, image_width - self.width))
-            crop_y = max(0, min(crop_y, image_height - self.height))
-        else:
-            # Random position within valid range
-            crop_x = random.randint(x_min, x_max)
-            crop_y = random.randint(y_min, y_max)
+        # Clamp to image bounds
+        crop_x = max(0, min(crop_x, image_width - self.width))
+        crop_y = max(0, min(crop_y, image_height - self.height))
 
         return crop_x, crop_y
 
@@ -298,7 +424,7 @@ class ObjectAwareRandomCrop(DualTransform):
             )
 
         # Check if crop size allows for min_edge_distance
-        if self.height <= 2 * self.min_edge_distance or self.width <= 2 * self.min_edge_distance:
+        if self.height < 2 * self.min_edge_distance or self.width < 2 * self.min_edge_distance:
             raise ValueError(
                 f"Crop size ({self.width}x{self.height}) is too small for "
                 f"min_edge_distance={self.min_edge_distance}. "
@@ -327,7 +453,183 @@ class ObjectAwareRandomCrop(DualTransform):
         return ['image', 'keypoints']
 
     def get_transform_init_args_names(self) -> Tuple[str, ...]:
-        return ('height', 'width', 'min_edge_distance', 'empty_probability')
+        return ('height', 'width', 'min_edge_distance', 'empty_probability', 'max_attempts')
+
+# class ObjectAwareRandomCrop(DualTransform):
+#     """
+#     Random crop that ensures at least one keypoint is included with a minimum distance from edges.
+#
+#     This transformation selects a random keypoint and positions the crop such that the keypoint
+#     is at least `min_edge_distance` pixels away from all crop edges.
+#
+#     Args:
+#         height (int): Height of the crop.
+#         width (int): Width of the crop.
+#         min_edge_distance (int): Minimum distance in pixels between keypoint and crop edge. Default: 10.
+#         empty_probability (float): Probability of creating a crop without any keypoints. Default: 0.0.
+#         always_apply (bool): Whether to always apply this transform. Default: False.
+#         p (float): Probability of applying the transform. Default: 1.0.
+#     """
+#
+#     def __init__(
+#             self,
+#             height: int,
+#             width: int,
+#             min_edge_distance: int = 10,
+#             empty_probability: float = 0.0,
+#             always_apply: bool = False,
+#             p: float = 1.0,
+#     ):
+#         super().__init__(always_apply, p)
+#         self.height = height
+#         self.width = width
+#         self.min_edge_distance = min_edge_distance
+#         self.empty_probability = empty_probability
+#
+#         if self.min_edge_distance < 0:
+#             raise ValueError("min_edge_distance must be non-negative")
+#         if not 0.0 <= self.empty_probability <= 1.0:
+#             raise ValueError("empty_probability must be between 0.0 and 1.0")
+#
+#     def _get_valid_crop_range(
+#             self,
+#             keypoint_x: float,
+#             keypoint_y: float,
+#             image_height: int,
+#             image_width: int
+#     ) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+#         """
+#         Calculate the valid range for crop position to keep keypoint at min_edge_distance from edges.
+#
+#         Returns:
+#             Tuple of (x_range, y_range) where each range is (min, max) inclusive.
+#         """
+#         # For the keypoint to be at least min_edge_distance from left edge:
+#         # keypoint_x - crop_x >= min_edge_distance
+#         # crop_x <= keypoint_x - min_edge_distance
+#
+#         # For the keypoint to be at least min_edge_distance from right edge:
+#         # crop_x + width - keypoint_x >= min_edge_distance
+#         # crop_x <= keypoint_x - min_edge_distance
+#         # crop_x >= keypoint_x - width + min_edge_distance
+#
+#         crop_x_min = max(0, int(keypoint_x - self.width + self.min_edge_distance))
+#         crop_x_max = min(image_width - self.width, int(keypoint_x - self.min_edge_distance))
+#
+#         crop_y_min = max(0, int(keypoint_y - self.height + self.min_edge_distance))
+#         crop_y_max = min(image_height - self.height, int(keypoint_y - self.min_edge_distance))
+#
+#         return (crop_x_min, crop_x_max), (crop_y_min, crop_y_max)
+#
+#     def _get_random_crop_with_empty(
+#             self,
+#             image_height: int,
+#             image_width: int
+#     ) -> Tuple[int, int]:
+#         """Get a random crop position without considering keypoints."""
+#         max_crop_x = image_width - self.width
+#         max_crop_y = image_height - self.height
+#
+#         crop_x = random.randint(0, max_crop_x)
+#         crop_y = random.randint(0, max_crop_y)
+#
+#         return crop_x, crop_y
+#
+#     def _get_crop_with_keypoint(
+#             self,
+#             keypoint_coords: List[Tuple[float, float]],
+#             image_height: int,
+#             image_width: int
+#     ) -> Tuple[int, int]:
+#         """Get a crop position that includes a random keypoint with min edge distance."""
+#         # Select a random keypoint
+#         target_x, target_y = random.choice(keypoint_coords)
+#
+#         # Get valid crop ranges
+#         (x_min, x_max), (y_min, y_max) = self._get_valid_crop_range(
+#             target_x, target_y, image_height, image_width
+#         )
+#
+#         # Check if valid crop is possible
+#         if x_min > x_max or y_min > y_max:
+#             # Keypoint is too close to image edge, fall back to centering on keypoint
+#             crop_x = int(target_x - self.width // 2)
+#             crop_y = int(target_y - self.height // 2)
+#
+#             # Clamp to image bounds
+#             crop_x = max(0, min(crop_x, image_width - self.width))
+#             crop_y = max(0, min(crop_y, image_height - self.height))
+#         else:
+#             # Random position within valid range
+#             crop_x = random.randint(x_min, x_max)
+#             crop_y = random.randint(y_min, y_max)
+#
+#         return crop_x, crop_y
+#
+#     def apply(self, img: np.ndarray, crop_x: int = 0, crop_y: int = 0, **params) -> np.ndarray:
+#         """Apply the crop to the image."""
+#         return img[crop_y:crop_y + self.height, crop_x:crop_x + self.width]
+#
+#     def apply_to_keypoint(
+#             self,
+#             keypoint: Tuple[float, float, float, float],
+#             crop_x: int = 0,
+#             crop_y: int = 0,
+#             **params
+#     ) -> Tuple[float, float, float, float]:
+#         """Apply the crop to keypoints."""
+#         x, y, angle, scale = keypoint
+#
+#         # Adjust keypoint coordinates relative to the crop
+#         x_new = x - crop_x
+#         y_new = y - crop_y
+#
+#         return x_new, y_new, angle, scale
+#
+#     def get_params_dependent_on_targets(self, params: Dict) -> Dict:
+#         """Generate parameters for the transformation."""
+#         img = params['image']
+#         keypoints = params.get('keypoints', [])
+#         image_height, image_width = img.shape[:2]
+#
+#         # Validate crop size
+#         if self.height > image_height or self.width > image_width:
+#             raise ValueError(
+#                 f"Crop size ({self.width}x{self.height}) is larger than "
+#                 f"image size ({image_width}x{image_height})"
+#             )
+#
+#         # Check if crop size allows for min_edge_distance
+#         if self.height <= 2 * self.min_edge_distance or self.width <= 2 * self.min_edge_distance:
+#             raise ValueError(
+#                 f"Crop size ({self.width}x{self.height}) is too small for "
+#                 f"min_edge_distance={self.min_edge_distance}. "
+#                 f"Minimum crop size should be {2 * self.min_edge_distance}x{2 * self.min_edge_distance}"
+#             )
+#
+#         # Extract x,y coordinates from keypoints
+#         keypoint_coords = [(kp[0], kp[1]) for kp in keypoints]
+#
+#         # Decide whether to create empty crop or crop with keypoint
+#         create_empty_crop = random.random() < self.empty_probability
+#
+#         if not keypoint_coords or create_empty_crop:
+#             # No keypoints or intentionally empty crop
+#             crop_x, crop_y = self._get_random_crop_with_empty(image_height, image_width)
+#         else:
+#             # Crop with keypoint at min distance from edges
+#             crop_x, crop_y = self._get_crop_with_keypoint(
+#                 keypoint_coords, image_height, image_width
+#             )
+#
+#         return {'crop_x': crop_x, 'crop_y': crop_y}
+#
+#     @property
+#     def targets_as_params(self) -> List[str]:
+#         return ['image', 'keypoints']
+#
+#     def get_transform_init_args_names(self) -> Tuple[str, ...]:
+#         return ('height', 'width', 'min_edge_distance', 'empty_probability')
 
 
 
@@ -712,3 +1014,8 @@ class PasspartoutAugmentation(DualTransform):
 #
 #     def get_transform_init_args_names(self) -> Tuple[str, ...]:
 #         return ('height', 'width', 'attempts')
+
+
+
+if __name__ == "__main__":
+    pass

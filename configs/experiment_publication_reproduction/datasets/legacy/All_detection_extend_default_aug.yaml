@@ -15,25 +15,25 @@ class_def:
   6: 'Elephant'
   7: '-'
 
-train:
-  name: 'CSVDataset'
-
-  csv_file: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/All_detection_extend/train/herdnet_format_512_320_crops.csv"
-  root_dir: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/All_detection_extend/train/crops_512_numNone_overlap320"
-
-
-  sampler: null
-  augmentation_multiplier: 1
-
-
-
-  albu_transforms:
-    HorizontalFlip:
-      p: 0.5
-    MotionBlur:
-      p: 0.5
-    Normalize:
-      p: 1.0
+#train:
+#  name: 'CSVDataset'
+#
+#  csv_file: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/All_detection_extend/train/herdnet_format_512_320_crops.csv"
+#  root_dir: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/All_detection_extend/train/crops_512_numNone_overlap320"
+#
+#
+#  sampler: null
+#  augmentation_multiplier: 1
+#
+#
+#
+#  albu_transforms:
+#    HorizontalFlip:
+#      p: 0.5
+#    MotionBlur:
+#      p: 0.5
+#    Normalize:
+#      p: 1.0
 
 
 
@@ -54,6 +54,23 @@ validate:
 
   csv_file: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/Fernandina_fwk/val/herdnet_format_512_0_crops.csv"
   root_dir: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/Fernandina_fwk/val/crops_512_numNone_overlap0"
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+
+
+test:
+
+  name: 'CSVDataset'
+
+  csv_file: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/Fernandina_fwk/val/herdnet_format.csv"
+  root_dir: "/home/cwinkelmann/work/Herdnet/data/2025_10_11/Fernandina_fwk/val/Default"
 
   albu_transforms:
     Normalize:

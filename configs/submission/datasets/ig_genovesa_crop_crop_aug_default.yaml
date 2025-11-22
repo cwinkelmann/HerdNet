@@ -2,12 +2,12 @@
 
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
-num_classes: 2 # One class more for the background
+num_classes: 3 # One class more for the background
 collate_fn: null
 
 class_def:
   1: 'iguana_point'
-#  2: 'b'
+  2: 'hard_negative'
 #  3: 'c'
 #  4: 'd'
 #  5: 'e'

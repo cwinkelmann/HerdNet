@@ -1,0 +1,30 @@
+wandb_notes: |
+  Testing if the hyperparameters lead to better numbers, here with the optmized augmentations
+  
+
+defaults:
+  - /losses: herdnet_iguana
+  - /datasets: fernandina_s_default_crop_train_corrected_crop_val_corrected_aug_def
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x20_default'
+wandb_entity: 'karisu'
+wandb_run: 'x20_fernandia_default'
+wandb_tags: []
+seed: 1
+device_name: null
+
+
+
+#model:
+##     dla34 dr2
+#    load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-20/15-54-34/best_model.pth # https://wandb.ai/karisu/herdnet_iguana_cvat_corr/runs/foygf9rd/logs
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

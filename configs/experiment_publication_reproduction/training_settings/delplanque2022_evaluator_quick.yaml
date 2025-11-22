@@ -1,4 +1,4 @@
-# Training settings without visualisation
+# Training settings without visualisation or stitching
 
 trainer: 'Trainer'
 epochs: 100
@@ -7,7 +7,7 @@ print_freq: 525
 batch_size: 4
 # optimizer: 'SGD'
 optimizer: 'adam'
-lr: 1.0e-03
+lr: 1.0e-05
 weight_decay: 0.005
 num_workers: 2
 auto_lr:

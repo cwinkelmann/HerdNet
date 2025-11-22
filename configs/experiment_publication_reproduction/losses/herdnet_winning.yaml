@@ -1,33 +1,33 @@
-
-FocalLoss:
-  print_name: 'focal_loss'
-  from_torch: False
-  output_idx: 0
-  target_idx: 0
-  lambda_const: 1.0
-  kwargs:
-    alpha: 4
-    beta: 1
-    reduction: 'mean'
-    normalize: False
-
-CrossEntropyLoss:
-  print_name: 'ce_loss'
-  from_torch: True
-  output_idx: 1
-  target_idx: 1
-  lambda_const: 1.0
-  background_class_weight: 20.0
-  kwargs:
-    reduction: 'mean'
-    weight:
-      - ${losses.CrossEntropyLoss.background_class_weight}
-      - 5.0 # class 1
-      - 15.0 # class 2
-      - 0.1 # class 3
-      - 0.1 # class 4
-      - 0.1 # class 5
-      - 0.1 # class 6
-      - 1.0 # class 7
-     # One weight for each class including the background
-    #weight: [0.9, 0.001, 1.0] # From the notebook
+#
+#FocalLoss:
+#  print_name: 'focal_loss'
+#  from_torch: False
+#  output_idx: 0
+#  target_idx: 0
+#  lambda_const: 1.0
+#  kwargs:
+#    alpha: 4
+#    beta: 1
+#    reduction: 'mean'
+#    normalize: False
+#
+#CrossEntropyLoss:
+#  print_name: 'ce_loss'
+#  from_torch: True
+#  output_idx: 1
+#  target_idx: 1
+#  lambda_const: 1.0
+#  background_class_weight: 0.1
+#  kwargs:
+#    reduction: 'mean'
+#    weight:
+#      - ${losses.CrossEntropyLoss.background_class_weight}
+#      - 5.0 # class 1
+#      - 15.0 # class 2
+#      - 0.1 # class 3
+#      - 0.1 # class 4
+#      - 0.1 # class 5
+#      - 0.1 # class 6
+#      - 1.0 # class 7
+#     # One weight for each class including the background
+#    #weight: [0.9, 0.001, 1.0] # From the notebook

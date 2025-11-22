@@ -19,11 +19,10 @@ device_name: null
 
 
 # overrides
-# overrides
-training_settings:
-  lr: 1.0e-03
-  epochs: 75
-  batch_size: 5
+#training_settings:
+#  lr: 1.0e-03
+#  epochs: 75
+#  batch_size: 5
 #model:
 ##     dla34 dr2
 #    load_from: /raid/cwinkelmann/herdnet/outputs/2025-10-06/20-54-02/best_model.pth # https://wandb.ai/karisu/herdnet_iguana_cvat_corr/runs/foygf9rd/logs

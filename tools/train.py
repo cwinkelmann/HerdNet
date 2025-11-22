@@ -253,7 +253,7 @@ def main(cfg: DictConfig) -> Path:
         model = load_model(model, cfg.model.load_from, device=device)
 
         if 'HerdNet' in cfg.model.name:
-            if cfg.model.freeze is not None:
+            if cfg.model.freeze is not None and cfg.model.freeze > 0:
                 model.model.freeze(layers=list(cfg.model.freeze))
                 logger.info(f"Layers {list(cfg.model.freeze)} freezed")
 

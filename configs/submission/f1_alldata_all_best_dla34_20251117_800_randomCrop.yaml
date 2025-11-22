@@ -1,0 +1,46 @@
+wandb_notes: |
+  Hopefully the last training I need to do which combines the best annotations, training settings etc
+
+defaults:
+  - /losses: herdnet_iguana_20251117
+  - /datasets: iguana_20251117_opti_all_vs_fwk_800_randomCrop
+  - /training_settings: delplanque2022_evaluator_stitcher_20251117
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'f1_alldata_all_best_DINO'
+wandb_entity: 'karisu'
+wandb_run: 'f1_alldata_all_best_dla34_20251117_800_randomCrop'
+wandb_tags: ["dla34"]
+seed: 1
+device_name: null
+
+
+#
+model:
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-11-13/18-24-40/best_model.pth
+  # #  kwargs:
+  ##    alpha: 4
+  ##    beta: 1
+  kwargs:
+    down_ratio: 4
+
+training_settings:
+  lr: 1.0e-04
+
+losses:
+  FocalLoss:
+    print_name: 'focal_loss'
+    from_torch: False
+    output_idx: 0
+    target_idx: 0
+    lambda_const: 1.0
+    kwargs:
+      alpha: 4  # Changed from 2
+      beta: 1   # Changed from 4
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
