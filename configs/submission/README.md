@@ -38,8 +38,26 @@ PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="x10_hyp_infe
 # Genovesa
 PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_genovesa_dla34_all_default" --config-path="../configs/submission/"  > /dev/null 2>&1 &
 
+
+```
+### optimized parameters performance of on islands
+
+```shell
+#  Fernandina
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_best_dla34" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
+
+# Floreana 
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_floreana_all_best_dla34" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
+
+## Genovesa
+#PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_genovesa_dla34_all_default" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
 ```
 
+
+```
 
 ### Training Data Curve
 

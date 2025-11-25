@@ -17,6 +17,9 @@ wandb_tags: []
 seed: 1
 device_name: null
 
+training_settings:
+  lr: 0.001
+
 
 
 #model:

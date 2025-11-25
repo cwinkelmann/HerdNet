@@ -17,8 +17,9 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_11_12/All_detection_extend/train/herdnet_format.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_11_12/All_detection_extend/train/Default'
+
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_s_detection/train/herdnet_format_800_160_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_s_detection/train/crops_800_numNone_overlap160'
 
 
   sampler: null
@@ -119,16 +120,11 @@ train:
       compression_type: 1  # 0 for PNG, 1 for JPEG
       p: 0.10
 
-    CenterCrop:
-      height: 512
-      width: 512
-      p: 1.00
-
-
     ObjectAwareRandomCropEdgeBlackout:
       height: 512
       width: 512
       p: 1.0
+
     Normalize:
       p: 1.0
   end_transforms:
@@ -146,8 +142,8 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_fwk/val/herdnet_format_512_0_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_fwk/val/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_s_detection/val/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_s_detection/val/crops_512_numNone_overlap0'
 
   albu_transforms:
 #    ObjectAwareRandomCropEdgeBlackout:
