@@ -4,10 +4,10 @@ channels:
 dependencies:
   - python=3.11
   - pip
-  - gdal
-  - numpy
-  - scipy
-  - pandas
+  - gdal=3.10.2
+  - numpy=2.2.6
+  - scipy=1.16.0
+  - pandas=2.3.1
 
   - pip:
       - timm==1.0.19
@@ -24,7 +24,7 @@ dependencies:
 
       #- matplotlib
       # - torchvision==0.20.1
-      - tqdm
-      - loguru
+      - tqdm==4.67.1
+      - loguru==0.7.3
       #- shapely==2.1.1
       - seaborn==0.13.2

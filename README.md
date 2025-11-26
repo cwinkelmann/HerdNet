@@ -1,3 +1,6 @@
+# Fork of the HerdNet Code
+See https://github.com/Alexandre-Delplanque/HerdNet for the original code
+
 # HerdNet 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb)
 
@@ -52,9 +55,11 @@ conda activate herdnet
 conda env update --file environment.yml --prune
 ```
 
-```shell
-pip install -r requirements.txt
+### install development dependencies
 
+```shell
+#pip install -r requirements.txt
+pip install pytest pytest-cov flake8
 ```
 
 Install the code
