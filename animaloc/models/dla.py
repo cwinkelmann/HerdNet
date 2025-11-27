@@ -31,8 +31,8 @@ import numpy as np
 
 BatchNorm = nn.BatchNorm2d
 
-def get_model_url(data='imagenet', name='dla34', hash='ba72cf86'):
-    return join('http://dl.yf.io/dla/models', data, '{}-{}.pth'.format(name, hash))
+def get_model_url(data='imagenet', name='dla-34', hash='ba72cf86'):
+    return f"https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/dla-34/{name}-{hash}.pth"
 
 
 def conv3x3(in_planes, out_planes, stride=1):

@@ -1,0 +1,37 @@
+# relative extreme Focal loss of alpha 4 and beta 1
+# additional very high background_class_weight of 20 for the cross entropy loss
+
+
+FocalLoss:
+  print_name: 'focal_loss'
+  from_torch: False
+  output_idx: 0
+  target_idx: 0
+  lambda_const: 1.0
+  kwargs:
+    alpha: 4
+    beta: 1
+    reduction: 'mean'
+    normalize: False
+
+CrossEntropyLoss:
+  print_name: 'ce_loss'
+  from_torch: True
+  output_idx: 1
+  target_idx: 1
+  lambda_const: 1.0
+  background_class_weight: 0.1
+  iguana_class_weight: 1
+  kwargs:
+    reduction: 'mean'
+    weight:
+      - ${losses.CrossEntropyLoss.background_class_weight} # background
+      - ${losses.CrossEntropyLoss.iguana_class_weight} # iguana
+      - 0.15 # hard negative
+#      - 0.248 # Kob
+#      - 0.045 # Warthog
+#      - 0.02 # Waterbuck
+#      - 0.28 # Elephant
+#      - 0.28 # Elephant
+     # One weight for each class including the background
+    #weight: [0.9, 0.001, 1.0] # From the notebook

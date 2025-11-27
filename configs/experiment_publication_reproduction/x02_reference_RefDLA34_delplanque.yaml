@@ -1,0 +1,26 @@
+wandb_notes: |
+  reference DLA34 model on delplanque dataset
+  
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: delplanque2022_overlap160
+  - /training_settings: delplanque2022_evaluator_quick
+  - /model: Herdnet34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x02_referenee'
+wandb_entity: 'karisu'
+wandb_run: 'x02_reference_RefDLA34_delplanque'
+wandb_tags: ['dla']
+seed: 1
+device_name: null
+
+training_settings:
+  batch_size: 64
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

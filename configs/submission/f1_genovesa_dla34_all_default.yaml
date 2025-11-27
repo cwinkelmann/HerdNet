@@ -1,0 +1,30 @@
+wandb_notes: |
+  fine tune on genovesa dataset with timm DLA34 model
+
+defaults:
+  - /losses: herdnet_iguana
+  - /datasets: ig_genovesa_crop_crop_aug_default
+  - /training_settings: delplanque2022_evaluator_stitcher
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x20_default'
+wandb_entity: 'karisu'
+wandb_run: 'x20_genovesa_default'
+wandb_tags: ['dla', 'dla_34', 'aug_opt', "genovesa", "eval_crop", "train_crop", "corrected"]
+seed: 1
+device_name: null
+
+
+training_settings:
+  epochs: 100
+
+
+
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

@@ -16,8 +16,11 @@ __version__ = "0.2.1"
 
 import math
 import copy
+
+import numpy as np
 import sklearn.neighbors
 import numpy
+from loguru import logger
 
 from sklearn.metrics import confusion_matrix
 from itertools import tee
@@ -66,6 +69,7 @@ class Metrics:
         self.num_classes = num_classes
 
         self.detections = []
+        self.predictions = []
         self.idx = 0
 
         self.tp = self._init_attr()
@@ -74,9 +78,11 @@ class Metrics:
     
         self._sum_absolute_error = self._init_attr()
         self._sum_squared_error = self._init_attr()
+        self._sum_error = self._init_attr()
         self._n_calls = self._init_attr()
         self._agg_sum_absolute_error = 0
         self._agg_sum_squared_error = 0
+        self._agg_sum_error = 0
         self._total_calls = 0
         self._total_count = self._init_attr()
 
@@ -86,7 +92,8 @@ class Metrics:
         self._confusion_matrix = self.confusion_matrix
 
     def feed(self, gt: dict, preds: dict, est_count: Optional[list] = None) -> None:
-        ''' Feed the object with ground truth and predictions and returns
+        '''
+        Feed the object with ground truth and predictions and returns
         specified metrics optionally.
 
         Args:
@@ -167,7 +174,7 @@ class Metrics:
 
         self._ap_tables = self._init_attr(val=[])
 
-        self.confusion_matrix = numpy.zeros((self.num_classes-1,self.num_classes-1))
+        self.confusion_matrix = numpy.zeros((self.num_classes-1, self.num_classes-1))
         self._confusion_matrix = self.confusion_matrix
     
     def aggregate(self) -> None:
@@ -188,6 +195,7 @@ class Metrics:
         self._ap_tables = [[[1,*x[1:]] for x in sum(self._ap_tables, [])]]
         self._confusion_matrix = numpy.array([[1.]])
         self._total_count = [sum(self._total_count)]
+        # self.predictions =
 
     def precision(self, c: int = 1) -> float:
         ''' Precision 
@@ -260,6 +268,18 @@ class Metrics:
         '''
         c = c - 1
         return float(self._sum_squared_error[c] / self._n_calls[c]) \
+            if self._n_calls[c] else 0.
+
+    def me(self, c: int = 1) -> float:
+        ''' Mean Error
+        Args:
+            c (int, optional): class id. Defaults to 1.
+
+        Returns:
+            float
+        '''
+        c = c - 1
+        return float(self._sum_error[c] / self._n_calls[c]) \
             if self._n_calls[c] else 0.
     
     def rmse(self, c: int = 1) -> float:
@@ -343,7 +363,28 @@ class Metrics:
             return tp / N
         else:
             return 0.
-    
+
+    def avg_score(self) -> float:
+        ''' Average score of predictions
+
+        Returns:
+            float
+        '''
+        if len(self.detections) > 0:
+            return float(np.mean([det.get("scores", 0) for det in self.detections]))
+        else:
+            return 0.0
+
+    def avg_dscore(self) -> float:
+        ''' Average detection score of predictions
+
+        Returns:
+            float
+        '''
+        if len(self.detections) > 0:
+            return float(np.mean([det.get("dscores", 0) for det in self.detections]))
+        else:
+            return 0.0
     def total_count(self, c: int = 1) -> float:
         ''' Total class count
         Args: 
@@ -370,14 +411,19 @@ class Metrics:
         for i, (count, est) in enumerate(zip(gt_count, est_count)):
             error = abs(count - est)
             squared_error = error**2
+            signed_error = est - count
 
             self._sum_absolute_error[i] += error
             self._sum_squared_error[i] += squared_error
+            self._sum_error[i] += signed_error
         
         agg_error = abs(sum(gt_count) - sum(est_count))
         agg_squared_error = agg_error**2
+        agg_signed_error = sum(est_count) - sum(gt_count)
+
         self._agg_sum_absolute_error += agg_error
         self._agg_sum_squared_error += agg_squared_error
+        self._agg_sum_error += agg_signed_error
     
     def _no_gt(self, gt: dict, preds: dict) -> None:
 
@@ -466,7 +512,12 @@ class PointsMetrics(Metrics):
         super().__init__(threshold=radius, num_classes=num_classes)
     
     def matching(self, gt: dict, preds: dict) -> None:
-        
+        """
+        Matching ground truth and predictions to determine true positives, false positives
+        """
+        assert gt.keys() == {'loc', 'labels'}
+        assert preds.keys() ==  {'loc', 'labels', 'scores', 'dscores'}
+
         # matching
         dist = sklearn.neighbors.NearestNeighbors(n_neighbors=1, metric='euclidean').fit(preds['loc'])
         dist, idx = dist.kneighbors(gt['loc'])
@@ -481,9 +532,13 @@ class PointsMetrics(Metrics):
             if k not in k_discard and i not in i_discard:
                 filter_match_gt.append((k,d,i))
                 k_discard.append(k), i_discard.append(i)
+
         # threshold
         filter_match_gt = [(k, d, i) for k, d, i in filter_match_gt if d <= self.threshold]
 
+        if len(filter_match_gt) == 0:
+            # logger.error(f'NO Prediction is matched to any Ground Truth: filter_match_gt: {filter_match_gt}')
+            pass
         # confusion matrix
         y_true = [gt['labels'][k] for k, d, i in filter_match_gt]
         y_pred = [preds['labels'][i] for k, d, i in filter_match_gt]
@@ -533,6 +588,8 @@ class PointsMetrics(Metrics):
                 self.detections.append({'images': self.idx, **det, **counts})
         else:
             self.detections.append({'images': self.idx, **counts})
+
+
 
 @METRICS.register()
 class BoxesMetrics(Metrics):

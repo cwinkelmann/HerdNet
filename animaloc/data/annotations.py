@@ -93,7 +93,7 @@ class Annotations:
     def __init__(
         self, 
         images: Union[str, List[str]], 
-        annos: List[Union[Point, BoundingBox]], 
+        annos: List[Union[Point, BoundingBox]],
         labels: List[int], 
         **kwargs
         ) -> None:
@@ -250,7 +250,7 @@ class AnnotationsFromCSV(Annotations):
     In such a case, these will be kept and linked to the necessary basic content.
     '''
 
-    def __init__(self, csv: Union[str,pandas.DataFrame]) -> None:
+    def __init__(self, csv: Union[str, pandas.DataFrame]) -> None:
         '''
         Args:
             csv (str or pandas.DataFrame): absolute path to the CSV file (with extension),
@@ -265,7 +265,8 @@ class AnnotationsFromCSV(Annotations):
         if isinstance(csv, str):
             data_df = pandas.read_csv(csv)
 
-        assert {'images','labels'}.issubset(data_df.columns), \
+        # FIXME should it be species or labels???
+        assert {'images', 'labels'}.issubset(data_df.columns), \
             'File must contain at least images and labels columns name'
         
         images = list(data_df['images'])

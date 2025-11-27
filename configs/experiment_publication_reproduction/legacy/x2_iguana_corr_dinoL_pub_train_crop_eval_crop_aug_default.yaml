@@ -1,0 +1,34 @@
+wandb_notes: |
+  "train on random crops of floreana, evaluate on crops floreana images trained with dinov2_large"
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: floreana_crop_train_corrected_crop_val_corrected_aug_default
+  - /training_settings: delplanque2022_evaluator
+  - /model: Dinov2_large
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_iguana'
+wandb_entity: 'karisu'
+wandb_run: 'x2_iguana_corr_dinoL_pub_train_crop_eval_crop_aug_default'
+wandb_tags: ['floreana','dinov2', 'Dinov2_large', 'default_setting', "exp1", "eval_crop", "train_full", "corrected"]
+seed: 1
+device_name: null
+
+#model:
+  #load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-12/10-40-54/best_loss_model.pth # dla34 dr2 - https://wandb.ai/karisu/herdnet_aed/runs/70nu9hbg/logs
+#  kwargs:
+#    down_ratio: 4
+training_settings:
+  batch_size: 10
+  lr: 0.00001
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        scale_factor: 8 # # dr=2 -> scale_factor 16, dr=4 -> 8, dr=8 -> 4, dr=16 -> 2 in the non patching case
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

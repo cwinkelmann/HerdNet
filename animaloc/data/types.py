@@ -22,7 +22,7 @@ class Point:
     coordinate system.
     '''
 
-    def __init__(self, x: Union[int,float], y: Union[int,float]) -> None:
+    def __init__(self, x: Union[int, float], y: Union[int, float]) -> None:
         '''
         Args:
             x (int, float): x coordinate

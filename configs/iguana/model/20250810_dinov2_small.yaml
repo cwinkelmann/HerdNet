@@ -1,0 +1,29 @@
+# one of the best models trained from scratch: recall 0.95, precision 0.8 f5 0.95 on 512px crops
+# https://wandb.ai/karisu/herdnet/runs/ht9lvaz4/overview
+# name: 'HerdNetTimm'
+name: 'HerdNetDINOv2'
+
+# work_dir: "./outputs/"
+from_torchvision: False
+load_from: null
+# load_from: '/raid/cwinkelmann/herdnet/outputs/2025-08-01/09-28-39/best_model.pth'
+# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-10/09-12-38/best_model.pth" # https://wandb.ai/karisu/herdnet/runs/h6vo5nmp/overview
+# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-10/09-28-39/best_model.pth" # https://wandb.ai/karisu/herdnet/runs/h6vo5nmp/logs
+# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-10/21-22-29/best_model.pth" # https://wandb.ai/karisu/herdnet/runs/9ijextab/logs
+
+resume_from: null
+kwargs:
+  # backbone: 'timm/vit_large_patch14_dinov2.lvd142m'
+#  backbone: 'timm/vit_base_patch14_dinov2.lvd142m'
+  backbone: 'timm/vit_small_patch14_dinov2.lvd142m'
+  # backbone: timm/vit_giant_patch14_dinov2.lvd142m # 'https://huggingface.co/timm/vit_giant_patch14_dinov2.lvd142m' # more than one billion parameters
+  pretrained: True
+  # pretrained_path: '/home/cwinkelmann/work/Herdnet/data/models/dla34_224/model_best.pth.tar'
+  pretrained_path: null
+  down_ratio: 4  # was two before
+  head_conv: 64 # was 64
+#  output_channels: [256, 512, 768, 1024, 1280]
+#  attention_layers: [-16, -12, -8, -6, -4, -3, -2, -1]
+
+freeze: False # Freeze the model, if you want to train only the heads
+freeze_backbone: False # Freeze the backbone, if you want to train only the heads

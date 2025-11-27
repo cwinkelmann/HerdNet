@@ -1,0 +1,11 @@
+# Experiment configuration file for the newest benchmark
+
+defaults:
+  - train: herdnet_iguana_segments_2025_02_26_local
+  - test: herdnet_2025_02_25_segments
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

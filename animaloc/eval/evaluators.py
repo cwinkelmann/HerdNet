@@ -13,13 +13,16 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
+import pandas as pd
 import torch
 import pandas
 import os
 import numpy
 import wandb
 import matplotlib
+from matplotlib import pyplot as plt
+
+from animaloc.vizual import Visualiser
 
 matplotlib.use('Agg')
 
@@ -34,7 +37,7 @@ from .metrics import Metrics
 from .lmds import HerdNetLMDS
 
 from ..utils.registry import Registry
-
+from loguru import logger as loguru_logger
 EVALUATORS = Registry('evaluators', module_key='animaloc.eval.evaluators')
 
 __all__ = ['EVALUATORS', *EVALUATORS.registry_names]
@@ -51,7 +54,7 @@ class Evaluator:
         device_name: str = 'cuda', 
         print_freq: int = 10,
         stitcher: Optional[Stitcher] = None,
-        vizual_fn: Optional[Callable] = None,
+        vizual_fn: Optional[Visualiser] = None,
         work_dir: Optional[str] = None,
         header: Optional[str] = None
         ):
@@ -105,7 +108,7 @@ class Evaluator:
         self.print_freq = print_freq
         self.stitcher = stitcher
         self.vizual_fn = vizual_fn
-        
+        self.current_epoch = None
         self.work_dir = work_dir
         if self.work_dir is None:
             self.work_dir = os.getcwd()
@@ -158,12 +161,12 @@ class Evaluator:
     
     @torch.no_grad()
     def evaluate(self, returns: str = 'recall', wandb_flag: bool = False, viz: bool = False,
-        log_meters: bool = True) -> float:
+        log_meters: bool = True, dont_finish=False) -> float:
         ''' Evaluate the model
         
         Args:
             returns (str, optional): metric to be returned. Possible values are:
-                'recall', 'precision', 'f1_score', 'mse', 'mae', 'rmse', 'accuracy'
+                'recall', 'precision', 'f1_score', 'f2_score' 'mse', 'mae', 'rmse', 'accuracy'
                 and 'mAP'. Defauts to 'recall'
             wandb_flag (bool, optional): set to True to log on Weight & Biases. 
                 Defaults to False.
@@ -184,48 +187,83 @@ class Evaluator:
         iter_metrics = self.metrics.copy()
 
         for i, (images, targets) in enumerate(logger.log_every(self.dataloader, self.print_freq, self.header)):
-
+            # loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
-
+            if len(images) > 1:
+                loguru_logger.warning(f"A batch size larger than 1 is not supported, got {len(images)} images in the batch.")
+            
+            # TODO if the image is just 512px the stitcher should not be used but is anyway
             if self.stitcher is not None:
-                output = self.stitcher(images[0])
-                output = self.post_stitcher(output)
+                model_output = self.stitcher(images[0]) # remove batch dimension
+                model_output = self.post_stitcher(model_output)
             else:
                 # output, _ = self.model(images, targets)  
-                output, _ = self.model(images)
+                model_output, _ = self.model(images)
+
+
+
+
+
+            # the model output is a list of 2 tensors, one heatmap one class map
+            output_prediction = self.prepare_feeding(targets, model_output)
 
             if viz and self.vizual_fn is not None:
                 if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
-                    fig = self._vizual(image = images, target = targets, output = output)
-                    wandb.log({'validation_vizuals': fig})
+                    fig = self._vizual(image = images,
+                                       target = targets,
+                                       output = model_output, visualise_predictions = pd.DataFrame(output_prediction["preds"]))
 
-            output = self.prepare_feeding(targets, output)
-
-            iter_metrics.feed(**output)
+            # for each image feed outputs and aggregate metrics, should look like
+            """
+            {'est_count': [7, 0, 0, 0, 0, 0, 0], 
+            'gt': {'labels': [1], 
+            'loc': [[1596.0, 1747.0]]}, 
+            'preds': {'dscores': [0.19435586035251617, 0.27331411838531494, 0.18535958230495453, 0.23847505450248718, 0.30953675508499146, 0.2966581881046295, 0.31906700134277344], 
+            'labels': [1, 1, 1, 1, 1, 1, 1], 
+            'loc': [[9.0, 1181.0], [174.0, 187.0], [182.0, 1025.0], [423.0, 1246.0], [581.0, 840.0], [1007.0, 54.0], [1593.0, 1744.0]], 
+            'scores': [0.8123772740364075, 0.970843493938446, 0.9492995738983154, 0.9641066193580627, 0.9905760288238525, 0.9475813508033752, 0.9999991655349731]}}
+            """
+            iter_metrics.feed(**output_prediction)
             iter_metrics.aggregate()
             if log_meters:
-                logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn))
-                logger.add_meter('recall', round(iter_metrics.recall(),2))
-                logger.add_meter('precision', round(iter_metrics.precision(),2))
-                logger.add_meter('f1-score', round(iter_metrics.fbeta_score(),2))
-                logger.add_meter('MAE', round(iter_metrics.mae(),2))
-                logger.add_meter('MSE', round(iter_metrics.mse(),2))
-                logger.add_meter('RMSE', round(iter_metrics.rmse(),2))
+                logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp))
+                logger.add_meter('tp', sum(iter_metrics.tp))
+                logger.add_meter('fp', sum(iter_metrics.fp))
+                logger.add_meter('fn', sum(iter_metrics.fn))
+                logger.add_meter('recall', round(iter_metrics.recall(), 2))
+                logger.add_meter('precision', round(iter_metrics.precision(), 2))
+                logger.add_meter('f1_score', round(iter_metrics.fbeta_score(), 2))
+                logger.add_meter('f2_score', round(iter_metrics.fbeta_score(beta=2), 2))
+                logger.add_meter('f5_score', round(iter_metrics.fbeta_score(beta=5), 2))
+                logger.add_meter('MAE', round(iter_metrics.mae(), 2))
+                logger.add_meter('ME', round(iter_metrics.me(), 2))
+                logger.add_meter('MSE', round(iter_metrics.mse(), 2))
+                logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
+                logger.add_meter('avg_score', round(iter_metrics.avg_score(), 2))
+                logger.add_meter('avg_dscore', round(iter_metrics.avg_dscore(), 3))
 
             if wandb_flag:
                 wandb.log({
-                    'n': sum(iter_metrics.tp) + sum(iter_metrics.fn),
+                    'n': sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp),
+                    'tp': sum(iter_metrics.tp),
+                    'fp': sum(iter_metrics.fp),
+                    'fn': sum(iter_metrics.fn),
                     'recall': iter_metrics.recall(),
                     'precision': iter_metrics.precision(),
                     'f1_score': iter_metrics.fbeta_score(),
+                    'f2_score': iter_metrics.fbeta_score(beta=2),
+                    'f5_score': iter_metrics.fbeta_score(beta=5),
                     'MAE': iter_metrics.mae(),
+                    'ME': iter_metrics.me(),
                     'MSE': iter_metrics.mse(),
-                    'RMSE': iter_metrics.rmse()
+                    'RMSE': iter_metrics.rmse(),
+                    'avg_score': iter_metrics.avg_score(),
+                    'avg_dscore': iter_metrics.avg_dscore(),
                     })
 
             iter_metrics.flush()
 
-            self.metrics.feed(**output)
+            self.metrics.feed(**output_prediction)
         
         self._stored_metrics = self.metrics.copy()
 
@@ -237,12 +275,28 @@ class Evaluator:
             wandb.run.summary['recall'] =  self.metrics.recall()
             wandb.run.summary['precision'] =  self.metrics.precision()
             wandb.run.summary['f1_score'] =  self.metrics.fbeta_score()
+            wandb.run.summary['f2_score'] =  self.metrics.fbeta_score(beta=2)
+            wandb.run.summary['f5_score'] =  self.metrics.fbeta_score(beta=5)
             wandb.run.summary['MAE'] =  self.metrics.mae()
+            wandb.run.summary['ME'] =  iter_metrics.me()
+
             wandb.run.summary['MSE'] =  self.metrics.mse()
             wandb.run.summary['RMSE'] =  self.metrics.rmse()
             wandb.run.summary['accuracy'] =  self.metrics.accuracy()
             wandb.run.summary['mAP'] =  mAP
-            wandb.run.finish()
+            wandb.run.summary['tp'] =  sum(self.metrics.tp)
+            wandb.run.summary['fn'] =  sum(self.metrics.fn)
+            wandb.run.summary['fp'] =  sum(self.metrics.fp)
+            wandb.run.summary['n'] =  sum(self.metrics.fp) +  sum(self.metrics.fn) + sum(self.metrics.tp)
+            wandb.run.summary['avg_score'] =  self.metrics.avg_score()
+            wandb.run.summary['avg_dscore'] =  self.metrics.avg_dscore()
+
+            print(f"Wandb summary: {wandb.run.summary}")
+
+            if dont_finish:
+                loguru_logger.info("wandb.run.finish() has been disabled")
+            else:
+                wandb.run.finish()
 
         if returns == 'recall':
             return self.metrics.recall()
@@ -250,16 +304,28 @@ class Evaluator:
             return self.metrics.precision()
         elif returns == 'f1_score':
             return self.metrics.fbeta_score()
+        elif returns == 'f2_score':
+            return self.metrics.fbeta_score(beta=2)
+        elif returns == 'f5_score':
+            return self.metrics.fbeta_score(beta=5)
         elif returns == 'mse':
             return self.metrics.mse()
+        elif returns == 'mse':
+            return self.metrics.me()
         elif returns == 'mae':
             return self.metrics.mae()
+        elif returns == 'me':
+            return self.metrics.me()
         elif returns == 'rmse':
             return self.metrics.rmse()
         elif returns == 'accuracy':
             return self.metrics.accuracy()
         elif returns == 'mAP':
             return mAP
+        else:
+            raise ValueError(f'Unknown return value: {returns}. Possible values are: '
+                             '\'recall\', \'precision\', \'f1_score\', \'f2_score\', '
+                             '\'f5_score\', \'mse\', \'mae\',\'me\', \'rmse\', \'accuracy\' and \'mAP\'.')
     
     @property
     def results(self) -> pandas.DataFrame:
@@ -281,6 +347,7 @@ class Evaluator:
                 'f1_score': metrics_cpy.fbeta_score(c),
                 'confusion': metrics_cpy.confusion(c), 
                 'mae': metrics_cpy.mae(c),
+                'me': metrics_cpy.me(c),
                 'mse': metrics_cpy.mse(c),
                 'rmse': metrics_cpy.rmse(c),
                 'ap': metrics_cpy.ap(c),
@@ -296,6 +363,7 @@ class Evaluator:
             'f1_score': metrics_cpy.fbeta_score(),
             'confusion': metrics_cpy.confusion(),
             'mae': metrics_cpy.mae(),
+            'me': metrics_cpy.me(),
             'mse': metrics_cpy.mse(),
             'rmse': metrics_cpy.rmse(),
             'ap': metrics_cpy.ap()
@@ -318,20 +386,37 @@ class Evaluator:
 
         return pandas.DataFrame(data = dets)
     
-    def _vizual(self, image: Any, target: Any, output: Any):
-        fig = self.vizual_fn(image=image, target=target, output=output)
-        return fig
+    def _vizual(self, image: Any, target: Any, output: Any, visualise_predictions: pd.DataFrame = None) -> None:
+        fig = self.vizual_fn(image=image,
+                             target=target,
+                             output=output,
+                             epoch=self.current_epoch, visualise_predictions=visualise_predictions)
+
+
 
 @EVALUATORS.register()
 class HerdNetEvaluator(Evaluator):
 
-    def __init__(self, model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, metrics: Metrics, 
-        lmds_kwargs: dict = {'kernel_size': (3,3)}, device_name: str = 'cuda', print_freq: int = 10, 
-        stitcher: Optional[Stitcher] = None, vizual_fn: Optional[Callable] = None, work_dir: Optional[str] = None, 
-        header: Optional[str] = None
+    def __init__(self, model: torch.nn.Module,
+                 dataloader: torch.utils.data.DataLoader,
+                 metrics: Metrics,
+                 lmds_kwargs: dict = {'kernel_size': (3, 3)},
+                 device_name: str = 'cuda',
+                 print_freq: int = 10,
+                 stitcher: Optional[Stitcher] = None,
+                 vizual_fn: Optional[Callable] = None,
+                 work_dir: Optional[str] = None,
+                 header: Optional[str] = None
         ) -> None:
-        super().__init__(model, dataloader, metrics, device_name=device_name, print_freq=print_freq, 
-            vizual_fn=vizual_fn, stitcher=stitcher, work_dir=work_dir, header=header)
+        super().__init__(model,
+                         dataloader,
+                         metrics,
+                         device_name=device_name,
+                         print_freq=print_freq,
+            vizual_fn=vizual_fn,
+                         stitcher=stitcher,
+                         work_dir=work_dir,
+                         header=header)
 
         self.lmds_kwargs = lmds_kwargs
 
@@ -357,7 +442,17 @@ class HerdNetEvaluator(Evaluator):
         if self.stitcher is not None:
             up = False
 
-        lmds = HerdNetLMDS(up=up, **self.lmds_kwargs)
+
+        # TODO I still don't understand why the up parameter is set differently depending on the stitcher
+        if "up" in self.lmds_kwargs.keys():
+            lmds = HerdNetLMDS(**self.lmds_kwargs)
+        elif self.stitcher is not None:
+            lmds = HerdNetLMDS(up=False, **self.lmds_kwargs)
+        else:
+            lmds = HerdNetLMDS(up=True, **self.lmds_kwargs)
+
+        #
+        # lmds = HerdNetLMDS(**self.lmds_kwargs)
         counts, locs, labels, scores, dscores = lmds(output)
         
         preds = dict(
@@ -416,7 +511,7 @@ class FasterRCNNEvaluator(Evaluator):
             labels = output['labels'].tolist(),
             scores = output['scores'].tolist()
             )
-        
+
         num_classes = self.metrics.num_classes - 1
         counts = [preds['labels'].count(i+1) for i in range(num_classes)]
 

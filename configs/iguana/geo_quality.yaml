@@ -1,0 +1,32 @@
+# Settings from From crowd to herd counting: How to precisely detect and count African mammals using aerial imagery and deep learning? paper, Deplanque2023
+
+defaults:
+  - /losses: iguana
+  - /datasets: geo_body_HQ
+  - /training_settings: delplanque2022_evaluator
+  - /model: dinov2_one_best
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_iguana_point_location_quality'
+wandb_entity: 'karisu'
+wandb_run: 'DinoV2_large_geo_body_HQ_publication_setting'
+wandb_tags: ['iguana', 'DinoV2', 'DinoV2 Large', 'timm','boxcenter', 'default_setting', "exp5"]
+seed: 1
+device_name: null
+
+# Override specific parameters from included configs
+model:
+    kwargs:
+        down_ratio: 4
+training_settings:
+    batch_size: 4
+    evaluator:
+      kwargs:
+        lmds_kwargs:
+          scale_factor: 8 # # dr=2 -> scale_factor 16, dr=4 -> 8, dr=8 -> 4, dr=16 -> 2 in the non patching case
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

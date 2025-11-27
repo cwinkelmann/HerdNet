@@ -13,12 +13,13 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
+import torch.nn.functional as F
 import PIL
 import numpy
 import torch
 import torchvision 
 import scipy
+
 
 from typing import Dict, Optional, Union, Tuple, List, Any
 
@@ -180,13 +181,13 @@ class DownSample:
 
         if isinstance(image, PIL.Image.Image):
             image = torchvision.transforms.ToTensor()(image)
-
+        # logger.warning(f'Down-sampling the annotations with a ratio of {self.down_ratio}, but kept the image at {image.size(2)}', )
         if self.anno_type == 'bbox':
             
             target['boxes'] = torch.div(target['boxes'], self.down_ratio, rounding_mode='floor')
 
         elif self.anno_type == 'point':
-            
+
             target['points'] = torch.div(target['points'], self.down_ratio, rounding_mode='floor')
         
         return image, target
@@ -357,6 +358,7 @@ class FIDT:
             image = torchvision.transforms.ToTensor()(image)
         
         self.img_height, self.img_width = image.size(1), image.size(2)
+
         if self.down_ratio is not None:
             self.img_height = self.img_height // self.down_ratio
             self.img_width = self.img_width // self.down_ratio
@@ -382,7 +384,14 @@ class FIDT:
         dist_map = torch.from_numpy(dist_map)
         dist_map = 1 / (torch.pow(dist_map, self.alpha * dist_map + self.beta) + self.c)
         dist_map = torch.where(dist_map < 0.01, 0., dist_map)
-
+        # # logger.warning(f"This is a hack to get DinoV2 going")
+        # dist_map_interpolated = F.interpolate(
+        #     dist_map.unsqueeze(0).unsqueeze(0),
+        #     size=(128, 128),
+        #     mode='bilinear',
+        #     align_corners=False
+        # ).squeeze(0).squeeze(0)
+        # return dist_map_interpolated
         return dist_map
     
     def _onehot(self, image: torch.Tensor, target: torch.Tensor):

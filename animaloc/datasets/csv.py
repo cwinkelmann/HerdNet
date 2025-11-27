@@ -13,12 +13,12 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
 import torch
 import os
 import PIL
 import numpy
 import albumentations
+from loguru import logger
 
 from torch.utils.data import Dataset
 
@@ -30,6 +30,7 @@ from ..data.annotations import AnnotationsFromCSV
 from ..data.transforms import SampleToTensor
 
 from ..data import transforms
+
 
 def dict_to_tensor(d: dict) -> Tuple[dict, dict]:
     tensor_params = {}
@@ -44,8 +45,9 @@ def dict_to_tensor(d: dict) -> Tuple[dict, dict]:
             tensor_params.update({k: v})
 
         types.update({k: type(v)})
-    
+
     return tensor_params, types
+
 
 def retrieve_num_type(num: torch.Tensor, type: type) -> Union[int, float]:
     assert isinstance(num, torch.Tensor)
@@ -57,43 +59,51 @@ def retrieve_num_type(num: torch.Tensor, type: type) -> Union[int, float]:
 
 @DATASETS.register()
 class CSVDataset(Dataset):
-    ''' Class to create a Dataset from a CSV file 
-    
-    This dataset is built on the basis of CSV files containing box coordinates, in 
-    [x_min, y_min, x_max, y_max] format, or point coordinates in [x,y] format.
+    ''' Class to create a Dataset from a CSV file
 
-    The type of annotations is automatically detected internally. The only condition 
-    is that the file contains at least the keys ['images', 'x_min', 'y_min', 'x_max', 
-    'y_max', 'labels'] for the boxes and, ['images', 'x', 'y', 'labels'] for the points. 
-    Any additional information (i.e. additional columns) will be associated and returned 
+    This dataset is built on the basis of CSV files containing box coordinates, in
+    [x_min, y_min, x_max, y_max] format, point coordinates in [x,y] format, or
+    segmentation mask paths.
+
+    The type of annotations is automatically detected internally. The conditions are:
+    - Boxes: ['images', 'x_min', 'y_min', 'x_max', 'y_max', 'labels']
+    - Points: ['images', 'x', 'y', 'labels']
+    - Masks: ['images', 'mask_path', 'labels'] or ['images', 'masks', 'labels']
+
+    Any additional information (i.e. additional columns) will be associated and returned
     by the dataset.
 
-    If no data augmentation is specified, the dataset returns the image in PIL format 
+    If no data augmentation is specified, the dataset returns the image in PIL format
     and the targets as lists. If transforms are specified, the conversion to torch.Tensor
     is done internally, no need to specify this.
     '''
 
     def __init__(
-        self, 
-        csv_file: str, 
-        root_dir: str, 
-        albu_transforms: Optional[list] = None,
-        end_transforms: Optional[list] = None
-        ) -> None:
-        ''' 
+            self,
+            csv_file: str,
+            root_dir: str,
+            albu_transforms: Optional[list] = None,
+            end_transforms: Optional[list] = None,
+            augmentation_multiplier: int = 1
+    ) -> None:
+        '''
         Args:
-            csv_file (str): absolute path to the csv file containing 
+            csv_file (str): absolute path to the csv file containing
                 annotations
             root_dir (str) : path to the images folder
-            albu_transforms (list, optional): an albumentations' transformations 
-                list that takes input sample as entry and returns a transformed 
+            mask_dir (str, optional): path to the masks folder. If None,
+                mask paths in CSV are assumed to be absolute or relative to root_dir
+            albu_transforms (list, optional): an albumentations' transformations
+                list that takes input sample as entry and returns a transformed
                 version. Defaults to None.
             end_transforms (list, optional): list of transformations that takes
                 tensor and expected target as input and returns a transformed
                 version. These will be applied after albu_transforms. Defaults
                 to None.
+            augmentation_multiplier (int): How many times to multiply the dataset
+                size for augmentation purposes. Defaults to 1.
         '''
-        
+
         assert isinstance(albu_transforms, (list, type(None))), \
             f'albumentations-transformations must be a list, got {type(albu_transforms)}'
 
@@ -104,6 +114,8 @@ class CSVDataset(Dataset):
         self.root_dir = root_dir
         self.albu_transforms = albu_transforms
         self.end_transforms = end_transforms
+        self.augmentation_multiplier = augmentation_multiplier
+
         # store end parameters for adaloss
         self._store_end_params()
 
@@ -113,59 +125,152 @@ class CSVDataset(Dataset):
         self.anno_type = self.data.annos[0].atype
 
         used = set()
-        self._img_names = [x for x in self.annotations.images 
-            if x not in used and (used.add(x) or True)]
-    
+        self._img_names = [x for x in self.annotations.images
+                           if x not in used and (used.add(x) or True)]
+
+    def _detect_annotation_type(self) -> str:
+        """Detect the type of annotations based on CSV columns"""
+        columns = set(self.data.columns.tolist())
+
+        if 'mask_path' in columns or 'masks' in columns:
+            return 'Mask'
+        elif all(col in columns for col in ['x_min', 'y_min', 'x_max', 'y_max']):
+            return 'BoundingBox'
+        elif all(col in columns for col in ['x', 'y']):
+            return 'Point'
+        else:
+            raise ValueError(f"Could not detect annotation type from columns: {columns}")
+
     def _load_image(self, index: int) -> PIL.Image.Image:
-        img_name = self._img_names[index]
+        # Map the augmented index back to actual image index
+        actual_index = index % len(self._img_names)
+        img_name = self._img_names[actual_index]
         img_path = os.path.join(self.root_dir, img_name)
 
         return PIL.Image.open(img_path).convert('RGB')
-    
-    def _load_target(self, index: int) -> Dict[str,List[Any]]:
-        img_name = self._img_names[index]
+
+    def _load_mask(self, index: int) -> PIL.Image.Image:
+        """Load segmentation mask for the given index"""
+        if self.anno_type != 'Mask':
+            raise ValueError("Mask loading only supported for Mask annotation type")
+
+        # Map the augmented index back to actual image index
+        actual_index = index % len(self._img_names)
+        img_name = self._img_names[actual_index]
+        annotations = self.data[self.data['images'] == img_name]
+
+        # Get mask path from CSV
+        mask_column = 'mask_path' if 'mask_path' in annotations.columns else 'masks'
+        mask_paths = annotations[mask_column].tolist()
+
+        if len(mask_paths) == 0:
+            raise ValueError(f"No mask found for image {img_name}")
+
+        # For now, handle single mask per image (could be extended for multiple masks)
+        mask_path = mask_paths[0]
+
+        # Determine full mask path
+        if self.mask_dir:
+            full_mask_path = os.path.join(self.mask_dir, mask_path)
+        elif os.path.isabs(mask_path):
+            full_mask_path = mask_path
+        else:
+            full_mask_path = os.path.join(self.root_dir, mask_path)
+
+        # Load mask as grayscale (class indices)
+        mask = PIL.Image.open(full_mask_path).convert('L')
+        return mask
+
+    def _load_target(self, index: int) -> Dict[str, List[Any]]:
+        # Map the augmented index back to actual image index
+        actual_index = index % len(self._img_names)
+        img_name = self._img_names[actual_index]
         annotations = self.data[self.data['images'] == img_name]
         annotations = annotations.drop(columns='images')
 
+        # Use the augmented index for image_id to maintain uniqueness
         target = {
-            'image_id': [index], 
-            'image_name': [img_name]
-            }
+            'image_id': [index],  # Keep the augmented index for uniqueness
+            'image_name': [f"{img_name}_aug_{index}"],  # Add augmentation suffix
+            'original_image_name': [img_name],  # Keep original name for reference
+            'augmentation_id': [index // len(self._img_names)]  # Which augmentation this is
+        }
 
         for key in annotations.columns:
             target.update({key: list(annotations[key])})
 
-            # convert annotations to tuple
-            if key == 'annos': 
+            # convert annotations to tuple for points/boxes
+            if key == 'annos' and hasattr(annotations[key].iloc[0], 'get_tuple'):
                 target.update({key: [list(a.get_tuple) for a in annotations[key]]})
 
         return target
-    
+
     def _transforms(
-        self, 
-        image: PIL.Image.Image, 
-        target: dict
-        ) -> Tuple[torch.Tensor, dict]:
+            self,
+            image: PIL.Image.Image,
+            target: dict,
+            mask: Optional[PIL.Image.Image] = None
+    ) -> Tuple[torch.Tensor, dict]:
 
         label_fields = target.copy()
-        for key in ['annos','image_id','image_name']:
-            label_fields.pop(key)
+        for key in ['annos', 'image_id', 'image_name', 'original_image_name',
+                    'augmentation_id']:
+            label_fields.pop(key, None)  # Use pop with default to avoid KeyError
 
         if self.albu_transforms:
 
-            # Bounding boxes
-            if self.anno_type == 'BoundingBox':
+            # Segmentation Masks
+            if self.anno_type == 'Mask':
+                if mask is None:
+                    raise ValueError("Mask is required for Mask annotation type")
+
                 transform_pipeline = albumentations.Compose(
-                    self.albu_transforms, 
+                    self.albu_transforms,
+                    additional_targets={'mask': 'mask'}
+                )
+
+                transformed = transform_pipeline(
+                    image=numpy.array(image),
+                    mask=numpy.array(mask),
+                    **label_fields
+                )
+
+                tr_image = numpy.asarray(transformed['image'])
+                tr_mask = numpy.asarray(transformed['mask'])
+
+                # Remove image and mask from transformed dict
+                transformed.pop('image')
+                transformed.pop('mask')
+
+                # Add mask to target
+                transformed['masks'] = tr_mask
+
+                # Preserve metadata
+                for key in ['image_id', 'image_name', 'original_image_name', 'augmentation_id']:
+                    if key in target:
+                        transformed[key] = target[key]
+
+                tr_image, tr_target = SampleToTensor()(tr_image, transformed, 'mask')
+
+                if self.end_transforms is not None:
+                    for trans in self.end_transforms:
+                        tr_image, tr_target = trans(tr_image, tr_target)
+
+                return tr_image, tr_target
+
+            # Bounding boxes
+            elif self.anno_type == 'BoundingBox':
+                transform_pipeline = albumentations.Compose(
+                    self.albu_transforms,
                     bbox_params=albumentations.BboxParams(
-                        format='pascal_voc', 
+                        format='pascal_voc',
                         label_fields=list(label_fields.keys())
                     )
                 )
-                
+
                 transformed = transform_pipeline(
-                    image = numpy.array(image),
-                    bboxes = target['annos'],
+                    image=numpy.array(image),
+                    bboxes=target['annos'],
                     **label_fields
                 )
 
@@ -175,61 +280,102 @@ class CSVDataset(Dataset):
                 transformed['boxes'] = transformed['bboxes']
                 transformed.pop('bboxes')
 
-                for key in ['image_id','image_name']:
-                    transformed[key] = target[key]
+                for key in ['image_id', 'image_name', 'original_image_name', 'augmentation_id']:
+                    if key in target:
+                        transformed[key] = target[key]
 
-                tr_image,  tr_target = SampleToTensor()(tr_image, transformed)
+                tr_image, tr_target = SampleToTensor()(tr_image, transformed)
 
                 if self.end_transforms is not None:
                     for trans in self.end_transforms:
                         tr_image, tr_target = trans(tr_image, tr_target)
 
                 return tr_image, tr_target
-            
+
             # Points
-            if self.anno_type == 'Point':
+            elif self.anno_type == 'Point':
                 transform_pipeline = albumentations.Compose(
-                    self.albu_transforms, 
+                    self.albu_transforms,
                     keypoint_params=albumentations.KeypointParams(
-                        format='xy', 
+                        format='xy',
                         label_fields=list(label_fields.keys())
                     )
                 )
-                
+
+                actual_height, actual_width = image.size
+                # Check for out-of-bounds keypoints and fix them
+                # if len(target['annos']) > 0:
+                #     valid_keypoints = []
+                #     invalid_count = 0
+                #     for i, keypoint in enumerate(target['annos']):
+                #         x, y = keypoint[0], keypoint[1]
+                #
+                #         # Check if keypoint is out of bounds
+                #         if x < 0 or x >= actual_width or y < 0 or y >= actual_height:
+                #             invalid_count += 1
+                #             logger.warning(f"Invalid keypoint {i}: ({x}, {y}) for image {actual_height}x{actual_width}")
+                #
+                #             # Skip invalid keypoints (uncomment if preferred)
+                #             logger.info(f"Skipping invalid keypoint {i}: ({x}, {y})")
+                #
+                #
+                #         else:
+                #             valid_keypoints.append(keypoint)
+                #
+                #     if invalid_count > 0:
+                #         logger.warning(f"Found {invalid_count} invalid keypoints in image {target['original_image_name']}")
+                #
+                #     target['annos'] = valid_keypoints
+                #
+                # if target['original_image_name'] == ['aed_train___ce9bb27cdf1dae236c66d2b7554acd6add44eccb.jpg']:
+                #     pass
+                # if len(target['annos']) > 0 and target['annos'][0][1] ==3663:
+                #     print(target['annos'])
+
+                # logger.info(f"original image name: {target['original_image_name']}")
+
                 transformed = transform_pipeline(
-                    image = numpy.array(image),
-                    keypoints = target['annos'],
+                    image=numpy.array(image),
+                    keypoints=target['annos'],
                     **label_fields
                 )
-            
+
                 tr_image = numpy.asarray(transformed['image'])
                 transformed.pop('image')
 
                 transformed['points'] = transformed['keypoints']
                 transformed.pop('keypoints')
 
-                for key in ['image_id','image_name']:
-                    transformed[key] = target[key]
+                for key in ['image_id', 'image_name', 'original_image_name', 'augmentation_id']:
+                    if key in target:
+                        transformed[key] = target[key]
 
-                tr_image,  tr_target = SampleToTensor()(tr_image, transformed, 'point')
+                tr_image, tr_target = SampleToTensor()(tr_image, transformed, 'point')
 
                 if self.end_transforms is not None:
                     for trans in self.end_transforms:
                         tr_image, tr_target = trans(tr_image, tr_target)
 
                 return tr_image, tr_target
-        
+
         else:
+            # No transforms case
+            if self.anno_type == 'Mask' and mask is not None:
+                target['masks'] = numpy.array(mask)
             return image, target
-    
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, dict]:        
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, dict]:
         img = self._load_image(index)
         target = self._load_target(index)
 
-        tr_img, tr_target = self._transforms(img, target)
+        mask = None
+        if self.anno_type == 'Mask':
+            mask = self._load_mask(index)
+
+        tr_img, tr_target = self._transforms(img, target, mask)
 
         return tr_img, tr_target
-    
+
     def load_end_param(self, end_param: str, value: float) -> None:
         self.end_params[end_param] = value
 
@@ -242,10 +388,24 @@ class CSVDataset(Dataset):
 
         self.end_transforms = new_transforms
         self._store_end_params()
-    
+
     def __len__(self) -> int:
+        return len(self._img_names) * self.augmentation_multiplier
+
+    def get_actual_length(self) -> int:
+        """Returns the actual number of unique images"""
         return len(self._img_names)
-    
+
+    def get_augmentation_info(self, index: int) -> Dict[str, Any]:
+        """Get information about which augmentation this index represents"""
+        actual_index = index % len(self._img_names)
+        augmentation_id = index // len(self._img_names)
+        return {
+            'actual_image_index': actual_index,
+            'augmentation_id': augmentation_id,
+            'original_image_name': self._img_names[actual_index]
+        }
+
     def _store_end_params(self) -> None:
         self.end_params = {}
         self._end_params_types = []
@@ -255,7 +415,7 @@ class CSVDataset(Dataset):
                 tensor_params, types = dict_to_tensor(trans.__dict__)
                 self._end_params_types.append(types)
                 self.end_params.update(tensor_params)
-    
+
     def _update_end_params(self) -> list:
         up_params = []
         for trans in self._end_params_types:
@@ -266,7 +426,7 @@ class CSVDataset(Dataset):
                     up_num = retrieve_num_type(self.end_params[k], v)
 
                 up_dict.update({k: up_num})
-            
+
             up_params.append(up_dict)
-        
+
         return up_params

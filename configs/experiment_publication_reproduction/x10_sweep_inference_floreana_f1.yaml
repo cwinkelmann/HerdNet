@@ -1,0 +1,44 @@
+# Hyperparameter sweep for HerdNet inference parameters
+
+program: ./tools/train_cli.py
+method: bayes
+project: 'herdnet_iguana_inference_sweep_floreana'
+entity: 'karisu'
+
+metric:
+  goal: maximize
+  name: f1_score
+
+early_terminate:
+  type: hyperband
+  min_iter: 10
+  eta: 3
+
+parameters:
+  # Fixed training epochs
+  training_settings.epochs:
+    value: 50
+
+  # Evaluation distance threshold (pixels)
+  training_settings.evaluator.threshold:
+    values: [5, 10, 25, 50, 75, 100]
+
+  # LMDS kernel size for local maxima detection
+  training_settings.evaluator.kwargs.lmds_kwargs.kernel_size:
+    values: [[3, 3], [5, 5], [9, 9], [15, 15], [25, 25]]
+
+  # Adaptive threshold for peak filtering
+  training_settings.evaluator.kwargs.lmds_kwargs.adapt_ts:
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+  # Negative sample threshold
+  training_settings.evaluator.kwargs.lmds_kwargs.neg_ts:
+    values: [0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6, 0.8]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --config-name=x10_hyp_inference__floreana_cvat_corr_dla34_pub_train_tile_eval_tile_aug_hypopt
+  - --config-path=../configs/experiment_publication_reproduction
+  - ${args_no_hyphens}

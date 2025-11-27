@@ -1,3 +1,6 @@
+# Fork of the HerdNet Code
+See https://github.com/Alexandre-Delplanque/HerdNet for the original code
+
 # HerdNet 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb)
 
@@ -42,13 +45,25 @@ Note that these metrics have been computed on full-size test images.
 
 ## Installation
 Create and activate the conda environment
-```console
-conda env create -f environment.yml
+```shell
+conda env create -n herdnet -f environment.yml
 conda activate herdnet
 ```
 
+```shell
+# update the conda environment
+conda env update --file environment.yml --prune
+```
+
+### install development dependencies
+
+```shell
+#pip install -r requirements.txt
+pip install pytest pytest-cov flake8
+```
+
 Install the code
-```console
+```shell
 python setup.py install
 ```
 
@@ -164,7 +179,7 @@ losses = [
 herdnet = LossWrapper(herdnet, losses=losses)
 ```
 
-Train et validate HerdNet
+Train and validate HerdNet
 ```python
 from torch.optim import Adam
 from animaloc.train import Trainer
@@ -290,3 +305,51 @@ Here is a [Google Colab demo](https://colab.research.google.com/github/Alexandre
 
 ## Code Versioning
 The code used in the paper is the one corresponding to the tag [`v0.1.0`](https://github.com/Alexandre-Delplanque/HerdNet/releases/tag/v0.1.0). The 'main' branch contains the latest stable version with fixed bugs and new features, it is recommended to use this branch for your development. The file [CHANGELOG.md](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/CHANGELOG.md) contains the details of the commits for each version of the code.
+
+
+## Setup Extended
+
+### Docker Training container
+```shell
+docker build -t herdnet -f Dockerfile .
+
+```
+
+### Run a wandb sweep
+Since the training generates many models set .wandb/settings
+[default]
+artifact_cache_size = 10GB
+
+```shell
+conda activate HerdNetCarrotConda
+wandb sweep sweep_hyp.yaml 
+
+Run sweep agent with: 
+
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=1 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=2 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=3 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+CUDA_VISIBLE_DEVICES=4 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+CUDA_VISIBLE_DEVICES=5 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+
+CUDA_VISIBLE_DEVICES=6 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+CUDA_VISIBLE_DEVICES=7 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
+
+
+
+```
+
+
+```shell
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="aed_dinov2_base_publication_setting_train_full_eval_crop_aug_all" --config-path="../configs/experiment_publication_reproduction"
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="aed_dinov2_base_publication_setting_train_full_eval_crop_aug_all" --config-path="../configs/experiment_publication_reproduction" --config-name="aed_t_dinov2_base_publication_setting_train_full_eval_crop_aug_all"
+--config-path="../configs/experiment_publication_reproduction" &
+```

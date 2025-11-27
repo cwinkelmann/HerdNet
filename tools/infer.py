@@ -23,6 +23,7 @@ import numpy
 import PIL
 
 import albumentations as A
+from loguru import logger
 
 from torch.utils.data import DataLoader
 from PIL import Image
@@ -58,7 +59,7 @@ parser.add_argument('-device', type=str, default='cuda',
 parser.add_argument('-ts', type=int, default=256,
     help='thumbnail size. Defaults to 256.')
 parser.add_argument('-pf', type=int, default=10,
-    help='print frequence. Defaults to 10.')
+    help='print frequency. Defaults to 10.')
 parser.add_argument('-rot', type=int, default=0,
     help='number of times to rotate by 90 degrees. Defaults to 0.')
 
@@ -70,25 +71,47 @@ def main():
     curr_date = current_date()
     dest = os.path.join(args.root, f"{curr_date}_HerdNet_results")
     mkdir(dest)
-    
+    logger.info(f"Results will be saved in {dest}")
+
+
     # Read info from PTH file
-    map_location = torch.device('cpu')
+    map_location = torch.device(args.device)
     if torch.cuda.is_available():
         map_location = torch.device('cuda')
 
+
+    ## TODO get the classes from the config and not the model
     checkpoint = torch.load(args.pth, map_location=map_location)
-    classes = checkpoint['classes']
+    # classes = checkpoint['classes']
+
+    classes = {
+        1: 'iguana',
+        2: 'hard_negative',
+        3: 'Kob',
+        4: 'Warthog',
+        5: 'Waterbuck',
+        6: 'Elephant',
+        7: 'Impala',
+               }
+
     num_classes = len(classes) + 1
-    img_mean = checkpoint['mean']
-    img_std = checkpoint['std']
-    
+
+    # Fixme this is not persisted in training, have a look at the README and why
+    # img_mean = checkpoint['mean']
+    # img_std = checkpoint['std']
+
+    img_mean= [0.485, 0.456, 0.406]
+    img_std= [0.229, 0.224, 0.225]
     # Prepare dataset and dataloader
     img_names = [i for i in os.listdir(args.root) 
-            if i.endswith(('.JPG','.jpg','.JPEG','.jpeg'))]
+            if i.endswith(('.JPG','.jpg','.JPEG','.jpeg', ".tiff", ".tif"))]
     n = len(img_names)
+    if n == 0:
+        raise FileNotFoundError(f"No images found in {args.root}.")
     df = pandas.DataFrame(data={'images': img_names, 'x': [0]*n, 'y': [0]*n, 'labels': [1]*n})
     
     end_transforms = []
+    # TODO: Why would I want to rotate the images?
     if args.rot != 0:
         end_transforms.append(Rotate90(k=args.rot))
     end_transforms.append(DownSample(down_ratio = 2, anno_type = 'point'))
@@ -102,6 +125,8 @@ def main():
         end_transforms = end_transforms
         )
     
+    
+    ## TODO why a batch size of 1? This slows inference down a lot
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
         sampler=torch.utils.data.SequentialSampler(dataset))
     
@@ -115,20 +140,21 @@ def main():
     # Build the evaluator
     stitcher = HerdNetStitcher(
             model = model,
-            size = (args.size,args.size),
+            size = (args.size, args.size),
             overlap = args.over,
             down_ratio = 2,
-            up = True, 
+            up = True, # Because of this the output is 2x the input size and the plotting works
             reduction = 'mean',
             device_name = device
             ) 
 
-    metrics = PointsMetrics(5, num_classes = num_classes)
+    metrics = PointsMetrics(radius=5, num_classes = num_classes)
+
     evaluator = HerdNetEvaluator(
         model = model,
         dataloader = dataloader,
         metrics = metrics,
-        lmds_kwargs = dict(kernel_size=(3,3), adapt_ts=0.2, neg_ts=0.1),
+        lmds_kwargs = dict(kernel_size=(3, 3), adapt_ts=0.2), # TODO get this from a config
         device_name = device,
         print_freq = args.pf,
         stitcher = stitcher,
@@ -137,14 +163,20 @@ def main():
         )
 
     # Start inference
-    print('Starting inference ...')
-    out = evaluator.evaluate(wandb_flag=False, viz=False, log_meters=False)
+    logger.info('Starting inference ...')
+    out = evaluator.evaluate(wandb_flag=False, viz=True, log_meters=False)
+    logger.info('Done inference ...')
 
     # Save the detections
     print('Saving the detections ...')
     detections = evaluator.detections
     detections.dropna(inplace=True)
+    logger.info(f"Num detections: {len(detections)}")
+
+    # FIXME get this right later
     detections['species'] = detections['labels'].map(classes)
+
+
     detections.to_csv(os.path.join(dest, f'{curr_date}_detections.csv'), index=False)
 
     # Draw detections on images and create thumbnails
@@ -154,13 +186,17 @@ def main():
     dest_thumb = os.path.join(dest, 'thumbnails')
     mkdir(dest_thumb)
     img_names = numpy.unique(detections['images'].values).tolist()
+
     for img_name in img_names:
         img = Image.open(os.path.join(args.root, img_name))
+
         if args.rot != 0:
             rot = args.rot * 90
             img = img.rotate(rot, expand=True)
+
         img_cpy = img.copy()
         pts = list(detections[detections['images']==img_name][['y','x']].to_records(index=False))
+
         pts = [(y, x) for y, x in pts]
         output = draw_points(img, pts, color='red', size=10)
         output.save(os.path.join(dest_plots, img_name), quality=95)
@@ -174,6 +210,8 @@ def main():
             score = round(score * 100, 0)
             thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10,5), font_size=int(0.08*args.ts))
             thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
+
+    logger.info(f"Inference done, wrote results to: {dest}")
 
 if __name__ == '__main__':
     main()

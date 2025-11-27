@@ -61,6 +61,7 @@ def draw_text(
     )-> PIL.Image.Image:
 
     draw = ImageDraw.Draw(image)
+    # see https://github.com/Alexandre-Delplanque/HerdNet/pull/8/files
     try:
         font = ImageFont.truetype("segoeui.ttf", size=font_size)
     except IOError:

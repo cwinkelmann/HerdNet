@@ -1,0 +1,24 @@
+wandb_notes: |
+  """default Settings from From crowd to herd counting on aed with timm DLA34 model"""
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: aed
+  - /training_settings: delplanque2022_val_loss
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_aed'
+wandb_entity: 'karisu'
+wandb_run: 'timm_DLA34_publication_setting'
+wandb_tags: ['timmDLA', 'aed','dla34', 'default_setting', "exp1"]
+seed: 1
+device_name: null
+
+#training_settings:
+#  lr: 0.0001
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

@@ -1,0 +1,229 @@
+# Experiment configuration file for the newest benchmark
+
+### pretrained model from hasty single shots which performed quite well. Now fine tuning on the geospatial data labelled by one expert FNE01, FNE02
+# Then validated oned FNE03
+
+# Produced F1 score of 0.92, recall 0.93 and precision 0.91
+#
+wandb_project: 'herdnet'
+wandb_entity: 'karisu'
+wandb_run: 'ig_Eikelboom_dr2'
+wandb_tags: ['train_hasty','single', 'pretrained=false', 'eikelboom', 'dla34', 'dr2', 'island']
+# /home/cwinkelmann/work/software-data-engineering-mac/data/ISAID/
+seed: 1
+device_name: 'cuda:6'
+
+model:
+  name: 'HerdNet'
+  # work_dir: "./outputs/"
+  from_torchvision: False
+  # load_from: '/home/cwinkelmann/work/HerdNet/data/models/best_r0.99_p0.74_dla34/best_model_2.pth'
+  # load_from: '/home/cwinkelmann/work/HerdNet/tools/outputs/20250611_ig_train_geospatial_val_pix4d_2025_06_11_dla_RUN_qcfixu05.pth'
+  # load_from: ""
+  load_from: null
+  # resume_from: "/home/cwinkelmann/work/HerdNet/tools/outputs/2025-02-26/15-29-43/latest_model.pth"
+  resume_from: null
+  kwargs:
+    num_layers: 34
+    # backbone: 'dla'
+    pretrained: True
+    down_ratio: 2  # was two before
+    head_conv: 64 # was 64
+  freeze: null
+
+losses:
+  FocalLoss:
+    print_name: 'focal_loss'
+    from_torch: False
+    output_idx: 0
+    target_idx: 0
+    lambda_const: 1.0
+    kwargs:
+      reduction: 'mean'
+      normalize: False
+
+  CrossEntropyLoss:
+    print_name: 'ce_loss'
+    from_torch: True
+    output_idx: 1
+    target_idx: 1
+    lambda_const: 1.0
+    kwargs:
+      reduction: 'mean'
+      weight: [1.0,   # 1 # iguana
+               5.,    # 2 # hard negative
+               15.,   # 3
+               1.,    # 4
+               0.1,   # 5
+               0.1,   # 6
+               1.0,   # 7
+               0.1    # 8 # background
+      ] # One weight for each class including the background
+      #weight: [0.9, 0.001, 1.0] # From the notebook
+
+datasets:
+  img_size: [512, 512]
+  anno_type: 'point'
+  num_classes: 8 # One class more for the background
+  collate_fn: null
+
+  class_def:
+#    1: 'Hartebeest'
+#    2: 'Buffalo'
+#    3: 'Kob'
+#    4: 'Warthog'
+#    5: 'Waterbuck'
+#    6: 'Elephant'
+#    7: 'Impala'
+    1: 'iguana'
+    2: 'hard_negative' # these next 6 are just there so I can use the pretrained model
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+    7: 'Impala'
+
+
+
+
+  train:
+    # name: 'CSVDataset'
+    name: 'CSVDataset'
+
+    csv_file: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_train/detection_train_0_512/herdnet_format_512_0_crops.csv'
+    root_dir: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_train/detection_train_0_512/crops_512_numNone_overlap0'
+
+    sampler: null
+
+    albu_transforms:
+      HorizontalFlip:
+        p: 0.2
+      VerticalFlip:
+        p: 0.2
+      MotionBlur:
+        p: 0.2
+      RandomRotate90:
+        p: 0.5
+      RandomBrightnessContrast:
+        brightness_limit: 0.2
+        contrast_limit: 0.2
+        p: 0.1
+      Blur:
+        blur_limit: 15
+        p: 0.1
+      ToGray:
+        p: 0.1
+      #      ShiftScaleRotate:
+      #        shift_limit: 0.0625
+      #        scale_limit: 0.1
+      #        rotate_limit: 45
+      #        p: 0.5
+      #      Perspective:
+      #        scale: 0.05
+      #        p: 0.3
+      HueSaturationValue:
+        hue_shift_limit: 20
+        sat_shift_limit: 30
+        val_shift_limit: 20
+        p: 0.1
+      CLAHE:
+        clip_limit: 2.0
+        p: 0.1
+      #      Solarize:
+      #        threshold: 128
+      #        p: 0.2
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+      Resize:
+        height: 512
+        width: 512
+        p: 1.0
+      Normalize:
+        p: 1.0
+
+
+    end_transforms:
+      MultiTransformsWrapper:
+        FIDT:
+          num_classes: ${datasets.num_classes}
+          down_ratio: ${model.kwargs.down_ratio}
+        PointsToMask:
+          radius: 2
+          num_classes: ${datasets.num_classes}
+          squeeze: True
+          down_ratio: 32
+
+  validate:
+    # name: 'FolderDataset'
+    name: 'CSVDataset'
+
+    csv_file: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_val/detection_val_0_512/herdnet_format_512_0_crops.csv'
+    root_dir: '/home/cwinkelmann/work/Herdnet/data/eikelboom/eikelboom_val/detection_val_0_512/crops_512_numNone_overlap0'
+
+
+# data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
+    albu_transforms:
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+      Resize:
+        height: 512
+        width: 512
+        p: 1.0
+      Normalize:
+        p: 1.0
+
+    end_transforms:
+      DownSample:
+        down_ratio: ${model.kwargs.down_ratio}
+        anno_type: ${datasets.anno_type}
+
+training_settings:
+  trainer: 'Trainer'
+  epochs: 1000
+  valid_freq: 5
+  print_freq: 100
+  batch_size: 60
+  optimizer: 'adamW'
+  lr: 1e-3
+  weight_decay: 0.0005
+  num_workers: 12
+  auto_lr:
+    mode: 'max'
+    patience: 250
+    threshold: 1e-4
+    threshold_mode: 'rel'
+    cooldown: 20
+    min_lr: 1e-6
+    verbose: True
+  warmup_iters: 1000
+
+  vizual_fn: null
+
+
+  evaluator:
+    name: 'HerdNetEvaluator'
+    threshold: 25
+    select_mode: 'max'
+    validate_on: 'f1_score'
+    kwargs:
+      print_freq: 10
+      lmds_kwargs:
+        kernel_size: [25, 25]
+        adapt_ts: 0.5
+
+  stitcher:
+    name: 'HerdNetStitcher'
+    kwargs:
+      overlap: 0
+      down_ratio: ${model.kwargs.down_ratio}
+      up: False
+      reduction: 'mean'
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

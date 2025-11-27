@@ -1,0 +1,62 @@
+wandb_notes: |
+  ""
+
+defaults:
+  - /losses: herdnet_winning
+  - /datasets: aed_all_winning_val_crop
+  - /training_settings: delplanque2022_evaluator_stitcher_best_quick
+  - /model: HerdnetTimmDLA102_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_aed'
+wandb_entity: 'karisu'
+wandb_run: 'x4_aed_winning_corr_dla102_pub_train_full_eval_full_aug_all_loss_defaul'
+wandb_tags: ['aed','dla', 'dla102', "exp4", "eval_crop", "train_full"]
+seed: 1
+device_name: null
+
+
+model:
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-14/21-21-32/best_model.pth # https://wandb.ai/karisu/herdnet_aed/runs/g7db37hl/logs
+
+training_settings:
+  lr: 1.0e-04
+losses:
+  FocalLoss:
+    kwargs:
+      alpha: 2
+      beta: 4
+
+#model:
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-13/20-54-35/best_loss_model.pth # https://wandb.ai/karisu/herdnet_aed/runs/n8p4vjj2/logs
+
+
+#datasets:
+#  num_classes: 7 # One class more for the background
+#  collate_fn: null
+#
+#  class_def:
+#    1: 'Elephant'
+#    2: 'a'
+#    3: 'b'
+#    4: 'c'
+#    5: 'd'
+#    6: 'e'
+#
+#losses:
+#  CrossEntropyLoss:
+#    kwargs:
+#      weight:
+#        - 20.0
+#        - 5.0 # class 1
+#        - 15.0 # class 2
+#        - 0.1 # class 3
+#        - 0.1 # class 4
+#        - 0.1 # class 5
+#        - 0.1 # class 6
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

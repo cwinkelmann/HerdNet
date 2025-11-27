@@ -1,0 +1,187 @@
+
+wandb_project: 'herdnet'
+wandb_entity: 'karisu'
+wandb_run: 'FMO03_02_05'
+seed: 1
+device_name: 'cuda:0'
+
+model:
+  name: 'HerdNet'
+  from_torchvision: False
+  # load_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-09/13-28-39/best_model.pth"
+  load_from: null
+  # resume_from: "/home/christian/hnee/HerdNet/tools/outputs/2024-12-07/23-11-21/latest_model.pth"
+  resume_from: null
+  kwargs:
+    num_layers: 60
+    pretrained: null
+    down_ratio: 2
+    head_conv: 64
+  freeze: null
+
+losses:
+  FocalLoss:
+    print_name: 'focal_loss'
+    from_torch: False
+    output_idx: 0
+    target_idx: 0
+    lambda_const: 1.0
+    kwargs:
+      reduction: 'mean'
+      normalize: False
+
+  CrossEntropyLoss:
+    print_name: 'ce_loss'
+    from_torch: True
+    output_idx: 1
+    target_idx: 1
+    lambda_const: 1.0
+    kwargs:
+      reduction: 'mean'
+      weight: [0.1, 5., 15., 1., 1.0, 1.0, 1.0] # One weight for each class including the background
+      #weight: [0.9, 0.001, 1.0] # From the notebook
+
+datasets:
+  img_size: [512, 512]
+  anno_type: 'point'
+  num_classes: 7
+  collate_fn: null
+
+  class_def:
+#    1: 'Hartebeest'
+#    2: 'Buffalo'
+#    3: 'Kob'
+#    4: 'Warthog'
+#    5: 'Waterbuck'
+#    6: 'Elephant'
+#    7: 'Impala'
+    1: 'iguana'
+    2: 'hard_negative'
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+    7: 'Impala'
+
+
+
+
+  train:
+    name: 'CSVDataset'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/train/crops_512/herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/train/crops_512'
+
+
+    sampler: null
+
+    albu_transforms:
+      HorizontalFlip:
+        p: 0.5
+      VerticalFlip:
+        p: 0.5
+      MotionBlur:
+        p: 0.5
+      RandomRotate90:
+        p: 0.5
+      RandomBrightnessContrast:
+        brightness_limit: 0.2
+        contrast_limit: 0.2
+        p: 0.2
+#      Blur:
+#        blur_limit: 15
+#        p: 0.2
+#      ToGray:
+#        p: 0.05
+#      ShiftScaleRotate:
+#        shift_limit: 0.0625
+#        scale_limit: 0.1
+#        rotate_limit: 45
+#        p: 0.5
+#      Perspective:
+#        scale: 0.05
+#        p: 0.3
+#      HueSaturationValue:
+#        hue_shift_limit: 20
+#        sat_shift_limit: 30
+#        val_shift_limit: 20
+#        p: 0.3
+#      CLAHE:
+#        clip_limit: 2.0
+#        p: 0.3
+#      Solarize:
+#        threshold: 128
+#        p: 0.2
+      #      RandomCrop:
+      #        height: 512
+      #        width: 512
+      #        p: 1.0
+      Normalize:
+        p: 1.0
+
+
+    end_transforms:
+      MultiTransformsWrapper:
+        FIDT:
+          num_classes: ${train.datasets.num_classes}
+          down_ratio: ${train.model.kwargs.down_ratio}
+        PointsToMask:
+          radius: 2
+          num_classes: ${train.datasets.num_classes}
+          squeeze: True
+          down_ratio: 32
+
+  validate:
+    name: 'CSVDataset'
+    csv_file: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/val/crops_512/herdnet_format.csv'
+    root_dir: '/home/cwinkelmann/work/HerdNet/data_FMO03_02_05/val/crops_512'
+
+    albu_transforms:
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+      Normalize:
+        p: 1.0
+
+    end_transforms:
+      DownSample:
+        down_ratio: ${train.model.kwargs.down_ratio}
+        anno_type: ${train.datasets.anno_type}
+
+training_settings:
+  trainer: 'Trainer'
+  epochs: 500
+  valid_freq: 5
+  print_freq: 100
+  batch_size: 40
+  optimizer: 'adam'
+  lr: 1e-3
+  weight_decay: 0.0005
+  num_workers: 24
+  auto_lr:
+    mode: 'max'
+    patience: 50
+    threshold: 1e-4
+    threshold_mode: 'rel'
+    cooldown: 10
+    min_lr: 1e-6
+    verbose: True
+  warmup_iters: 100
+  vizual_fn: null
+  evaluator:
+    name: 'HerdNetEvaluator'
+    threshold: 5
+    select_mode: 'max'
+    validate_on: 'f1_score'
+    kwargs:
+      print_freq: 10
+      lmds_kwargs:
+        kernel_size: [3,3]
+        adapt_ts: 0.3
+  stitcher:
+    name: 'HerdNetStitcher'
+    kwargs:
+      overlap: 0
+      down_ratio: ${train.model.kwargs.down_ratio}
+      up: False
+      reduction: 'mean'

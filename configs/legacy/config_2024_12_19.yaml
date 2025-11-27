@@ -1,0 +1,5 @@
+# Experiment configuration file
+
+defaults:
+  - train: herdnet_2024_12_19
+  - test: herdnet

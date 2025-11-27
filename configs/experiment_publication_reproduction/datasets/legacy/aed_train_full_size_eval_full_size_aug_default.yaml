@@ -1,0 +1,67 @@
+# African Elephants Dataset Naudé & Joubert, 2019a, 2019
+
+img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
+anno_type: 'point'
+num_classes: 7 # One class more for the background
+collate_fn: null
+
+
+class_def:
+  1: 'Elephant'
+  2: 'a'
+  3: 'b'
+  4: 'c'
+  5: 'd'
+  6: 'e'
+
+train:
+  name: 'CSVDataset'
+
+  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_train/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_train/train/Default'
+  sampler: null
+  augmentation_multiplier: 1
+
+  albu_transforms:
+    ObjectAwareRandomCrop:
+      height: 512
+      width: 512
+      p: 1.0
+      attempts: 10
+      edge_black_blobs: true
+
+    HorizontalFlip:
+      p: 0.4
+    VerticalFlip:
+      p: 0.4
+    MotionBlur:
+      p: 0.4
+    Normalize:
+      p: 1.0
+  end_transforms:
+    MultiTransformsWrapper:
+      FIDT:
+        num_classes: ${datasets.num_classes}
+        down_ratio: ${model.kwargs.down_ratio}
+        radius: 1
+      PointsToMask:
+        radius: 1
+        num_classes: ${datasets.num_classes}
+        squeeze: true
+        down_ratio: 32
+
+validate:
+  name: 'CSVDataset'
+
+  csv_file: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/AED/AED_512_overlap_0/aed_test/test/Default'
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+

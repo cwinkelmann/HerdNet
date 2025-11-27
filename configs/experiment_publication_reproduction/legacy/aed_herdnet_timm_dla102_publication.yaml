@@ -1,0 +1,27 @@
+wandb_notes: |
+  """default Settings from From crowd to herd counting on aed with timm DLA102 model"""
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: aed
+  - /training_settings: delplanque2022_val_loss
+  - /model: HerdnetTimmDLA102_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_aed'
+wandb_entity: 'karisu'
+wandb_run: 'timm_DLA102_publication_setting'
+wandb_tags: ['timmDLA', 'aed','dla102', 'default_setting', "exp1"]
+seed: 1
+device_name: null
+
+freeze_backbone: True # Freeze the backbone, if you want to train only the heads
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-09-12/09-31-18/best_loss_model.pth
+
+training_settings:
+  lr: 0.00001
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

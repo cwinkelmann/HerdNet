@@ -1,0 +1,62 @@
+wandb_project: 'Herdnet_Test'
+wandb_entity: 'karisu'
+wandb_flag: True
+wandb_run: 'test_2025-04-14'
+device_name: 'mps'
+
+model: 
+  name: 'HerdNet'
+  from_torchvision: False
+  # pth_file: '/Users/christian/data/training_data/2024_12_09/2024_12_19_best_model.pth'
+  pth_file: '/Users/christian/PycharmProjects/hnee/HerdNet/data/models/best_r0.99_p0.74_dla34/best_model_2.pth'
+  kwargs:
+    num_layers: 34
+    pretrained: False
+    down_ratio: 2 # was two before
+    head_conv: 64
+
+dataset:
+  img_size: [512, 512]
+  anno_type: 'point'
+  num_classes: 8
+  collate_fn: null
+
+  class_def:
+    1: 'iguana'
+    2: 'hard_negative'
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+    7: 'Impala'
+
+
+  name: 'CSVDataset'
+  # Many images
+  # csv_file: '//Users/christian/PycharmProjects/hnee/HerdNet/data/2025_02_22_HIT/segments_points_many/train/herdnet_format_crops.csv'
+  csv_file: null
+  # root_dir: '//Users/christian/PycharmProjects/hnee/HerdNet/data/2025_02_22_HIT/segments_points_many/train/crops_512_numNone_overlap0'
+  # root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/01_segment_pretraining/segments_12/train/padded_images'
+  root_dir: '/Users/christian/data/training_data/2025_02_22_HIT/FMO02_full_orthophoto_tiles/'
+
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+evaluator:
+  name: 'HerdNetEvaluator'
+  threshold: 15
+  kwargs:
+    lmds_kwargs:
+      kernel_size: [9, 9]
+      adapt_ts: 0.5
+      # neg_ts: 0.1
+
+
+stitcher:
+  name: 'HerdNetStitcher'
+  kwargs:
+    overlap: 160
+    down_ratio: ${test.model.kwargs.down_ratio}
+    up: False # TODO False is Default and necessary for the testing evaluation,
+    # up: True # TODO True makes the plotting work
+    reduction: 'mean'

@@ -56,7 +56,8 @@ class FolderDataset(CSVDataset):
         csv_file: str, 
         root_dir: str, 
         albu_transforms: Optional[list] = None,
-        end_transforms: Optional[list] = None
+        end_transforms: Optional[list] = None,
+            augmentation_multiplier=None
         ) -> None:
         ''' 
         Args:
@@ -75,8 +76,9 @@ class FolderDataset(CSVDataset):
         super(FolderDataset, self).__init__(csv_file, root_dir, albu_transforms, end_transforms)
 
         self.folder_images = [i for i in os.listdir(self.root_dir) 
-                                if i.endswith(('.JPG','.jpg','.JPEG','.jpeg'))]
-    
+                                if i.endswith(('.JPG','.jpg','.JPEG','.jpeg', '.tiff', '.tif', '.geotiff' '.png', '.bmp')) and not i.startswith(".")]
+        if len(self.folder_images) == 0:
+            raise ValueError('No images found in {}.'.format(self.root_dir))
         self._img_names = self.folder_images        
         self.anno_keys = self.data.columns
         self.data['from_folder'] = 0

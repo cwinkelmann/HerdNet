@@ -1,0 +1,119 @@
+# Iguana head marks marks on Low quality data, i.e. Drone Deploy orthomosaics
+
+img_size: [512, 512]
+anno_type: 'point'
+num_classes: 7 # One class more for the background
+collate_fn: null
+
+class_def:
+#    1: 'Hartebeest'
+#    2: 'Buffalo'
+#    3: 'Kob'
+#    4: 'Warthog'
+#    5: 'Waterbuck'
+#    6: 'Elephant'
+#    7: 'Impala'
+  1: 'iguana_point'
+  2: 'hard_negative' # these next 6 are just there so I can use the pretrained model
+  3: 'Kob'
+  4: 'Warthog'
+  5: 'Waterbuck'
+  6: 'Elephant'
+#  7: 'Impala'
+
+
+
+
+train:
+  name: 'CSVDataset'
+
+  csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/crops_512_numNone_overlap0'
+
+  sampler: null
+  augmentation_multiplier: 10
+
+  albu_transforms:
+    HorizontalFlip:
+      p: 0.2
+    VerticalFlip:
+      p: 0.2
+    MotionBlur:
+      p: 0.2
+    RandomRotate90:
+      p: 0.5
+    RandomBrightnessContrast:
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      p: 0.1
+    Blur:
+      blur_limit: 15
+      p: 0.1
+    ToGray:
+      p: 0.1
+    #      ShiftScaleRotate:
+    #        shift_limit: 0.0625
+    #        scale_limit: 0.1
+    #        rotate_limit: 45
+    #        p: 0.5
+    #      Perspective:
+    #        scale: 0.05
+    #        p: 0.3
+    HueSaturationValue:
+      hue_shift_limit: 20
+      sat_shift_limit: 30
+      val_shift_limit: 20
+      p: 0.1
+    CLAHE:
+      clip_limit: 2.0
+      p: 0.1
+    #      Solarize:
+    #        threshold: 128
+    #        p: 0.2
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+    Resize:
+      height: 512
+      width: 512
+      p: 1.0
+    Normalize:
+      p: 1.0
+
+
+  end_transforms:
+    MultiTransformsWrapper:
+      FIDT:
+        num_classes: ${datasets.num_classes}
+        down_ratio: ${model.kwargs.down_ratio}
+      PointsToMask:
+        radius: 2
+        num_classes: ${datasets.num_classes}
+        squeeze: True
+        down_ratio: 32
+
+validate:
+  name: 'CSVDataset'
+
+  csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/crops_512_numNone_overlap0'
+
+
+# data/FLPC01-07_orthomosaic_herdnet/jpg_tiles
+  albu_transforms:
+#      RandomCrop:
+#        height: 512
+#        width: 512
+#        p: 1.0
+    Resize:
+      height: 512
+      width: 512
+      p: 1.0
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}

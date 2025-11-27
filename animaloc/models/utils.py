@@ -17,10 +17,11 @@ __version__ = "0.2.1"
 import torch
 
 from typing import Union, Tuple, List, Optional
+from loguru import logger
 
 __all__ = ['load_model', 'count_parameters', 'LossWrapper']
 
-def load_model(model: torch.nn.Module, pth_path: str) -> torch.nn.Module:
+def load_model(model: torch.nn.Module, pth_path: str, device: str = 'cuda') -> torch.nn.Module:
     ''' Load model parameters from a PTH file 
     
     Args:
@@ -31,13 +32,13 @@ def load_model(model: torch.nn.Module, pth_path: str) -> torch.nn.Module:
         torch.nn.Module
             the model with loaded parameters
     '''
-
+    logger.info(f"Loading model from {pth_path}...")
     map_location = torch.device('cpu')
     if torch.cuda.is_available():
-        map_location = torch.device('cuda')
+        map_location = torch.device(device)
     
     checkpoint = torch.load(pth_path, map_location=map_location)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
 
     return model
 
@@ -66,7 +67,7 @@ class LossWrapper(torch.nn.Module):
         self, 
         model: torch.nn.Module, 
         losses: List[dict], 
-        mode: str = 'module'
+        mode: str = 'module' # TODO create classes for this
         ) -> None:
         '''
         Args:
@@ -148,3 +149,6 @@ class LossWrapper(torch.nn.Module):
         
         elif self.output_mode == 'both':
             return output, output_dict
+
+        else:
+            raise ValueError(f'Unknown output mode: {self.output_mode}')

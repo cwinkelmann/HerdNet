@@ -1,0 +1,31 @@
+# The sweep resulted in no clear effect of any hyperparameter except for down_ratio and a bit of batch size.
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: delplanque2022
+  - /training_settings: delplanque2022_val_loss
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_delplanque2022'
+wandb_entity: 'karisu'
+wandb_run: 'timm_DLA34_hyp_optimization'
+wandb_tags: ['timm', 'delplanque','dla34','dla' ,'boxcenter', 'default_setting', "exp2", "dr8"]
+seed: 1
+device_name: null
+
+
+# Override specific parameters from included configs
+model:
+    kwargs:
+        down_ratio: 8
+training_settings:
+    batch_size: 64
+
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

@@ -20,6 +20,7 @@ import torch.nn.functional as F
 
 from typing import Optional, List, Dict
 
+from loguru import logger
 from torchvision.ops import MultiScaleRoIAlign
 
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone,  _validate_trainable_layers
@@ -29,6 +30,8 @@ from torchvision.models.detection.rpn import AnchorGenerator, RPNHead, RegionPro
 from torchvision.models.detection.roi_heads import RoIHeads
 
 from .register import MODELS
+import torchvision.models as models
+import torchvision.models.detection.backbone_utils as backbone_utils
 
 # adapted from torchvision implementation: https://github.com/pytorch/vision/blob/c890a7e75ebeaaa75ae9ace4c203b7fc145df068/torchvision/models/detection/roi_heads.py#L12
 def fastrcnn_loss(class_logits, class_weights, box_regression, labels, regression_targets):
@@ -209,6 +212,8 @@ class FasterRCNNResNetFPN(GeneralizedRCNN):
         **kwargs
         ) -> None:
 
+        # TODO "Why not use other backbones!")
+
         assert architecture in ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
         'resnext50_32x4d', 'resnext101_32x8d', 'wide_resnet50_2', 'wide_resnet101_2']
 
@@ -228,6 +233,7 @@ class FasterRCNNResNetFPN(GeneralizedRCNN):
             if box_predictor is None:
                 raise ValueError("num_classes should not be None when box_predictor is not specified")
 
+        #TODO These trainable backbone layers looks weird
         trainable_backbone_layers = _validate_trainable_layers(pretrained_backbone, trainable_backbone_layers, 5, 3)
         backbone = resnet_fpn_backbone(architecture, pretrained_backbone, trainable_layers=trainable_backbone_layers)
         
@@ -312,4 +318,223 @@ class FasterRCNNResNetFPN(GeneralizedRCNN):
 
         transform = GeneralizedRCNNTransform(min_size, max_size, image_mean, image_std, **kwargs)
 
-        super().__init__(backbone, rpn, roi_heads, transform)        
+        super().__init__(backbone, rpn, roi_heads, transform)
+
+
+def convnext_fpn_backbone(backbone_name: str, pretrained: bool, trainable_layers: int = 3):
+    """
+    Create a Feature Pyramid Network (FPN) backbone using ConvNeXt.
+
+    Args:
+        backbone_name (str): Name of the ConvNeXt model ('convnext_tiny', 'convnext_small', 'convnext_base')
+        pretrained (bool): Whether to use pretrained weights
+        trainable_layers (int): Number of trainable layers from the end
+
+    Returns:
+        torch.nn.Module: FPN backbone
+    """
+    # Load the ConvNeXt model
+    if backbone_name == 'convnext_tiny':
+        backbone = models.convnext_tiny(pretrained=pretrained)
+        out_channels = 768
+    elif backbone_name == 'convnext_small':
+        backbone = models.convnext_small(pretrained=pretrained)
+        out_channels = 768
+    elif backbone_name == 'convnext_base':
+        backbone = models.convnext_base(pretrained=pretrained)
+        out_channels = 1024
+    else:
+        raise ValueError(f"Unsupported ConvNeXt backbone: {backbone_name}")
+
+    # Freeze layers based on trainable_layers
+    for name, parameter in backbone.features.named_parameters():
+        if int(name.split('.')[1]) < len(backbone.features) - trainable_layers:
+            parameter.requires_grad_(False)
+
+    # Extract feature stages
+    stages = list(backbone.features)
+
+    # Create FPN
+    in_channels = [96, 192, 384, out_channels]
+    return backbone_utils.BackboneWithFPN(
+        backbone=torch.nn.Sequential(*stages),
+        return_layers={'2': '0', '4': '1', '6': '2', '8': '3'},
+        in_channels_list=in_channels,
+        out_channels=256,  # Standard FPN out_channels
+        extra_blocks=None
+    )
+
+
+@MODELS.register()
+class FasterRCNNConvNeXtFPN(GeneralizedRCNN):
+    '''
+    Build a Faster R-CNN model with a ConvNeXt-FPN backbone.
+
+    Args:
+        architecture (str): ConvNeXt architecture. Possible values are 'convnext_tiny', 'convnext_small', 'convnext_base'
+        num_classes (int): number of output classes of the model (including the background)
+        pretrained_backbone (bool, optional): If True, returns a model with backbone pre-trained on Imagenet.
+            Defaults to True
+        trainable_backbone_layers (int, optional): number of trainable (not frozen) layers starting from
+            final block. Valid values are between 0 and 5, with 5 meaning all backbone layers are trainable.
+            Defaults to None
+        **kwargs: additional FasterRCNN arguments
+    '''
+
+    def __init__(
+            self,
+            architecture: str,
+            num_classes: int,
+            pretrained_backbone: bool = True,
+            trainable_backbone_layers: Optional[int] = None,
+            anchor_sizes: Optional[tuple] = None,
+            class_weights: Optional[list] = None,
+            # transform parameters
+            min_size=800,
+            max_size=1333,
+            image_mean=None,
+            image_std=None,
+            # RPN parameters
+            rpn_anchor_generator=None,
+            rpn_head=None,
+            rpn_pre_nms_top_n_train=2000,
+            rpn_pre_nms_top_n_test=1000,
+            rpn_post_nms_top_n_train=2000,
+            rpn_post_nms_top_n_test=1000,
+            rpn_nms_thresh=0.7,
+            rpn_fg_iou_thresh=0.7,
+            rpn_bg_iou_thresh=0.3,
+            rpn_batch_size_per_image=256,
+            rpn_positive_fraction=0.5,
+            rpn_score_thresh=0.0,
+            # Box parameters
+            box_roi_pool=None,
+            box_head=None,
+            box_predictor=None,
+            box_score_thresh=0.05,
+            box_nms_thresh=0.5,
+            box_detections_per_img=100,
+            box_fg_iou_thresh=0.5,
+            box_bg_iou_thresh=0.5,
+            box_batch_size_per_image=512,
+            box_positive_fraction=0.25,
+            bbox_reg_weights=None,
+            **kwargs
+    ) -> None:
+
+        logger.warning("Exploring ConvNeXt as a backbone!")
+
+        assert architecture in ['convnext_tiny', 'convnext_small', 'convnext_base']
+
+        # Validate inputs similar to the ResNet implementation
+        if not isinstance(rpn_anchor_generator, (AnchorGenerator, type(None))):
+            raise TypeError(
+                f"rpn_anchor_generator should be of type AnchorGenerator or None instead of {type(rpn_anchor_generator)}"
+            )
+        if not isinstance(box_roi_pool, (MultiScaleRoIAlign, type(None))):
+            raise TypeError(
+                f"box_roi_pool should be of type MultiScaleRoIAlign or None instead of {type(box_roi_pool)}"
+            )
+
+        if num_classes is not None:
+            if box_predictor is not None:
+                raise ValueError("num_classes should be None when box_predictor is specified")
+        else:
+            if box_predictor is None:
+                raise ValueError("num_classes should not be None when box_predictor is not specified")
+
+        # Create backbone with FPN
+        trainable_layers = 3 if trainable_backbone_layers is None else trainable_backbone_layers
+        backbone = convnext_fpn_backbone(architecture, pretrained_backbone, trainable_layers)
+
+        out_channels = backbone.out_channels
+
+        # RPN Anchor Generator
+        if rpn_anchor_generator is None:
+            if anchor_sizes is not None:
+                anchor_sizes = tuple([tuple([i, ]) for i in anchor_sizes])
+                aspects = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+                rpn_anchor_generator = AnchorGenerator(sizes=anchor_sizes, aspect_ratios=aspects)
+            else:
+                anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+                aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+                rpn_anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
+
+        # RPN Head
+        if rpn_head is None:
+            rpn_head = RPNHead(out_channels, rpn_anchor_generator.num_anchors_per_location()[0])
+
+        rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train, testing=rpn_pre_nms_top_n_test)
+        rpn_post_nms_top_n = dict(training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test)
+
+        # Region Proposal Network
+        rpn = RegionProposalNetwork(
+            rpn_anchor_generator,
+            rpn_head,
+            rpn_fg_iou_thresh,
+            rpn_bg_iou_thresh,
+            rpn_batch_size_per_image,
+            rpn_positive_fraction,
+            rpn_pre_nms_top_n,
+            rpn_post_nms_top_n,
+            rpn_nms_thresh,
+            score_thresh=rpn_score_thresh,
+        )
+
+        # ROI Pool
+        if box_roi_pool is None:
+            box_roi_pool = MultiScaleRoIAlign(featmap_names=["0", "1", "2", "3"], output_size=7, sampling_ratio=2)
+
+        # Box Head
+        if box_head is None:
+            resolution = box_roi_pool.output_size[0]
+            representation_size = 1024
+            box_head = TwoMLPHead(out_channels * resolution ** 2, representation_size)
+
+        # Box Predictor
+        if box_predictor is None:
+            representation_size = 1024
+            box_predictor = FastRCNNPredictor(representation_size, num_classes)
+
+        # ROI Heads (with optional class weights)
+        if class_weights is not None:
+            class_weights = torch.Tensor(class_weights)
+            roi_heads = RoiHeadsWeightedLoss(
+                class_weights=class_weights,
+                box_roi_pool=box_roi_pool,
+                box_head=box_head,
+                box_predictor=box_predictor,
+                fg_iou_thresh=box_fg_iou_thresh,
+                bg_iou_thresh=box_bg_iou_thresh,
+                batch_size_per_image=box_batch_size_per_image,
+                positive_fraction=box_positive_fraction,
+                bbox_reg_weights=bbox_reg_weights,
+                score_thresh=box_score_thresh,
+                nms_thresh=box_nms_thresh,
+                detections_per_img=box_detections_per_img,
+            )
+        else:
+            roi_heads = RoIHeads(
+                box_roi_pool,
+                box_head,
+                box_predictor,
+                box_fg_iou_thresh,
+                box_bg_iou_thresh,
+                box_batch_size_per_image,
+                box_positive_fraction,
+                bbox_reg_weights,
+                box_score_thresh,
+                box_nms_thresh,
+                box_detections_per_img,
+            )
+
+        # Image Transformations
+        if image_mean is None:
+            image_mean = [0.485, 0.456, 0.406]
+        if image_std is None:
+            image_std = [0.229, 0.224, 0.225]
+
+        transform = GeneralizedRCNNTransform(min_size, max_size, image_mean, image_std, **kwargs)
+
+        # Initialize the model
+        super().__init__(backbone, rpn, roi_heads, transform)

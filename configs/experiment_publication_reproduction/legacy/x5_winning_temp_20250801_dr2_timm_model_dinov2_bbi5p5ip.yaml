@@ -1,0 +1,208 @@
+wandb_notes: |
+  "reprodcing a very good run"
+# https://wandb.ai/karisu/herdnet/runs/bbi5p5ip/logs
+# /raid/cwinkelmann/herdnet/outputs/2025-08-01/09-28-39/best_model.pth
+wandb_flag: true
+wandb_project: herdnet_iguana
+wandb_entity: karisu
+wandb_run: x5_winning_temp_20250801_dr2_timm_model_dinov2_bbi5p5ip
+wandb_tags:
+- iguana
+- timm
+- iguana
+- dinov2
+- dr4
+- val_full
+- DinoV2
+seed: 1
+device_name: null
+model:
+  name: HerdNetDINOv2
+  from_torchvision: false
+#  load_from: /home/cwinkelmann/work/Herdnet/best_models/bbi5p5ip/best_model.pth
+  load_from: /home/cwinkelmann/work/Herdnet/best_models/hb555gel/best_model.pth
+  resume_from: null
+  kwargs:
+    pretrained: true
+    pretrained_path: null
+    down_ratio: 4
+    head_conv: 64
+  freeze: null
+losses:
+  FocalLoss:
+    print_name: focal_loss
+    from_torch: false
+    output_idx: 0
+    target_idx: 0
+    lambda_const: 1.0
+    kwargs:
+      alpha: 1
+      beta: 4
+      reduction: mean
+      normalize: false
+  CrossEntropyLoss:
+    print_name: ce_loss
+    from_torch: true
+    output_idx: 1
+    target_idx: 1
+    lambda_const: 1.0
+    kwargs:
+      reduction: mean
+      weight:
+      - 10.0
+      - 5.0
+      - 15.0
+      - 1.0
+      - 0.1
+      - 0.1
+      - 1.0
+      - 0.1
+datasets:
+  img_size:
+  - 512
+  - 512
+  anno_type: point
+  num_classes: 8
+  collate_fn: null
+  class_def:
+    1: iguana
+    2: hard_negative
+    3: Kob
+    4: Warthog
+    5: Waterbuck
+    6: Elephant
+    7: Impala
+  train:
+    name: CSVDataset
+    csv_file: /home/cwinkelmann/work/Herdnet/data/floreana_all/train/herdnet_format.csv
+    root_dir: /home/cwinkelmann/work/Herdnet/data/floreana_all/train/Default
+    sampler: null
+    augmentation_multiplier: 35
+    albu_transforms:
+      ObjectAwareRandomCrop:
+        height: 1000
+        width: 1000
+        p: 1.0
+        attempts: 10
+        edge_black_blobs: true
+      RandomScale:
+        scale_limit:
+        - 0.8
+        - 1.2
+        p: 0.5
+      ShiftScaleRotate:
+        shift_limit: 0.1
+        scale_limit: 0.15
+        rotate_limit: 45
+        p: 0.5
+        border_mode: 4
+      Perspective:
+        scale:
+        - 0.05
+        - 0.15
+        p: 0.3
+      Affine:
+        scale:
+        - 0.9
+        - 1.1
+        translate_percent:
+        - 0.1
+        - 0.1
+        rotate:
+        - -45
+        - 45
+        shear:
+        - -10
+        - 10
+        p: 0.2
+      HorizontalFlip:
+        p: 0.2
+      VerticalFlip:
+        p: 0.2
+      MotionBlur:
+        p: 0.2
+      RandomRotate90:
+        p: 0.5
+      RandomBrightnessContrast:
+        brightness_limit: 0.2
+        contrast_limit: 0.2
+        p: 0.1
+      Blur:
+        blur_limit: 15
+        p: 0.1
+      ToGray:
+        p: 0.1
+      ObjectAwareRandomCropEdgeBlackout:
+        height: 512
+        width: 512
+        p: 1.0
+        attempts: 10
+        edge_black_blobs: true
+      Normalize:
+        p: 1.0
+    end_transforms:
+      MultiTransformsWrapper:
+        FIDT:
+          num_classes: ${datasets.num_classes}
+          down_ratio: ${model.kwargs.down_ratio}
+          radius: 3
+        PointsToMask:
+          radius: 2
+          num_classes: ${datasets.num_classes}
+          squeeze: true
+          down_ratio: 32
+  validate:
+    name: CSVDataset
+    csv_file: /home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format.csv
+    root_dir: /home/cwinkelmann/work/Herdnet/data/floreana_all/val/Default
+    albu_transforms:
+      ObjectAwareRandomCrop:
+        height: 518
+        width: 518
+        p: 1.0
+        attempts: 10
+        edge_black_blobs: true
+      Normalize:
+        p: 1.0
+    end_transforms:
+      DownSample:
+        down_ratio: ${model.kwargs.down_ratio}
+        anno_type: ${datasets.anno_type}
+training_settings:
+  trainer: Trainer
+  epochs: 200
+  valid_freq: 3
+  print_freq: 23
+  batch_size: 10
+  optimizer: adamW
+  lr: 1.0e-05
+  weight_decay: 0.0005
+  num_workers: 20
+  auto_lr:
+    mode: max
+    patience: 50
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 20
+    min_lr: 1.0e-06
+    verbose: true
+  warmup_iters: 5000
+  vizual_fn: visualize_sample
+  visualiser:
+    name: HeatMapVisualizer
+    output_dir: /home/cwinkelmann/work/Herdnet/playground/visualizations/transformed_training_data
+  evaluator:
+    name: HerdNetEvaluator
+    threshold: 25
+    select_mode: max
+    validate_on: f1_score
+    kwargs:
+      print_freq: 50
+      lmds_kwargs:
+        kernel_size:
+        - 9
+        - 9
+        adapt_ts: 0.3
+        scale_factor: 8
+        up: true
+  stitcher: null

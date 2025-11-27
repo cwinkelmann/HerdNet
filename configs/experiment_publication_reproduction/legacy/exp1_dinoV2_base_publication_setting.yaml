@@ -1,0 +1,21 @@
+# Settings from From crowd to herd counting: How to precisely detect and count African mammals using aerial imagery and deep learning? paper, Deplanque2023
+
+defaults:
+  - /losses: herdnet_publication
+  - /datasets: delplanque2022
+  - /training_settings: delplanque2022_val_loss_slow_lr
+  - /model: Dinov2_base
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'herdnet_delplanque2022'
+wandb_entity: 'karisu'
+wandb_run: 'DinoV2_base_publication_setting'
+wandb_tags: ['delplanque','DinoV2', 'DinoV2 Base', 'timm','boxcenter', 'default_setting', "exp1"]
+seed: 1
+device_name: null
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

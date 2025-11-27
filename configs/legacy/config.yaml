@@ -1,0 +1,4 @@
+defaults:
+  - train: herdnet
+  - test: herdnet_geospatial
+

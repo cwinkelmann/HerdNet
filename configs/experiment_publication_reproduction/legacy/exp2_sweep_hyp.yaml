@@ -1,0 +1,42 @@
+# Compare Hyperparameters for timmdla34
+
+program: ./tools/train_cli.py
+method: bayes
+
+project: 'herdnet_delplanque2022_exp2_hyp_sweep'
+entity: 'karisu'
+
+metric:
+  goal: minimize
+  name: val_total_loss
+
+parameters:
+
+  model.kwargs.down_ratio:
+    values: [ 2,4,8 ]
+
+  training_settings.batch_size:
+    values: [ 64, 32, 16, 4 ]
+
+  training_settings.epochs:
+    values: [ 25 ]
+
+  training_settings.lr:
+    distribution: log_uniform_values
+    min: 0.00001
+    max: 0.01
+
+  training_settings.weight_decay:
+    distribution: log_uniform_values
+    min: 0.00001
+    max: 0.001
+
+
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --config-name=exp2_timmdla34_wandb_opt
+  - --config-path=../configs/experiment_publication_reproduction
+  - ${args_no_hyphens}

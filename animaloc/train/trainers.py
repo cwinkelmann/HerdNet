@@ -13,6 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+from pathlib import Path
 
 import torch
 import math
@@ -22,15 +23,17 @@ import wandb
 import matplotlib
 
 import matplotlib.pyplot as plt
+# from dacite.types import is_instance
+
+
 matplotlib.use('Agg')
 from torchvision.transforms import ToPILImage
-
+from loguru import logger
 from typing import List, Optional, Union, Callable, Any
 
 from ..utils.torchvision_utils import SmoothedValue, reduce_dict
 from ..utils.logger import CustomLogger
 from ..eval.evaluators import Evaluator
-from ..data.transforms import UnNormalize
 from .adaloss import Adaloss
 
 from ..utils.registry import Registry
@@ -53,13 +56,20 @@ class Trainer:
         auto_lr: Union[bool, dict] = False,
         adaloss: Optional[str] = None,
         val_dataloader: Optional[torch.utils.data.DataLoader] = None,
+        val_loss_dataloader: Optional[torch.utils.data.DataLoader] = None,
         evaluator: Optional[Evaluator] = None,
         vizual_fn: Optional[Callable] = None,
         work_dir: Optional[str] = None, 
         device_name: str = 'cuda', 
         print_freq: int = 50,
         valid_freq: int = 1,
-        csv_logger: bool = False
+        csv_logger: bool = False,
+        early_stopping: bool = False,
+        patience: int = 10,
+        min_delta: float = 0.0,
+        restore_best_weights: bool = True,
+        wandb_artifact_upload: bool = False,
+
         ) -> None:
         '''
         Args:
@@ -153,6 +163,7 @@ class Trainer:
         self.model = model.to(self.device)
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
+        self.val_loss_dataloader = val_loss_dataloader
         self.optimizer = optimizer
         self.epochs = num_epochs
         
@@ -168,7 +179,8 @@ class Trainer:
         self.auto_lr_flag = False
         if auto_lr or isinstance(auto_lr, dict):
             self.auto_lr_flag = True
-        
+
+        self.wandb_artifact_upload = wandb_artifact_upload
         # adaloss
         self.adaloss = adaloss
         if isinstance(adaloss, str):
@@ -193,6 +205,16 @@ class Trainer:
         self.csv_logger = csv_logger
         self.train_logger = CustomLogger(delimiter=' ', filename='training', work_dir=self.work_dir, csv=self.csv_logger)
         self.val_logger = CustomLogger(delimiter=' ', filename='validation', work_dir=self.work_dir, csv=self.csv_logger)
+
+        self.early_stopping = early_stopping
+        self.patience = patience
+        self.min_delta = min_delta
+        self.restore_best_weights = restore_best_weights
+
+        # Early stopping tracking variables
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.best_weights = None
     
     def prepare_data(self, images, targets) -> tuple:
         ''' Method to prepare the data before feeding to the model. 
@@ -263,51 +285,159 @@ class Trainer:
             self.best_val = float('inf')
         elif select =='max': 
             self.best_val = 0
+
+        self.best_val_loss = float('inf')
+
+        # Reset early stopping variables
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.best_weights = None
         
         if wandb_flag:
             wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
 
-        for epoch in range(1,self.epochs + 1):
+        for epoch in range(1, self.epochs + 1):
 
             # training
             train_output = self._train(epoch, warmup_iters, wandb_flag)
             if wandb_flag:
                 wandb.log({'train_loss': train_output, 'epoch': epoch})
-                wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
+                wandb.log({'lr': self.optimizer.param_groups[0]["lr"], 'epoch': epoch})
 
             # validation
             if epoch % self.valid_freq == 0 or epoch in [1, self.epochs]:
+                val_output = None
+                val_loss_output = None
+                val_output_total_loss = None
 
                 if self.evaluator is not None:
                     val_flag = True
                     viz = False
                     if wandb_flag: viz = True
                     self._prepare_evaluator('validation', epoch)
-                    val_output = self.evaluator.evaluate(returns=validate_on, viz=viz)
-                    print(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
+                    val_output = self.evaluator.evaluate(returns=validate_on, viz=viz, wandb_flag=False)
+
+                    logger.info(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
+                        wandb.log({"f1_score": self.evaluator.metrics.fbeta_score(c=1, beta=1), 'epoch': epoch})
+                        wandb.log({"f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
+                        wandb.log({"f5_score": self.evaluator.metrics.fbeta_score(c=1, beta=5), 'epoch': epoch})
+                        wandb.log({'true_positive': sum(self.evaluator.metrics.tp), 'epoch': epoch})
+                        wandb.log({'false_negative': sum(self.evaluator.metrics.fn), 'epoch': epoch})
+                        wandb.log({'false_positive': sum(self.evaluator.metrics.fp), 'epoch': epoch})
+                        wandb.log({'n': sum(self.evaluator.metrics.tp) + sum(self.evaluator.metrics.fn) + sum(self.evaluator.metrics.fp), 'epoch': epoch})
+                        wandb.log({"recall": self.evaluator.metrics.recall(), 'epoch': epoch})
+                        wandb.log({"precision": self.evaluator.metrics.precision(), 'epoch': epoch})
+                        wandb.log({"mse": self.evaluator.metrics.mse(), 'epoch': epoch})
+                        wandb.log({"mae": self.evaluator.metrics.mae(), 'epoch': epoch})
+                        wandb.log({"me": self.evaluator.metrics.me(), 'epoch': epoch})
+                        wandb.log({"rmse": self.evaluator.metrics.rmse(), 'epoch': epoch})
+                        wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
+                        wandb.log({"avg_scores": self.evaluator.metrics.avg_score(), 'epoch': epoch})
+                        wandb.log({"avg_dscores": self.evaluator.metrics.avg_dscore(), 'epoch': epoch})
 
-                elif self.val_dataloader is not None:
+                if self.val_loss_dataloader is not None:
                     val_flag = True
-                    val_output = self.evaluate(epoch, wandb_flag=wandb_flag, returns=validate_on)
+                    val_loss_output = self.evaluate(epoch, wandb_flag=wandb_flag, returns="all",
+                                                    custom_val_dataloader=self.val_loss_dataloader)
+                    if wandb_flag and isinstance(val_loss_output, dict):
+                        for key, value in val_loss_output.items():
+                            wandb.log({f'val_{key}': value, 'epoch': epoch})
+                    val_output_total_loss = val_loss_output["total_loss"]
+
+
+                # Early stopping check on the evaluate_on output which is not the loss value
+                if val_flag and self.early_stopping and self.evaluator is not None:
+                    if self._early_stopping_check(val_output, select, epoch):
+                        self.stopped_epoch = epoch
+                        logger.info(f'Early stopping triggered at epoch {epoch}')
+                        break
+
+                logger.info(
+                    f"Checking for best model by Evalutator output at epoch {epoch} with validation output: {val_output}")
+                # save checkpoint(s), best by Evalutator output
+                if val_flag and checkpoints == 'best' and val_output is not None and self._is_best(val_output, mode = select):
+                    model_checkpoint_path = self._save_checkpoint(epoch, checkpoints)
+                    logger.info(
+                        f'Best model by End User Metric {validate_on} saved - Epoch {epoch} - Validation value: {val_output:.6f}, path: {model_checkpoint_path}')
+                    if self.wandb_artifact_upload:
+                        artifact = wandb.Artifact(name=checkpoints, type="model")
+                        artifact.add_file(model_checkpoint_path)  # Add a file
+                        try:
+                            wandb.log_artifact(artifact)
+                        except Exception as e:
+                            logger.error(f'Error logging artifact to wandb: {e}')
+
+
                     if wandb_flag:
-                        wandb.log({'val_loss': val_output, 'epoch': epoch})
-            
-                # save checkpoint(s)
-                if val_flag and checkpoints =='best' and self._is_best(val_output, mode = select):
-                    print('Best model saved - Epoch {} - Validation value: {:.6f}'.format(epoch, val_output))
-                    self._save_checkpoint(epoch, checkpoints)
+                        best_metrics_dict = {
+                            "best_f1_score": self.evaluator.metrics.fbeta_score(c=1, beta=1),
+                            "best_f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2),
+                            "best_f5_score": self.evaluator.metrics.fbeta_score(c=1, beta=5),
+                            "best_true_positive": sum(self.evaluator.metrics.tp),
+                            "best_false_negative": sum(self.evaluator.metrics.fn),
+                            "best_false_positive": sum(self.evaluator.metrics.fp),
+                            "best_n": sum(self.evaluator.metrics.tp) + sum(self.evaluator.metrics.fn) + sum(self.evaluator.metrics.fp),
+                            "best_recall": self.evaluator.metrics.recall(),
+                            "best_precision": self.evaluator.metrics.precision(),
+                            "best_mse": self.evaluator.metrics.mse(),
+                            "best_mae": self.evaluator.metrics.mae(),
+                            "best_me": self.evaluator.metrics.me(),
+                            "best_rmse": self.evaluator.metrics.rmse(),
+                            "best_accuracy": self.evaluator.metrics.accuracy(),
+                            "best_avg_scores": self.evaluator.metrics.avg_score(),
+                            "best_avg_dscores": self.evaluator.metrics.avg_dscore(),
+                            "best_epoch": epoch
+                        }
+                        wandb.run.summary['best_validation'] = self.best_val
+                        wandb.run.summary.update(best_metrics_dict)
+
+                # best by validation loss
+                logger.info(
+                    f"Checking for best model by validation loss at epoch {epoch} with validation output: {val_output_total_loss}")
+                if val_flag and checkpoints == 'best' and val_output_total_loss is not None and self._is_best_loss(val_output_total_loss):
+
+                    model_checkpoint_path = self._save_checkpoint(epoch, mode="best_loss")
+                    logger.info(
+                        f'Best model by Validation Loss saved - '
+                        f'Epoch {epoch} - '
+                        f'Validation value: {val_output_total_loss:.6f}, '
+                        f'path: {model_checkpoint_path}'
+                    )
+                    if self.wandb_artifact_upload:
+                        artifact = wandb.Artifact(name=checkpoints, type="model")
+                        artifact.add_file(model_checkpoint_path)  # Add a file
+                        try:
+                            wandb.log_artifact(artifact)
+                        except Exception as e:
+                            logger.error(f'Error logging artifact to wandb: {e}')
+
+
+                    if wandb_flag and val_loss_output is not None:
+                        best_metrics_dict = {
+                        "best_total_loss": val_output,
+                        "best_epoch": epoch
+                        }
+                        if isinstance(val_loss_output, dict):
+                            best_metrics_dict.update(val_loss_output)
+                        wandb.run.summary['best_epoch'] = epoch
+                        wandb.run.summary.update(best_metrics_dict)
+
+
                 elif checkpoints == 'all':
                     self._save_checkpoint(epoch, checkpoints)
+
             
             self._save_checkpoint(epoch, 'latest')
 
             # scheduler
-            if lr_scheduler is not None:
-                if self.auto_lr_flag:
+            if lr_scheduler is not None :
+                if self.auto_lr_flag and self.evaluator is not None and val_output is not None:
                     lr_scheduler.step(val_output)
+                elif self.auto_lr_flag and val_output_total_loss is not None:
+                    lr_scheduler.step(val_output_total_loss)
                 else:
                     lr_scheduler.step()
             
@@ -315,16 +445,52 @@ class Trainer:
             if self.adaloss is not None:
                 self.adaloss.step()
                 self.train_dataloader.dataset.load_end_param(self.adaparam, self.adaloss.param)
-                print('Adaloss param: {}'.format(self.train_dataloader.dataset.end_params[self.adaparam]))
+                logger.info('Adaloss param: {}'.format(self.train_dataloader.dataset.end_params[self.adaparam]))
                 self.train_dataloader.dataset.update_end_transforms()
                 self.val_dataloader.dataset.end_params = self.train_dataloader.dataset.end_params
                 self.val_dataloader.dataset.update_end_transforms()
+
+            # Restore best weights if early stopping was triggered and restore_best_weights is True
+            if self.early_stopping and self.restore_best_weights and self.best_weights is not None:
+                logger.info('Restoring best model weights')
+                self.model.load_state_dict(self.best_weights)
         
         if wandb_flag:
             wandb.run.summary['best_validation'] = self.best_val
+            if self.stopped_epoch > 0:
+                wandb.run.summary['stopped_epoch'] = self.stopped_epoch
             wandb.run.finish()
         
         return self.model
+
+    def _early_stopping_check(self, current_val: float, mode: str, epoch: int) -> bool:
+        ''' Check if early stopping criteria is met '''
+        logger.info(f"Check if early stopping criteria is met")
+        if mode == 'min':
+            # For minimization (e.g., loss)
+            if current_val < (self.best_val - self.min_delta):
+                self.best_val = current_val
+                self.wait = 0
+                if self.restore_best_weights:
+                    self.best_weights = self.model.state_dict().copy()
+            else:
+                self.wait += 1
+
+        elif mode == 'max':
+            # For maximization (e.g., accuracy)
+            if current_val > (self.best_val + self.min_delta):
+                self.best_val = current_val
+                self.wait = 0
+                if self.restore_best_weights:
+                    self.best_weights = self.model.state_dict().copy()
+            else:
+                self.wait += 1
+
+        # Check if patience is exceeded
+        if self.wait >= self.patience:
+            return True
+
+        return False
     
     def resume(
         self, 
@@ -375,6 +541,8 @@ class Trainer:
 
         resume_epoch = checkpoint['epoch']
         self.losses = checkpoint['loss']
+        self.best_val = checkpoint['best_val']
+
 
         self.best_val = checkpoint['best_val']
 
@@ -401,7 +569,7 @@ class Trainer:
                     if wandb_flag: viz = True
                     self._prepare_evaluator('validation', epoch)
                     val_output = self.evaluator.evaluate(returns=validate_on, viz=viz)
-                    print(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
+                    logger.info(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
 
                     if wandb_flag:
                         wandb.log({validate_on: val_output, 'epoch': epoch})
@@ -414,8 +582,12 @@ class Trainer:
                 
                 # save checkpoint(s)
                 if val_flag and checkpoints =='best' and self._is_best(val_output, mode = select):
-                    print('Best model saved - Epoch {} - Validation value: {:.6f}'.format(epoch, val_output))
-                    self._save_checkpoint(epoch, checkpoints)
+                    model_checkpoint_path = self._save_checkpoint(epoch, checkpoints)
+                    logger.info('Best model saved - Epoch {} - Validation value: {:.6f}, path: {}'.format(epoch, val_output, model_checkpoint_path))
+                    if self.wandb_artifact_upload:
+                        artifact = wandb.Artifact(name=checkpoints, type="model")
+                        artifact.add_file(model_checkpoint_path)  # Add a file
+                        wandb.log_artifact(artifact)
                 elif checkpoints == 'all':
                     self._save_checkpoint(epoch, checkpoints)
             
@@ -446,15 +618,20 @@ class Trainer:
         return self.model
     
     @torch.no_grad()
-    def evaluate(self, epoch: int, reduction: str = 'mean', wandb_flag: bool = False, returns: str = 'all') -> float:
+    def evaluate(self, epoch: int, reduction: str = 'mean', wandb_flag: bool = False, returns: str = 'all',
+                 custom_val_dataloader = None) -> float:
         
         self.model.eval()
 
         header = '[VALIDATION] - Epoch: [{}]'.format(epoch)
 
         batches_losses = []
-
-        for i, (images, targets) in enumerate(self.val_logger.log_every(self.val_dataloader, self.print_freq, header)):
+        batches_losses_all = []
+        if custom_val_dataloader is not None:
+            dl = custom_val_dataloader
+        else:
+            dl = self.val_dataloader
+        for i, (images, targets) in enumerate(self.val_logger.log_every(dl, self.print_freq, header)):
 
             images, targets = self.prepare_data(images, targets)
 
@@ -470,23 +647,33 @@ class Trainer:
             self.val_logger.update(loss=losses_reduced, **loss_dict_reduced)
 
             batches_losses.append(losses)
+            batches_losses_all.append(loss_dict_reduced)
 
-            if wandb_flag and self.vizual_fn is not None:
-                if (i % self.print_freq == 0 or i == len(self.val_dataloader) - 1):
-                    fig = self._vizual(image = images, target = targets, output = output)
-                    wandb.log({'validation_vizuals': fig})
+            # if wandb_flag and self.vizual_fn is not None:
+            #     if (i % self.print_freq == 0 or i == len(self.val_dataloader) - 1):
+            #         fig = self._vizual(image = images, target = targets, output = output)
+            #         wandb.log({'validation_vizuals': fig})
         
         batches_losses = torch.stack(batches_losses)
-        
+
+
         if reduction == 'mean':
             out = torch.mean(batches_losses).item()
-            print(f'{header} mean loss: {out:.4f}')
 
-            return out
+            # Get all keys from first dict
+            avg_losses = {
+                key: torch.stack([loss_dict[key] for loss_dict in batches_losses_all]).mean().item()
+                for key in batches_losses_all[0].keys()
+            }
+            avg_losses["total_loss"] = out
+
+            logger.info(f'{header} mean loss: {out:.4f} and other losses: {avg_losses}')
+
+            return avg_losses
         
         elif reduction == 'sum':
             out = torch.sum(batches_losses).item()
-            print(f'{header} sum loss: {out:.4f}')
+            logger.info(f'{header} sum loss: {out:.4f}')
 
             return out
 
@@ -531,8 +718,8 @@ class Trainer:
             loss_value = losses_reduced.item()
 
             if not math.isfinite(loss_value):
-                print("Loss is {}, stopping training".format(loss_value))
-                print(loss_dict_reduced)
+                logger.info("Loss is {}, stopping training".format(loss_value))
+                logger.info(loss_dict_reduced)
                 sys.exit(1)
 
             self.losses.backward()
@@ -550,7 +737,7 @@ class Trainer:
         batches_losses = torch.stack(batches_losses)
 
         out = torch.mean(batches_losses).item()
-        print(f'{header} mean loss: {out:.4f}')
+        logger.info(f'{header} mean loss: {out:.4f}')
 
         return out
     
@@ -587,6 +774,7 @@ class Trainer:
             self.evaluator.model = self.model
             self.evaluator.logs_filename = filename
             self.evaluator.header = '[{}] - Epoch: [{}]'.format(filename.upper(),epoch)
+            self.evaluator.current_epoch = epoch
     
     def _is_best(self, val_output: float, mode: str = 'min') -> bool:
         ''' Method to determine the best model for saving checkpoint '''
@@ -604,8 +792,18 @@ class Trainer:
                 return True
             else:
                 return False
+
+    def _is_best_loss(self, val_output: float) -> bool:
+        ''' Method to determine the best model for saving checkpoint '''
+
+        if val_output < self.best_val_loss:
+            self.best_val_loss = val_output
+            return True
+        else:
+            return False
+
     
-    def _save_checkpoint(self, epoch: int, mode: str) -> None:
+    def _save_checkpoint(self, epoch: int, mode: str) -> Path:
         ''' Method to save checkpoints '''
 
         check_dir = self.work_dir
@@ -614,16 +812,23 @@ class Trainer:
             outpath = os.path.join(check_dir,f'epoch_{epoch}.pth')
         elif mode == 'best':
             outpath = os.path.join(check_dir,'best_model.pth')
+        elif mode == 'best_loss':
+            outpath = os.path.join(check_dir,'best_loss_model.pth')
         elif mode == 'latest':
             outpath = os.path.join(check_dir,'latest_model.pth')
+        else:
+            raise ValueError("wrong mode, should be 'all', 'best', 'best_loss','latest'")
 
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'loss': self.losses ,
-            'best_val': self.best_val
+            'best_val': self.best_val,
+
             }, outpath)
+
+        return outpath
     
     def _vizual(self, image: Any, target: Any, output: Any):
         fig = self.vizual_fn(image=image, target=target, output=output)

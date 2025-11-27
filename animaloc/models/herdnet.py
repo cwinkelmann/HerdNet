@@ -13,7 +13,6 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
-
 import torch
 
 import torch.nn as nn
@@ -74,7 +73,10 @@ class HerdNet(nn.Module):
         channels = self.channels_0
 
         scales = [2 ** i for i in range(len(channels[self.first_level:]))]
-        self.dla_up = dla_modules.DLAUp(channels[self.first_level:], scales=scales)
+        self.scales = scales
+        selected_channels = channels[self.first_level:]
+        self.dla_up = dla_modules.DLAUp(selected_channels, scales=scales)
+        # TODO why is DLAUP setting the selected channels to [32,32,23,....,32] ?
         # self.cls_dla_up = dla_modules.DLAUp(channels[-3:], scales=scales[:3])
 
         # bottleneck conv
@@ -115,17 +117,26 @@ class HerdNet(nn.Module):
         
     def forward(self, input: torch.Tensor):
 
-        encode = self.base_0(input)    
-        bottleneck = self.bottleneck_conv(encode[-1])
-        encode[-1] = bottleneck
+        feats = self.base_0(input)
+        bottleneck = self.bottleneck_conv(feats[-1])
+        feats[-1] = bottleneck
 
-        decode_hm = self.dla_up(encode[self.first_level:])
+        decode_hm = self.dla_up(feats[self.first_level:])
         # decode_cls = self.cls_dla_up(encode[-3:])
 
         heatmap = self.loc_head(decode_hm)
         clsmap = self.cls_head(bottleneck)
         # clsmap = self.cls_head(decode_cls)
 
+        if self.down_ratio == 1:
+            assert heatmap.shape[1:] == (1, 512,512)
+            assert clsmap.shape[1:] == (self.num_classes, 16,16)
+        elif self.down_ratio == 2:
+            assert heatmap.shape[1:] == (1, 256,256)
+            assert clsmap.shape[1:] == (self.num_classes, 16, 16)
+        elif self.down_ratio == 4:
+            assert heatmap.shape[1:] == (1, 128,128)
+            assert clsmap.shape[1:] == (self.num_classes, 16, 16)
         return heatmap, clsmap
     
     def freeze(self, layers: list) -> None:

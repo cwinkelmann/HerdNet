@@ -1,0 +1,82 @@
+# Delplanque et al. 2022 dataset reference with simple augmentations
+
+img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
+anno_type: 'point'
+num_classes: 8 # One class more for the background
+collate_fn: null
+
+
+class_def:
+  1: 'Giraffe'
+  2: 'Elephant'
+  3: 'Zebra'
+  4: '-'
+  5: '-'
+  6: '-'
+  7: '-'
+
+train:
+  name: 'CSVDataset'
+
+  csv_file: '/raid/cwinkelmann/training_data/eikelboom2019/eikelboom_512_overlap_0_ebFalse/eikelboom_train/train/herdnet_format_512_0_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/eikelboom2019/eikelboom_512_overlap_0_ebFalse/eikelboom_train/train/crops_512_numNone_overlap0'
+
+  sampler: null
+  augmentation_multiplier: 1
+
+  albu_transforms:
+    HorizontalFlip:
+      p: 0.5
+    MotionBlur:
+      p: 0.5
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    MultiTransformsWrapper:
+      FIDT:
+        num_classes: ${datasets.num_classes}
+        down_ratio: ${model.kwargs.down_ratio}
+        radius: 1
+      PointsToMask:
+        radius: 2
+        num_classes: ${datasets.num_classes}
+        squeeze: true
+        down_ratio: 32
+
+validate:
+  name: 'CSVDataset'
+
+  csv_file: '/raid/cwinkelmann/training_data/eikelboom2019/eikelboom_512_overlap_0_ebFalse/eikelboom_val/val/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/eikelboom2019/eikelboom_512_overlap_0_ebFalse/eikelboom_val/val/crops_512_numNone_overlap0'
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+
+test:
+  name: 'CSVDataset'
+
+  #    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/herdnet_format_512_0_crops.csv'
+  #    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_sample/train/crops_512_numNone_overlap0'
+  #
+  #    csv_file: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/herdnet_format_512_0_crops.csv'
+  #    root_dir: '/home/cwinkelmann/work/Herdnet/data/floreana_all/val/crops_512_numNone_overlap0'
+  csv_file: '/raid/cwinkelmann/training_data/eikelboom2019/eikelboom_512_overlap_0_ebFalse/eikelboom_test/test/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/eikelboom2019/eikelboom_512_overlap_0_ebFalse/eikelboom_test/test/Default'
+
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+

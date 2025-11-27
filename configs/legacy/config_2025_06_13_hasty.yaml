@@ -1,0 +1,13 @@
+# Experiment configuration file for the newest benchmark
+
+defaults:
+  # - train: faster_rcnn_iguana_segments_2025_03_10
+  # - train: herdnet_iguana_segments_2025_03_10
+  - train: ig_hasty_dla34_2025_06_13
+  - test: herdnet_2025_04_26_geospatial
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
