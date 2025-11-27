@@ -258,7 +258,7 @@ def _define_visualiser(
     return visualisor
 
 
-def get_least_occupied_gpu_nvidia_smi() -> int:
+def get_least_occupied_gpu_nvidia_smi() -> str:
     """
     Get the GPU with the least memory usage using nvidia-smi.
     More accurate as it shows total system memory usage, not just PyTorch.
@@ -266,6 +266,9 @@ def get_least_occupied_gpu_nvidia_smi() -> int:
     Returns:
         int: GPU device ID with least memory usage
     """
+    if not torch.cuda.is_available():
+        return "cpu"
+
     try:
         # Run nvidia-smi to get GPU memory info
         result = subprocess.run([
