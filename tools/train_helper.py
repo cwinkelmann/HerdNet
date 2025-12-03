@@ -252,7 +252,8 @@ def _define_visualiser(
 
 
     visualisor = animaloc.vizual.plots.__dict__[name](
-        output_path=cfg.training_settings.visualiser.output_dir
+        output_path=cfg.training_settings.visualiser.output_dir,
+        down_ratio=cfg.training_settings.visualiser.down_ratio
     )
 
     return visualisor

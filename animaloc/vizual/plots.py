@@ -113,7 +113,7 @@ class Visualiser:
         Path(self.output_path).mkdir(parents=True, exist_ok=True)
 
 class HeatMapVisualizer(Visualiser):
-    def __init__(self, output_path, down_ratio: int = 2):
+    def __init__(self, output_path, down_ratio):
         super().__init__(output_path)
         self.down_ratio = down_ratio
 
@@ -145,7 +145,7 @@ class HeatMapVisualizer(Visualiser):
         plt.close(fig)
 
 
-        output_name = f"heatmap_{target['original_image_name'][0][0]}_{epoch}.png"
+        output_name = f"heatmap_target_{target['original_image_name'][0][0]}_{epoch}.png"
         heatmap_fig = visualise_full_res_heatmap(image,
                                                  target,
                                                  output
@@ -160,7 +160,7 @@ class HeatMapVisualizer(Visualiser):
                 heatmap_fig.axes[0].add_patch(circ)
 
                 # Add text label next to the circle
-                heatmap_fig.axes[0].text(x + 3, y, f"sc: {row['scores']:.2f}, ds: {row['dscores']:.2f}",
+                heatmap_fig.axes[0].text(x + 10, y, f"sc: {row['scores']:.2f}, ds: {row['dscores']:.2f}",
                                          color='white', fontsize=8, va='center',
                                          bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.5))
 
@@ -266,5 +266,5 @@ def visualise_full_res_heatmap(
     ax.axis("off")
 
     plt.tight_layout(pad=0.2)
-
+    # plt.show()
     return fig

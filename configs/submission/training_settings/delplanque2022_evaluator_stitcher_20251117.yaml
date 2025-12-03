@@ -28,12 +28,15 @@ vizual_fn: visualize_sample
 visualiser:
   name: 'HeatMapVisualizer'
   output_dir: ./visualizations
+  down_ratio: ${model.kwargs.down_ratio}
+  BLAL: "1"
 
+loss_evaluation: null
+#loss_evaluation:
+#  name: 'LossEvaluator'
+#  select_mode: 'min'
+#  validate_on: 'total_loss'
 
-loss_evaluation:
-  name: 'LossEvaluator'
-  select_mode: 'min'
-  validate_on: 'total_loss'
 
 evaluator:
   name: 'HerdNetEvaluator'

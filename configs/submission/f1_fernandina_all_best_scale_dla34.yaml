@@ -3,7 +3,7 @@ wandb_notes: |
 
 defaults:
   - /losses: herdnet_iguana_high_recall
-  - /datasets: ig_fernandina_best_aug_scale
+  - /datasets: ig_fernandina_best_aug_default
   - /training_settings: delplanque2022_evaluator_stitcher_20251117
   - /model: HerdNetTimmDLA34_dr2_imagenet
   - _self_  # Include this config's content
@@ -11,7 +11,7 @@ defaults:
 wandb_flag: True
 wandb_project: 'x21_opt'
 wandb_entity: 'karisu'
-wandb_run: 'f1_fernandina_dla34_high_recall_augmentation_optimized'
+wandb_run: 'f1_fernandina_dla34_high_recall'
 wandb_tags: ["dla34"]
 seed: 1
 device_name: null

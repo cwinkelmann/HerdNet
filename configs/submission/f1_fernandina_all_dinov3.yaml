@@ -2,30 +2,30 @@ wandb_notes: |
   fine tune on full iguana dataset with timm DLA34 model
 
 defaults:
-  - /losses: herdnet_iguana_high_recall
-  - /datasets: ig_fernandina_best_aug_scale
+  - /losses: herdnet_iguana
+  - /datasets: ig_fernandina_best_aug_default
   - /training_settings: delplanque2022_evaluator_stitcher_20251117
-  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - /model: dinov3_one_best
   - _self_  # Include this config's content
 
 wandb_flag: True
 wandb_project: 'x21_opt'
 wandb_entity: 'karisu'
-wandb_run: 'f1_fernandina_dla34_high_recall_augmentation_optimized'
-wandb_tags: ["dla34"]
+wandb_run: 'f1_fernandina_dinov3'
+wandb_tags: ["dino"]
 seed: 1
 device_name: null
 
 
 training_settings:
   lr: 1.0e-04
-  epochs: 50
+  epochs: 150
   batch_size: 5
 
 #
 model:
   # HerdnetTimmDLA169_dr2_imagenet.yaml
-  load_from: /raid/cwinkelmann/herdnet/outputs/2025-12-03/12-13-51/best_model.pth
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-11-13/18-24-40/best_model.pth
   kwargs:
     down_ratio: 4
 
