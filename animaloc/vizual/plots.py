@@ -13,26 +13,27 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+import itertools
+import random
 import typing
 from pathlib import Path
-
-import pandas as pd
-import torch
-import torch.nn.functional as F
-import matplotlib.pyplot as plt 
-import random
-import itertools
-
+from typing import Any
 from typing import Optional, Dict
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch.nn.functional as F
 import wandb
+from loguru import logger
 from matplotlib.figure import Figure
+from matplotlib.patches import Circle
+from sklearn.decomposition import PCA
 from torch import Tensor
-
 
 from animaloc.vizual.custom_vis import plot_heatmaps, denormalize_image
 
-__all__ = ['PlotPrecisionRecall', 'Visualiser', 'HeatMapVisualizer', 'visualize_sample']
+__all__ = ['PlotPrecisionRecall', 'Visualiser', 'HeatMapVisualizer', 'visualize_sample', "DebugVisualizer"]
 
 class PlotPrecisionRecall:
 
@@ -100,15 +101,11 @@ class PlotPrecisionRecall:
         return itertools.cycle(('^','o','s','x','D','v','>'))
 
 
-import matplotlib.pyplot as plt
-import torch
-import numpy as np
-from matplotlib.patches import Circle
-from typing import Any
-from torchvision.transforms import ToPILImage
 
-class Visualiser:
-    def __init__(self, output_path: str):
+
+
+class Visualiser(typing.Callable):
+    def __init__(self, output_path: Path):
         self.output_path = output_path
         Path(self.output_path).mkdir(parents=True, exist_ok=True)
 
@@ -168,6 +165,122 @@ class HeatMapVisualizer(Visualiser):
         heatmap_fig.savefig(Path(self.output_path) / output_name)
         plt.close(heatmap_fig)
         return fig
+
+
+
+
+class DebugVisualizer(Visualiser):
+
+
+    def __init__(self, output_path: Path):
+        super().__init__(Path(output_path))
+
+
+    def __call__(self, debug_data, image: Tensor, target: Dict,
+                 output: typing.Tuple[Tensor, Tensor],
+                 epoch: int,
+                 output_name: str = 'heatmap.png',
+                 visualise_predictions: pd.DataFrame | None = None
+                 ):
+
+        """
+        Visualizes a sample image, target points, and model output.
+
+        Args:
+            image: Input image tensor [B, C, H, W] (normalized)
+            target: Target dictionary containing 'points', 'labels'
+            output: Model output (optional) - could be predictions, heatmaps, etc.
+
+        Returns:
+            matplotlib.figure.Figure: The created figure
+        """
+
+
+        fig = self.visualize_debug(debug_data, image, save_path= f"debug_pca_{target['original_image_name'][0][0]}_{epoch}.png")
+
+        return fig
+
+    def visualize_debug(self, debug_data, img_tensor, save_path="debug_layers.png"):
+        """
+        Runs the model in debug mode and saves a grid of all internal layers.
+        img_tensor: [1, 3, H, W] normalized
+        """
+        # model.eval()
+         # with torch.no_grad():
+        #     # Get debug dictionary
+        #     debug_data = model(img_tensor, debug=True)
+
+        # We will plot: Input, Prediction, Fused, and Backbones
+        # Prepare figure
+        num_layers = len(debug_data['backbone'])
+        cols = num_layers + 3  # Input, Pred, Fused, + Layers
+        fig, axes = plt.subplots(2, cols, figsize=(4 * cols, 8))
+
+        # 1. Plot Input
+        input_img = img_tensor[0].permute(1, 2, 0).cpu().numpy()
+        # Simple denorm for visualization (approximate)
+        input_img = (input_img - input_img.min()) / (input_img.max() - input_img.min())
+        axes[0, 0].imshow(input_img)
+        axes[0, 0].set_title("Input")
+        axes[1, 0].axis('off')
+
+        # 2. Plot Prediction
+        pred = debug_data['prediction'][0, 0].cpu().numpy()
+        axes[0, 1].imshow(pred, cmap='jet')
+        axes[0, 1].set_title("Prediction")
+        axes[1, 1].axis('off')
+
+        # 3. Plot Fused Feature (PCA)
+        # The 'fused' map is what the head sees. If this is blurry, the head fails.
+        fused = debug_data['fused'][0].cpu().numpy()  # [C, H, W]
+        self.show_pca(fused, axes[0, 2])
+        axes[0, 2].set_title("Fused (PCA)")
+
+        # Plot Fused Feature (Activation Energy)
+        # L2 Norm shows WHERE the features are strong
+        activation = np.linalg.norm(fused, axis=0)
+        axes[1, 2].imshow(activation, cmap='magma')
+        axes[1, 2].set_title("Fused (Energy)")
+
+        # 4. Plot Backbone Layers
+        for i, (name, feat_tensor) in enumerate(debug_data['backbone'].items()):
+            feat = feat_tensor[0].cpu().numpy()  # [C, H, W]
+            col_idx = i + 3
+
+            # Row 0: PCA (Semantic View)
+            self.show_pca(feat, axes[0, col_idx])
+            axes[0, col_idx].set_title(f"{name} (PCA)")
+
+            # Row 1: Energy (Activity View)
+            activation = np.linalg.norm(feat, axis=0)
+            axes[1, col_idx].imshow(activation, cmap='magma')
+            axes[1, col_idx].set_title(f"{name} (Energy)")
+
+        plt.tight_layout()
+        plt.savefig(self.output_path / save_path)
+        wandb.log({save_path: wandb.Image(fig)})
+        logger.info(f"Debug Image saved to {self.output_path / save_path}")
+        plt.close(fig)
+        return fig
+
+    def show_pca(self, feature_map, ax):
+        """
+        Project High-Dim feature map [C, H, W] to [H, W, 3] RGB using PCA.
+        """
+        C, H, W = feature_map.shape
+        # Flatten spatial dims: [C, N]
+        flat_feat = feature_map.reshape(C, -1).transpose()  # [N, C]
+
+        # PCA to 3 components
+        pca = PCA(n_components=3)
+        rgb = pca.fit_transform(flat_feat)  # [N, 3]
+
+        # Normalize to 0-1
+        rgb = (rgb - rgb.min(0)) / (rgb.max(0) - rgb.min(0))
+
+        # Reshape back to image
+        rgb_img = rgb.reshape(H, W, 3)
+        ax.imshow(rgb_img)
 
 def visualize_sample(image: Tensor, target: Dict, output: typing.Tuple[Tensor, Tensor],):
     """

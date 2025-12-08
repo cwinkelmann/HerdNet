@@ -23,104 +23,10 @@ train:
 
 
   sampler: null
-  augmentation_multiplier: 1
+  augmentation_multiplier: 20
 
   albu_transforms:
     ObjectAwareRandomCrop:
-      height: 700
-      width: 700
-      p: 1.0
-
-    RandomScale:
-      scale_limit:
-        - 0.85
-        - 1.15
-      p: 0.30
-
-    ShiftScaleRotate:
-      shift_limit: 0.15
-      scale_limit: 0.15
-      rotate_limit: 60
-      border_mode: 4
-      p: 0.00
-
-    Perspective:
-      scale:
-        - 0.05
-        - 0.1
-      p: 0.00
-
-    Affine:
-      scale:
-        - 0.9
-        - 1.1
-      translate_percent:
-        - 0.1
-        - 0.1
-      rotate:
-        - -30
-        - 30
-      shear:
-        - -10
-        - 10
-      p: 0.10
-
-    HorizontalFlip:
-      p: 0.17
-
-    VerticalFlip:
-      p: 0.07
-
-    RandomRotate90:
-      p: 0.36
-
-    MotionBlur:
-      p: 0.10
-
-    Blur:
-      blur_limit: 11
-      p: 0.20
-
-    RandomShadow:
-      shadow_roi:
-        - 0
-        - 0.5
-        - 1
-        - 1
-      shadow_dimension: 5
-      p: 0.10
-
-    RandomFog:
-      fog_coef_lower: 0.1
-      fog_coef_upper: 0.5
-      alpha_coef: 0.08
-      p: 0.05
-
-    RandomBrightnessContrast:
-      brightness_limit: 0.4
-      contrast_limit: 0.3
-      p: 0.10
-
-    HueSaturationValue:
-      hue_shift_limit: 15
-      sat_shift_limit: 0
-      val_shift_limit: 15
-      p: 0.10
-
-    CLAHE:
-      clip_limit: 2.0
-      p: 0.10
-
-    ToGray:
-      p: 0.10
-
-    ImageCompression:
-      quality_lower: 60
-      quality_upper: 95
-      compression_type: 1  # 0 for PNG, 1 for JPEG
-      p: 0.10
-
-    ObjectAwareRandomCropEdgeBlackout:
       height: 512
       width: 512
       p: 1.0

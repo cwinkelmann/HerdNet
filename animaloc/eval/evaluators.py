@@ -55,6 +55,7 @@ class Evaluator:
         print_freq: int = 10,
         stitcher: Optional[Stitcher] = None,
         vizual_fn: Optional[Visualiser] = None,
+        vizual_debug_fn: Optional[Visualiser] = None,
         work_dir: Optional[str] = None,
         header: Optional[str] = None
         ):
@@ -100,6 +101,9 @@ class Evaluator:
         
         assert callable(vizual_fn) or isinstance(vizual_fn, type(None)), \
             f'vizual_fn argument must be a callable function, got \'{type(vizual_fn)}\''
+
+        assert callable(vizual_debug_fn) or isinstance(vizual_debug_fn, type(None)), \
+            f'vizual_debug_fn argument must be a callable function, got \'{type(vizual_debug_fn)}\''
         
         self.model = model
         self.dataloader = dataloader
@@ -108,6 +112,7 @@ class Evaluator:
         self.print_freq = print_freq
         self.stitcher = stitcher
         self.vizual_fn = vizual_fn
+        self.vizual_debug_fn = vizual_debug_fn
         self.current_epoch = None
         self.work_dir = work_dir
         if self.work_dir is None:
@@ -187,6 +192,9 @@ class Evaluator:
         iter_metrics = self.metrics.copy()
 
         for i, (images, targets) in enumerate(logger.log_every(self.dataloader, self.print_freq, self.header)):
+
+            debug_output = None
+            
             # loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
             if len(images) > 1:
@@ -200,7 +208,7 @@ class Evaluator:
                 # output, _ = self.model(images, targets)  
                 model_output, _ = self.model(images)
 
-
+                debug_output = self.model.model( images, debug=True)
 
 
 
@@ -209,9 +217,16 @@ class Evaluator:
 
             if viz and self.vizual_fn is not None:
                 if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
-                    fig = self._vizual(image = images,
-                                       target = targets,
-                                       output = model_output, visualise_predictions = pd.DataFrame(output_prediction["preds"]))
+                    self._vizual(image=images,
+                                 target=targets,
+                                 output=model_output,
+                                 visualise_predictions=pd.DataFrame(output_prediction["preds"]))
+                    if debug_output:
+                        self._vizual_debug(debug_output=debug_output,
+                                           image=images,
+                                           target=targets,
+                                           output=model_output,
+                                           visualise_predictions=pd.DataFrame(output_prediction["preds"]))
 
             # for each image feed outputs and aggregate metrics, should look like
             """
@@ -390,7 +405,21 @@ class Evaluator:
         fig = self.vizual_fn(image=image,
                              target=target,
                              output=output,
-                             epoch=self.current_epoch, visualise_predictions=visualise_predictions)
+                             epoch=self.current_epoch,
+                             visualise_predictions=visualise_predictions)
+
+        return fig
+
+    def _vizual_debug(self, debug_output, image: Any, target: Any, output: Any,
+                      visualise_predictions: pd.DataFrame = None) -> None:
+        debug_fig = self.vizual_debug_fn(debug_data=debug_output,
+                                   image=image,
+                                   target=target,
+                                   output=output,
+                                   epoch=self.current_epoch,
+                                   visualise_predictions=visualise_predictions)
+
+        return debug_fig
 
 
 
@@ -405,6 +434,7 @@ class HerdNetEvaluator(Evaluator):
                  print_freq: int = 10,
                  stitcher: Optional[Stitcher] = None,
                  vizual_fn: Optional[Callable] = None,
+                 vizual_debug_fn: Optional[Callable] = None,
                  work_dir: Optional[str] = None,
                  header: Optional[str] = None
         ) -> None:
@@ -413,10 +443,14 @@ class HerdNetEvaluator(Evaluator):
                          metrics,
                          device_name=device_name,
                          print_freq=print_freq,
-            vizual_fn=vizual_fn,
+                        vizual_fn=vizual_fn,
                          stitcher=stitcher,
                          work_dir=work_dir,
-                         header=header)
+                         header=header,
+
+                        vizual_debug_fn=vizual_debug_fn,
+
+                         )
 
         self.lmds_kwargs = lmds_kwargs
 

@@ -15,14 +15,18 @@ class_def:
 #  7: 'Impala'
 
 train:
-  name: 'CSVDataset'
+#  name: 'CSVDataset'
+  name: 'FolderDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/herdnet_format_800_160_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/crops_800_numNone_overlap160'
+#  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/herdnet_format_800_160_crops_no_HN.csv'
+#  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/crops_800_numNone_overlap160'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/All_detection_extend/train/herdnet_format_800_160_crops.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/All_detection_extend/train/crops_800_numNone_overlap160'
 
 
   sampler: null
   augmentation_multiplier: 1
+#  mosaic_prob: 0.3
 
   albu_transforms:
     ObjectAwareRandomCrop:
@@ -42,7 +46,7 @@ train:
       FIDT:
         num_classes: ${datasets.num_classes}
         down_ratio: ${model.kwargs.down_ratio}
-        radius: 2
+        radius: 1
       PointsToMask:
         radius: 2
         num_classes: ${datasets.num_classes}
@@ -52,16 +56,18 @@ train:
 validate:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/herdnet_format_800_160_crops.csv'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/herdnet_format_800_160_crops_no_HN.csv'
   root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/crops_800_numNone_overlap160'
 
   albu_transforms:
-#    ObjectAwareRandomCropEdgeBlackout:
-#      height: 512
-#      width: 512
-#      p: 1.0
-#      attempts: 10
-#      edge_black_blobs: true
+    ObjectAwareRandomCrop:
+      height: 512
+      width: 512
+      p: 1.0
+      always_apply: True
+      empty_probability: 0.15
+
+
     Normalize:
       p: 1.0
 

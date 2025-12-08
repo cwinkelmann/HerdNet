@@ -4,14 +4,17 @@
 
 
 trainer: 'Trainer'
-epochs: 50
+epochs: 100
 valid_freq: 1
 print_freq: 225
-batch_size: 10
+batch_size: 5
 # optimizer: 'SGD'
-optimizer: 'adam'
-lr: 0.001
-weight_decay: 0.005
+optimizer: 'adamW'
+lr: 0.0001
+backbone_lr: 1e-6
+head_lr: 0.0002
+weight_decay: 0.05
+weight_decay_backbone: 0.01
 num_workers: 2
 auto_lr:
   mode: 'max'
@@ -19,21 +22,28 @@ auto_lr:
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10
-  min_lr: 1e-6
+  min_lr: 1e-7
   verbose: True
-warmup_iters: 100
+warmup_iters: 500
 
 # vizual_fn: "model_vizual"
 vizual_fn: visualize_sample
 visualiser:
   name: 'HeatMapVisualizer'
   output_dir: ./visualizations
+  down_ratio: ${model.kwargs.down_ratio}
+
+debug_visualiser:
+  name: 'DebugVisualizer'
+  output_dir: ./visualizations
 
 
-loss_evaluation:
-  name: 'LossEvaluator'
-  select_mode: 'min'
-  validate_on: 'total_loss'
+loss_evaluation: null
+#loss_evaluation:
+#  name: 'LossEvaluator'
+#  select_mode: 'min'
+#  validate_on: 'total_loss'
+
 
 evaluator:
   name: 'HerdNetEvaluator'
@@ -41,10 +51,10 @@ evaluator:
   select_mode: 'max'
   validate_on: 'f1_score'
   kwargs:
-    print_freq: 125
+    print_freq: 5
     lmds_kwargs:
       kernel_size: [9, 9]
-      adapt_ts: 0.3
+      adapt_ts: 0.5
       scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True
@@ -56,4 +66,5 @@ stitcher:
     down_ratio: ${model.kwargs.down_ratio}
     up: False
     reduction: 'mean'
+    batch_size: 60
 #stitcher: null

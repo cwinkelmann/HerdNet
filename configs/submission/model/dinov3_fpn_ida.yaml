@@ -1,0 +1,20 @@
+# one of the best models trained from scratch: recall 0.92, precision 0.7 f5 0.92
+
+
+name: 'HerdNetDINOv3Pyramid'
+
+from_torchvision: False
+load_from: null
+
+
+resume_from: null
+kwargs:
+  backbone: 'vit_large_patch16_dinov3.sat493m'
+  pretrained: True
+  pretrained_path: null
+  down_ratio: 4  # was two before
+  head_conv: 64 # was 64
+#  output_channels: [768, 1024, 1280]
+
+  freeze_backbone: False # Freeze the backbone, if you want to train only the heads
+  input_resolution: [1024, 1024]

@@ -59,7 +59,8 @@ class Trainer:
         val_loss_dataloader: Optional[torch.utils.data.DataLoader] = None,
         evaluator: Optional[Evaluator] = None,
         vizual_fn: Optional[Callable] = None,
-        work_dir: Optional[str] = None, 
+        debug_vizual_fn: Optional[Callable] = None,
+        work_dir: Optional[str] = None,
         device_name: str = 'cuda', 
         print_freq: int = 50,
         valid_freq: int = 1,
@@ -296,6 +297,10 @@ class Trainer:
         if wandb_flag:
             wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
 
+            learning_rates = len(self.optimizer.param_groups)
+            for i in range(1, learning_rates):
+                wandb.log({f'lr_{i}': self.optimizer.param_groups[i]["lr"]})
+
         for epoch in range(1, self.epochs + 1):
 
             # training
@@ -303,6 +308,10 @@ class Trainer:
             if wandb_flag:
                 wandb.log({'train_loss': train_output, 'epoch': epoch})
                 wandb.log({'lr': self.optimizer.param_groups[0]["lr"], 'epoch': epoch})
+
+                learning_rates = len(self.optimizer.param_groups)
+                for i in range(1, learning_rates):
+                    wandb.log({f'lr_{i}': self.optimizer.param_groups[i]["lr"]})
 
             # validation
             if epoch % self.valid_freq == 0 or epoch in [1, self.epochs]:
@@ -552,6 +561,10 @@ class Trainer:
         if wandb_flag:
             wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
 
+            learning_rates = len(self.optimizer.param_groups)
+            for i in range(1, learning_rates):
+                wandb.log({f'lr_{i}': self.optimizer.param_groups[i]["lr"]})
+
         for epoch in range(resume_epoch + 1, self.epochs + 1):
 
             # training
@@ -559,6 +572,10 @@ class Trainer:
             if wandb_flag:
                 wandb.log({'train_loss': train_output, 'epoch': epoch})
                 wandb.log({'lr': self.optimizer.param_groups[0]["lr"]})
+
+                learning_rates = len(self.optimizer.param_groups)
+                for i in range(1, learning_rates):
+                    wandb.log({f'lr_{i}': self.optimizer.param_groups[i]["lr"]})
 
             # validation
             if epoch % self.valid_freq == 0 or epoch in [1, self.epochs]:
@@ -687,6 +704,9 @@ class Trainer:
 
         self.model.train()
 
+        if hasattr(self.model, 'backbone'):
+            self.model.backbone.eval()
+
         self.train_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
         header = '[TRAINING] - Epoch: [{}]'.format(epoch)
 
@@ -723,6 +743,10 @@ class Trainer:
                 sys.exit(1)
 
             self.losses.backward()
+
+            # Clip gradients to prevent explosions in the Transformer head
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
+
             self.optimizer.step()
 
             if self.adaloss is not None:

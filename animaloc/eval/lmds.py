@@ -33,8 +33,10 @@ class LMDS:
         self, 
         kernel_size: tuple = (3,3),
         adapt_ts: float = 100.0/255.0, 
-        neg_ts: float = 0.1
-        ) -> None:
+        neg_ts: float = 0.1,
+        score_threshold: float = 0.3,  # Absolute score threshold
+
+    ) -> None:
         '''
         Args:
             kernel_size (tuple, optional): size of the kernel used to select local
@@ -51,6 +53,7 @@ class LMDS:
             f'The kernel size must be odd, got {kernel_size[0]}'
 
         self.kernel_size = tuple(kernel_size)
+        self.score_threshold = score_threshold
         self.adapt_ts = adapt_ts
         self.neg_ts = neg_ts
 
@@ -145,7 +148,7 @@ class HerdNetLMDS(LMDS):
         self, 
         up: bool = True, 
         kernel_size: tuple = (3,3), 
-        adapt_ts: float = 0.3, 
+        adapt_ts: float = 0.3,
         neg_ts: float = 0.1,
         scale_factor: int = 16
         ) -> None:

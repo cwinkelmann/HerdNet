@@ -1,0 +1,63 @@
+wandb_notes: |
+  fine tune on full iguana dataset with timm DinoV3
+  it is based on some winning recipes
+  trying to get a high recall on Fernandina problematic images
+  using 1024 upscaling in model
+  
+
+defaults:
+  - /losses: herdnet_iguana_high_recall
+  - /datasets: ig_fernandina_best_aug_default
+  - /training_settings: delplanque2022_evaluator_Stitcher
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'x21_opt'
+wandb_entity: 'karisu'
+wandb_run: 'f1_fernandina_dla_empty0.15'
+wandb_tags: ["dino"]
+seed: 1
+device_name: null
+
+
+datasets:
+  train:
+    csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/Fernandina_CVAT_corr/train/herdnet_format.csv'
+    root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/Fernandina_CVAT_corr/train/Default'
+
+    albu_transforms:
+      ObjectAwareRandomCrop:
+        empty_probability: 0.15
+
+  validate:
+    csv_file: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_s_detection/val/herdnet_format.csv'
+    root_dir: '/raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_s_detection/val/Default'
+
+training_settings:
+  lr: 1.0e-05
+  epochs: 50
+  batch_size: 5
+
+#losses:
+#  FocalLoss:
+#    kwargs:
+#      alpha: 2
+#      beta: 4
+#  FastFocalLoss:
+#    kwargs:
+#      alpha: 2
+#      beta: 4
+
+#
+model:
+  # HerdnetTimmDinV3 high res
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-12-05/08-58-54/best_model.pth # https://wandb.ai/karisu/x21_opt/runs/q8jh1q6w/logs?nw=nwuserkarisu
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-12-03/15-47-21/best_model.pth # https://wandb.ai/karisu/x21_opt/runs/71y3vz5a/logs?nw=nwuserkarisu
+  kwargs:
+    down_ratio: 4
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

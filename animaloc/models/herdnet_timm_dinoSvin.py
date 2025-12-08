@@ -265,9 +265,10 @@ class HerdNetDINOv2(nn.Module):
             head_conv: int = 64,
             pretrained_path=None,
             debug=True,
-            attention_layers: List[int] = [-4, -3, -2, -1],
+            attention_layers: List[int] = [-4, -3, -2, -1], # Which transformer layers to extract attention from
             output_channels=[256, 512, 1024],
-            input_resolution=(512, 512)  # Which transformer layers to extract attention from
+            input_resolution=(512, 512),
+            freeze_backbone=False
     ):
         super().__init__()
 
@@ -285,9 +286,11 @@ class HerdNetDINOv2(nn.Module):
             num_classes=0,  # Remove classification head
         )
 
+
         if pretrained_path:
             dinov2_model = _load_backbone_checkpoint(dinov2_model, pretrained_path)
-
+        if freeze_backbone:
+            self.freeze_backbone_completely(dinov2_model)
         # self.backbone = dinov2_model
 
         # Extract model info
@@ -375,9 +378,9 @@ class HerdNetDINOv2(nn.Module):
         if debug:
             self._inspect_model()
 
-    def freeze_backbone_completely(self):
+    def freeze_backbone_completely(self, model):
         """Freeze all parameters in the DINOv2 backbone."""
-        for param in self.backbone.parameters():
+        for param in model.parameters():
             param.requires_grad = False
 
     def check_trainable_parameters(self):

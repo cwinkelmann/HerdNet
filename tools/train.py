@@ -34,7 +34,7 @@ from animaloc.utils.seed import set_seed
 from animaloc.utils.useful_funcs import current_date
 from tools.train_helper import _get_collate_fn, _build_sampler, _load_albu_transforms, _load_end_transforms, \
     _build_model, _load_losses, _define_evaluator, _define_visualiser, get_least_occupied_gpu_nvidia_smi, \
-    _get_show_batch_fn
+    _get_show_batch_fn, _define_debug_visualiser
 from animaloc.vizual.custom_vis import plot_heatmaps, plot_heatmaps_combined
 
 
@@ -76,6 +76,7 @@ def main(cfg: DictConfig) -> Path:
         albu_transforms = _load_albu_transforms(train_args.albu_transforms),
         end_transforms = _load_end_transforms(train_args.end_transforms),
         augmentation_multiplier = train_args.augmentation_multiplier,
+        # mosaic_prob = train_args.mosaic_prob , # check if it is in there
         )
 
     val_dataloader = None
@@ -252,14 +253,14 @@ def main(cfg: DictConfig) -> Path:
     if cfg.model.load_from is not None:
         model = load_model(model, cfg.model.load_from, device=device)
 
-        if 'HerdNet' in cfg.model.name:
-            if cfg.model.freeze is not None and cfg.model.freeze > 0:
-                model.model.freeze(layers=list(cfg.model.freeze))
-                logger.info(f"Layers {list(cfg.model.freeze)} freezed")
+        # if 'HerdNet' in cfg.model.name:
+        #     if cfg.model.freeze is not None and cfg.model.freeze > 0:
+        #         model.model.freeze(layers=list(cfg.model.freeze))
+        #         logger.info(f"Layers {list(cfg.model.freeze)} freezed")
 
-    if hasattr(cfg.model, 'freeze_backbone') and cfg.model.freeze_backbone:
-        model.model.freeze_backbone_completely()
-        logger.info("Backbone frozen")
+    # if hasattr(cfg.model, 'freeze_backbone') and cfg.model.freeze_backbone:
+    #     model.model.freeze_backbone_completely()
+    #     logger.info("Backbone frozen")
 
     try:
         model.model.check_trainable_parameters()  # TODO implement this in all models
@@ -272,6 +273,28 @@ def main(cfg: DictConfig) -> Path:
             lr = cfg.training_settings.lr,
             weight_decay = cfg.training_settings.weight_decay
             )
+    # # 2. Define the Optimizer with Groups
+    # elif cfg.training_settings.optimizer == 'adamW' and cfg.training_settings.backbone_lr is not None:
+    #
+    #     optimizer = torch.optim.AdamW([
+    #     {
+    #         'params': model.model.loc_head.parameters(),
+    #         'lr': cfg.training_settings.lr,  # HIGH (Learn fast)
+    #         'weight_decay': cfg.training_settings.weight_decay  # Standard weight decay
+    #     },
+    #     # Check if classification head exists and add it too
+    #     {
+    #         'params': model.model.cls_head.parameters(),
+    #         'lr': cfg.training_settings.lr,
+    #         'weight_decay': cfg.training_settings.weight_decay
+    #     },
+    #     {
+    #         'params': model.model.backbone.parameters(),
+    #         'lr': cfg.training_settings.backbone_lr,  # VERY LOW (Keep pre-trained knowledge)
+    #         'weight_decay': cfg.training_settings.weight_decay_backbone  # ViTs like high weight decay
+    #     },
+    #
+    #     ])
     elif cfg.training_settings.optimizer == 'adamW':
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -287,12 +310,15 @@ def main(cfg: DictConfig) -> Path:
     
     # Watch the model's gradients during training
     visualiser = None
+    debug_visualiser = None
     if cfg.wandb_flag:
 
         # wandb.watch(model) # TODO make this configurable
 
         if cfg.training_settings.visualiser is not None:
             visualiser = _define_visualiser(cfg)
+        if cfg.training_settings.debug_visualiser is not None:
+            debug_visualiser = _define_debug_visualiser(cfg)
 
     if cfg.training_settings.evaluator is not None:
 
@@ -332,6 +358,7 @@ def main(cfg: DictConfig) -> Path:
         evaluator = evaluator,
         device_name = cfg.device_name,
         vizual_fn = visualiser,
+        debug_vizual_fn = debug_visualiser,
         work_dir = work_dir,
         print_freq = cfg.training_settings.print_freq,
         valid_freq = cfg.training_settings.valid_freq,

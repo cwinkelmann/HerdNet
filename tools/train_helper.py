@@ -227,6 +227,11 @@ def _define_evaluator(
     else:
         visualiser = None
 
+    if cfg.training_settings.debug_visualiser is not None:
+        debug_visualiser = _define_debug_visualiser(cfg)
+    else:
+        debug_visualiser = None
+
     evaluator = animaloc.eval.evaluators.__dict__[name](
         model=model,
         dataloader=dataloader,
@@ -235,6 +240,7 @@ def _define_evaluator(
         stitcher=stitcher,
         header='[TEST]',
         vizual_fn=visualiser,
+        vizual_debug_fn=debug_visualiser,
         **kwargs
     )
 
@@ -254,6 +260,22 @@ def _define_visualiser(
     visualisor = animaloc.vizual.plots.__dict__[name](
         output_path=cfg.training_settings.visualiser.output_dir,
         down_ratio=cfg.training_settings.visualiser.down_ratio
+    )
+
+    return visualisor
+
+
+def _define_debug_visualiser(
+        cfg: DictConfig
+) -> Visualiser:
+
+    name = cfg.training_settings.debug_visualiser.name
+    assert name in animaloc.vizual.plots.__dict__.keys(), \
+        f'\'{name}\' class unfound, make sure you have included the class in the evaluators list'
+
+
+    visualisor = animaloc.vizual.plots.__dict__[name](
+        output_path=cfg.training_settings.visualiser.output_dir,
     )
 
     return visualisor

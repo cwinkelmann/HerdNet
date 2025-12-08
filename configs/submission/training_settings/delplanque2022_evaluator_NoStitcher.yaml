@@ -10,14 +10,15 @@ print_freq: 225
 batch_size: 5
 # optimizer: 'SGD'
 optimizer: 'adamW'
-lr: 0.001
-backbone_lr: 0.00001
-head_lr: 0.001
-weight_decay: 0.00016
+lr: 0.0001
+backbone_lr: 1e-6
+head_lr: 0.0002
+weight_decay: 0.05
+weight_decay_backbone: 0.01
 num_workers: 2
 auto_lr:
   mode: 'max'
-  patience: 35
+  patience: 5
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10
@@ -31,6 +32,11 @@ visualiser:
   name: 'HeatMapVisualizer'
   output_dir: ./visualizations
   down_ratio: ${model.kwargs.down_ratio}
+
+debug_visualiser:
+  name: 'DebugVisualizer'
+  output_dir: ./visualizations
+
 
 loss_evaluation: null
 #loss_evaluation:
@@ -48,16 +54,16 @@ evaluator:
     print_freq: 125
     lmds_kwargs:
       kernel_size: [9, 9]
-      adapt_ts: 0.7
-      scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
+      adapt_ts: 0.5
+      scale_factor: 8 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True
 
-stitcher:
-  name: 'HerdNetStitcher'
-  kwargs:
-    overlap: 120
-    down_ratio: ${model.kwargs.down_ratio}
-    up: False
-    reduction: 'mean'
-#stitcher: null
+#stitcher:
+#  name: 'HerdNetStitcher'
+#  kwargs:
+#    overlap: 120
+#    down_ratio: ${model.kwargs.down_ratio}
+#    up: False
+#    reduction: 'mean'
+stitcher: null

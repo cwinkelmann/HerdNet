@@ -101,6 +101,8 @@ PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandin
 
 
 PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_dinov3" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_dinov3_fpn" --config-path="../configs/submission/"  > /dev/null 2>&1 &
 ```
 
 

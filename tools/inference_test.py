@@ -204,7 +204,7 @@ def main(cfg: DictConfig) -> None:
     inference(cfg)
 
 
-def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
+def inference(cfg: DictConfig, plain_inference = False, vis_detections=False) -> pd.DataFrame:
 
     # retrieving the test part of the config
      # TODO move this to the other config
@@ -219,7 +219,7 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
         down_ratio = cfg.model.kwargs.down_ratio
 
 
-
+    # TODO log all settings
     if cfg.wandb_flag:
         # Set up wandb
         wandb.init(
@@ -368,48 +368,49 @@ def inference(cfg: DictConfig, plain_inference = False) -> pd.DataFrame:
     # plot only false positves
     # fp = detections[detections['FP'] == 1]
 
-    logger.info("5) plot the detections")
-    logger.info('Exporting plots and thumbnails ...')
-    dest_plots = plots_path
-    mkdir(dest_plots)
-    dest_thumb = current_directory / 'thumbnails'
-    dest_thumb.mkdir(exist_ok=True, parents=True)
-    img_names = numpy.unique(detections['images'].values).tolist()
+    if vis_detections:
+        logger.info("5) plot the detections")
+        logger.info('Exporting plots and thumbnails ...')
+        dest_plots = plots_path
+        mkdir(dest_plots)
+        dest_thumb = current_directory / 'thumbnails'
+        dest_thumb.mkdir(exist_ok=True, parents=True)
+        img_names = numpy.unique(detections['images'].values).tolist()
 
-    for img_name in img_names:
-        img = PIL.Image.open(os.path.join(cfg.datasets.test.root_dir, img_name))
-        if img.format != 'JPEG':
-            img = img.convert("RGB")
+        for img_name in img_names:
+            img = PIL.Image.open(os.path.join(cfg.datasets.test.root_dir, img_name))
+            if img.format != 'JPEG':
+                img = img.convert("RGB")
 
 
-        img_cpy = img.copy()
-        pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
+            img_cpy = img.copy()
+            pts = list(detections[detections['images'] == img_name][['y', 'x']].to_records(index=False))
 
-        # logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
-        pts = [(y, x) for y, x in pts]
-        output = draw_points(img, pts, color='red', size=30)
-        output.save(os.path.join(dest_plots, img_name), format="JPEG", quality=95)
+            # logger.warning(f"The coordinates are manually upscaled by a factor of down_ratio: {down_ratio}")
+            pts = [(y, x) for y, x in pts]
+            output = draw_points(img, pts, color='red', size=30)
+            output.save(os.path.join(dest_plots, img_name), format="JPEG", quality=95)
 
-        ts = 256 # Thumbnail size
-        # Create and export thumbnails
-        sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
-        for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):
-            if score < 0.3:
-                continue
-            off = ts // 2
-            # TODO the fact this fails if an image is empty shows the code was never evaluated with empty images/or never predicted nothing even if the image was empty
-            coords = (x - off, y - off, x + off, y + off)
-            if all(np.isnan(coords)):
-                logger.warning(f"Coords are all NaN: {coords}, skipping")
-                continue
-            thumbnail = img_cpy.crop(coords)
-            score = round(score * 100, 0)
-            thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
-            thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
+            ts = 256 # Thumbnail size
+            # Create and export thumbnails
+            sp_score = list(detections[detections['images'] == img_name][['species', 'scores']].to_records(index=False))
+            for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):
+                if score < 0.3:
+                    continue
+                off = ts // 2
+                # TODO the fact this fails if an image is empty shows the code was never evaluated with empty images/or never predicted nothing even if the image was empty
+                coords = (x - off, y - off, x + off, y + off)
+                if all(np.isnan(coords)):
+                    logger.warning(f"Coords are all NaN: {coords}, skipping")
+                    continue
+                thumbnail = img_cpy.crop(coords)
+                score = round(score * 100, 0)
+                thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10, 5), font_size=int(0.08 * ts))
+                thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
 
-            if cfg.wandb_flag:
+                if cfg.wandb_flag:
 
-                wandb.log({"thumbnails": wandb.Image(thumbnail)})
+                    wandb.log({"thumbnails": wandb.Image(thumbnail)})
 
 
     logger.info(f'Testing done, wrote results to: {os.getcwd()}')

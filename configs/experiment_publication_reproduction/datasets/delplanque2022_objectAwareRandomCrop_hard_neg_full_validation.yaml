@@ -1,5 +1,6 @@
 # Delplanque et al. 2022 dataset reference with simple augmentations ULG/MIRUU5_2023 https://dataverse.uliege.be/dataset.xhtml?persistentId=doi:10.58119/ULG/MIRUU5
 
+
 img_size: [512, 512] # The size of how the images should be processed, mostly important for the tiled prediction
 anno_type: 'point'
 num_classes: 8 # One class more for the background

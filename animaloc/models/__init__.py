@@ -23,6 +23,9 @@ from .herdnet_timm_dla import *
 from .herdnet_timm_convnext import *
 from .herdnet_timm_dinoSvin import *
 from .herdnet_timm_dinoV3 import *
+from .herdnet_timm_dinoV3_fpn import *
+
+from .herdnet_timm_dinoV3_fpn_ida import *
 from .herdnet_timm_dino_fpn import *
 from .utils import *
 from .ss_dla import *

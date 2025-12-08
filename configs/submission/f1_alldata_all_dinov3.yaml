@@ -2,12 +2,12 @@ wandb_notes: |
   Hopefully the last training I need to do which combines the best annotations, training settings etc
 
 defaults:
-  - /losses: herdnet_iguana_20251117
+  - /losses: herdnet_iguana_high_recall
   - /datasets: iguana_marchena_sample
-  - /training_settings: delplanque2022_evaluator_stitcher_20251117
+  - /training_settings: delplanque2022_evaluator_NoStitcher
 #  - /model: HerdNetTimmDLA34_dr2_imagenet
 #  - /model: dinov2_one_best
-  - /model: dinov3_one_best
+  - /model: dinov3_fpn
   - _self_  # Include this config's content
 
 wandb_flag: True
@@ -21,9 +21,10 @@ device_name: null
 
 
 model:
-  load_from: /raid/cwinkelmann/herdnet/outputs/2025-12-03/11-44-45/best_model.pth # https://wandb.ai/karisu/f1_alldata_all_best_DINO/runs/gonz7gta/logs
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-12-03/11-44-45/best_model.pth # https://wandb.ai/karisu/f1_alldata_all_best_DINO/runs/gonz7gta/logs
   kwargs:
     down_ratio: 4
+  freeze_backbone: True
 #
 #training_settings:
 #  lr: 1.0e-06
