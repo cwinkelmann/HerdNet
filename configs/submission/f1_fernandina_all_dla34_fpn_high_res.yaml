@@ -1,8 +1,8 @@
 wandb_notes: |
-  fine tune on full iguana dataset with timm DinoV3
+  fine tune on full iguana dataset with timm dla34
   it is based on some winning recipes
   trying to get a high recall on Fernandina problematic images
-  using 1024 upscaling in model
+
   
 
 defaults:

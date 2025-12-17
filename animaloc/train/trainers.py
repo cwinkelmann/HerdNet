@@ -27,11 +27,9 @@ import matplotlib.pyplot as plt
 
 
 matplotlib.use('Agg')
-from torchvision.transforms import ToPILImage
-from loguru import logger
+
 from typing import List, Optional, Union, Callable, Any
 
-from ..utils.torchvision_utils import SmoothedValue, reduce_dict
 from ..utils.logger import CustomLogger
 from ..eval.evaluators import Evaluator
 from .adaloss import Adaloss
@@ -329,23 +327,45 @@ class Trainer:
                     logger.info(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
 
                     if wandb_flag:
-                        wandb.log({validate_on: val_output, 'epoch': epoch})
-                        wandb.log({"f1_score": self.evaluator.metrics.fbeta_score(c=1, beta=1), 'epoch': epoch})
-                        wandb.log({"f2_score": self.evaluator.metrics.fbeta_score(c=1, beta=2), 'epoch': epoch})
-                        wandb.log({"f5_score": self.evaluator.metrics.fbeta_score(c=1, beta=5), 'epoch': epoch})
-                        wandb.log({'true_positive': sum(self.evaluator.metrics.tp), 'epoch': epoch})
-                        wandb.log({'false_negative': sum(self.evaluator.metrics.fn), 'epoch': epoch})
-                        wandb.log({'false_positive': sum(self.evaluator.metrics.fp), 'epoch': epoch})
-                        wandb.log({'n': sum(self.evaluator.metrics.tp) + sum(self.evaluator.metrics.fn) + sum(self.evaluator.metrics.fp), 'epoch': epoch})
-                        wandb.log({"recall": self.evaluator.metrics.recall(), 'epoch': epoch})
-                        wandb.log({"precision": self.evaluator.metrics.precision(), 'epoch': epoch})
-                        wandb.log({"mse": self.evaluator.metrics.mse(), 'epoch': epoch})
-                        wandb.log({"mae": self.evaluator.metrics.mae(), 'epoch': epoch})
-                        wandb.log({"me": self.evaluator.metrics.me(), 'epoch': epoch})
-                        wandb.log({"rmse": self.evaluator.metrics.rmse(), 'epoch': epoch})
-                        wandb.log({"accuracy": self.evaluator.metrics.accuracy(), 'epoch': epoch})
-                        wandb.log({"avg_scores": self.evaluator.metrics.avg_score(), 'epoch': epoch})
-                        wandb.log({"avg_dscores": self.evaluator.metrics.avg_dscore(), 'epoch': epoch})
+                        wandb.log({
+                            validate_on: val_output,
+                            'epoch': epoch,
+                            'f1_score': self.evaluator.metrics.fbeta_score(c=1, beta=1),
+                            'f2_score': self.evaluator.metrics.fbeta_score(c=1, beta=2),
+                            'f5_score': self.evaluator.metrics.fbeta_score(c=1, beta=5),
+                            'true_positive': sum(self.evaluator.metrics.tp),
+                            'false_negative': sum(self.evaluator.metrics.fn),
+                            'false_positive': sum(self.evaluator.metrics.fp),
+                            'n': sum(self.evaluator.metrics.tp) + sum(self.evaluator.metrics.fn) + sum(
+                                self.evaluator.metrics.fp),
+                            'recall': self.evaluator.metrics.recall(),
+                            'precision': self.evaluator.metrics.precision(),
+                            'mse': self.evaluator.metrics.mse(),
+                            'mae': self.evaluator.metrics.mae(),
+                            'me': self.evaluator.metrics.me(),
+                            'rmse': self.evaluator.metrics.rmse(),
+                            'accuracy': self.evaluator.metrics.accuracy(),
+                            'avg_scores': self.evaluator.metrics.avg_score(),
+                            'avg_dscores': self.evaluator.metrics.avg_dscore(),
+                        })
+                        # if isinstance(self.evaluator.metrics, DensityAwarePointsMetrics):
+                        density_metrics = {'epoch': epoch}
+                        for gt_density, density_stats in self.evaluator.metrics.density_stats.items():
+                            prefix = f'density_{gt_density}'
+                            density_metrics.update({
+                                f'{prefix}/tp': density_stats.tp,
+                                f'{prefix}/fn': density_stats.fn,
+                                f'{prefix}/fp': density_stats.fp,
+                                f'{prefix}/recall': density_stats.recall,
+                                f'{prefix}/precision': density_stats.precision,
+                                f'{prefix}/f1': density_stats.f1,
+                                f'{prefix}/f2': density_stats.f2,
+                                f'{prefix}/mae': density_stats.mae,
+                                f'{prefix}/sum_signed_error': density_stats.sum_signed_error,
+                                f'{prefix}/total_pred': density_stats.total_pred,
+                                f'{prefix}/total_gt': density_stats.total_gt,
+                            })
+                        wandb.log(density_metrics)
 
                 if self.val_loss_dataloader is not None:
                     val_flag = True
@@ -365,7 +385,7 @@ class Trainer:
                         break
 
                 logger.info(
-                    f"Checking for best model by Evalutator output at epoch {epoch} with validation output: {val_output}")
+                    f"Checking for best model by Evaluator output at epoch {epoch} with validation output: {val_output}")
                 # save checkpoint(s), best by Evalutator output
                 if val_flag and checkpoints == 'best' and val_output is not None and self._is_best(val_output, mode = select):
                     model_checkpoint_path = self._save_checkpoint(epoch, checkpoints)
@@ -704,8 +724,8 @@ class Trainer:
 
         self.model.train()
 
-        if hasattr(self.model, 'backbone'):
-            self.model.backbone.eval()
+        # if hasattr(self.model, 'backbone'):
+        #     self.model.backbone.eval()
 
         self.train_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
         header = '[TRAINING] - Epoch: [{}]'.format(epoch)
@@ -870,3 +890,125 @@ class FasterRCNNTrainer(Trainer):
                             for t in targets]
 
         return images, targets
+
+
+import torch
+import math
+import sys
+from typing import Optional, List, Tuple
+from loguru import logger
+
+
+from ..utils.torchvision_utils import SmoothedValue, reduce_dict
+
+
+# ... and other necessary imports from the base Trainer ...
+
+# Note: The base Trainer class must be available for this subclass to work.
+
+@TRAINERS.register()
+class P2PNetTrainer(Trainer):
+    '''
+    Specialized Trainer for HerdNetP2P models.
+    Skips the LossWrapper and correctly handles list-of-dictionary targets.
+    '''
+
+    def prepare_data(self, images, targets) -> tuple:
+        """
+        Overrides base method to handle the List-of-Dictionary targets specific to P2PNet,
+        moving only the necessary Tensor components to the device.
+        """
+        images = images.to(self.device)
+
+        if isinstance(targets, (list, tuple)):
+            new_targets = []
+            for t in targets:
+                t_on_device = {}
+                # Only move Tensors (points, labels) to the GPU
+                for k, v in t.items():
+                    if isinstance(v, torch.Tensor):
+                        t_on_device[k] = v.to(self.device)
+                    else:
+                        t_on_device[k] = v
+                new_targets.append(t_on_device)
+            targets = new_targets
+        else:
+            # Fallback for single tensor targets
+            targets = targets.to(self.device)
+
+        return images, targets
+
+    def _train(
+            self,
+            epoch: int,
+            warmup_iters: Optional[int] = None,
+            wandb_flag: bool = False
+    ) -> torch.Tensor:
+        ''' Training method, calling HerdNetP2P directly for internal loss calculation. '''
+
+        # Note: self.model is the raw HerdNetP2P, which has the loss criterion internally.
+        self.model.train()
+
+        # You must keep this check if DINO backbone evaluation is required
+        if hasattr(self.model, 'backbone') and self.model.backbone.training:
+            self.model.backbone.eval()  # Keep the batch norm/dropout frozen in DINO
+
+        self.train_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
+        header = '[TRAINING] - Epoch: [{}]'.format(epoch)
+
+        if warmup_iters is not None and epoch == 1:
+            self.start_lr_scheduler = self._warmup_lr_scheduler(
+                min(warmup_iters, len(self.train_dataloader) - 1),
+                1. / warmup_iters
+            )
+
+        batches_losses = []
+
+        for images, targets in self.train_logger.log_every(self.train_dataloader, self.print_freq, header):
+
+            images, targets = self.prepare_data(images, targets)
+
+            self.optimizer.zero_grad()
+
+            # --- P2PNET FORWARD PASS ---
+            # Call the model directly. HerdNetP2P calculates the Hungarian loss internally
+            # and returns the scalar loss dict: {'loss_p2p': value}
+            loss_dict = self.model(images, targets)
+
+            if wandb_flag:
+                wandb.log(loss_dict)
+
+            # This sum is safe because loss_dict only contains scalar losses now
+            self.losses = loss_dict["loss_p2p"]
+            batches_losses.append(self.losses.detach())
+
+
+            loss_value = self.losses.detach()
+
+            if not math.isfinite(loss_value):
+                logger.info("Loss is {}, stopping training".format(loss_value))
+                logger.info(self.losses.detach())
+                sys.exit(1)
+
+            self.losses.backward()
+
+            # Clip gradients to prevent explosions in the Transformer head
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
+
+            self.optimizer.step()
+
+            if self.adaloss is not None:
+                self.adaloss.feed(self.losses)
+
+            if warmup_iters is not None and epoch == 1:
+                self.start_lr_scheduler.step()
+
+            self.train_logger.update(loss=self.losses.detach())
+            self.train_logger.update(lr=self.optimizer.param_groups[0]["lr"])
+
+        batches_losses = torch.stack(batches_losses)
+
+        out = torch.mean(batches_losses).item()
+        logger.info(f'{header} mean loss: {out:.4f}')
+
+        return out

@@ -100,7 +100,12 @@ def main(cfg: DictConfig) -> Path:
             end_transforms=_load_end_transforms(train_args.end_transforms)
         )
         # TODO why is it batch size 1 here: because the the datasets keeps track of metadata image_name etc. we get a wrong RuntimeError: stack expects each tensor to be equal size, but got [1] at entry 0 and [2] at entry 27
-        val_dataloader = DataLoader(val_dataset, batch_size=1,
+        if hasattr(cfg.training_settings, 'val_batch_size') and cfg.training_settings.val_batch_size is not None:
+            val_batch_size = cfg.training_settings.val_batch_size
+        else:
+            val_batch_size = 1
+
+        val_dataloader = DataLoader(val_dataset, batch_size=val_batch_size,
                                     shuffle=False,
                                     collate_fn=_get_collate_fn(cfg))
 
@@ -147,9 +152,9 @@ def main(cfg: DictConfig) -> Path:
                 validate_data_augmentation_v=dict(cfg.datasets.validate.albu_transforms),
 
                 n_data_augmentation=len(list(cfg.datasets.train.albu_transforms.keys())),
-                end_transforms=list(cfg.datasets.train.end_transforms.keys()),
-                FIDT=cfg.datasets.train.end_transforms.MultiTransformsWrapper.FIDT,
-                PointsToMask=dict(cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask),
+                # end_transforms=list(cfg.datasets.train.end_transforms.keys()),
+                # FIDT=cfg.datasets.train.end_transforms.MultiTransformsWrapper.FIDT, # TODO get this right for the comparison
+                # PointsToMask=dict(cfg.datasets.train.end_transforms.MultiTransformsWrapper.PointsToMask),
                 input_size=cfg.datasets.img_size,
                 class_def=cfg.datasets.class_def,
                 augmentation_multiplier=cfg.datasets.train.augmentation_multiplier,
@@ -201,7 +206,7 @@ def main(cfg: DictConfig) -> Path:
     # little hack to visuliase training data examples
     train_dataloader = DataLoader(train_dataset, **train_dl_kwargs)
 
-    if cfg.wandb_flag:
+    if cfg.wandb_flag and cfg.model.name != "HerdNetP2P" : # TODO visualise the training data
         # iterate through the dataloader to check if it works
         max_plot = 10
         for i, (img_tensor, target) in enumerate(train_dataset):
@@ -246,12 +251,24 @@ def main(cfg: DictConfig) -> Path:
 
     # model.reshape_classes(num_classes=cfg.datasets.num_classes)
     # Prepare for training
+    # Prepare for training
     logger.info('Preparing for training ...')
-    criterions = _load_losses(cfg)
-    model = LossWrapper(model, criterions).to(device)
+
+    # --- CONDITIONAL WRAPPING LOGIC ---
+    if cfg.model.name == "HerdNetP2P":
+        # P2PNet calculates loss internally. No wrapping needed.
+        logger.info("P2PNet detected: Bypassing LossWrapper.")
+        criterions = _load_losses(cfg)  # Satisfy downstream logging/config (though unused by model)
+        model.set_criterion( criterions[0]["loss"])
+        final_model = model.to(device)  # <--- Use the raw model
+
+    else:
+        # Standard behavior for Density Models: Load external losses and wrap.
+        criterions = _load_losses(cfg)
+        final_model = LossWrapper(model, criterions).to(device)
 
     if cfg.model.load_from is not None:
-        model = load_model(model, cfg.model.load_from, device=device)
+        final_model = load_model(final_model, cfg.model.load_from, device=device)
 
         # if 'HerdNet' in cfg.model.name:
         #     if cfg.model.freeze is not None and cfg.model.freeze > 0:
@@ -263,13 +280,13 @@ def main(cfg: DictConfig) -> Path:
     #     logger.info("Backbone frozen")
 
     try:
-        model.model.check_trainable_parameters()  # TODO implement this in all models
+        final_model.model.check_trainable_parameters()  # TODO implement this in all models
     except AttributeError as e:
         logger.error(f"The model has not check for trainable_parameters: {e}")
 
     if cfg.training_settings.optimizer == 'adam':
         optimizer = torch.optim.Adam(
-            model.parameters(),
+            final_model.parameters(),
             lr = cfg.training_settings.lr,
             weight_decay = cfg.training_settings.weight_decay
             )
@@ -297,13 +314,13 @@ def main(cfg: DictConfig) -> Path:
     #     ])
     elif cfg.training_settings.optimizer == 'adamW':
         optimizer = torch.optim.AdamW(
-            model.parameters(),
+            final_model.parameters(),
             lr = cfg.training_settings.lr,
             weight_decay = cfg.training_settings.weight_decay
             )
     else:
         optimizer = torch.optim.SGD(
-            model.parameters(), 
+            final_model.parameters(),
             lr = cfg.training_settings.lr, 
             weight_decay = cfg.training_settings.weight_decay
             )
@@ -319,13 +336,13 @@ def main(cfg: DictConfig) -> Path:
             visualiser = _define_visualiser(cfg)
         if cfg.training_settings.debug_visualiser is not None:
             debug_visualiser = _define_debug_visualiser(cfg)
-
+            # TODO it is actually used inthe evaluators
     if cfg.training_settings.evaluator is not None:
 
         assert val_dataloader is not None, \
             'A validation dataset must be defined to build an evaluator'
 
-        evaluator = _define_evaluator(model, val_dataloader, cfg)
+        evaluator = _define_evaluator(final_model, val_dataloader, cfg)
         select = cfg.training_settings.evaluator.select_mode
         validate_on = cfg.training_settings.evaluator.validate_on
     else:
@@ -347,7 +364,7 @@ def main(cfg: DictConfig) -> Path:
         vizual_fn = animaloc.vizual.plots.__dict__[cfg.training_settings.vizual_fn]
 
     trainer = animaloc.train.trainers.__dict__[cfg.training_settings.trainer](
-        model, 
+        final_model,
         train_dataloader, 
         optimizer = optimizer, 
         num_epochs = cfg.training_settings.epochs, 

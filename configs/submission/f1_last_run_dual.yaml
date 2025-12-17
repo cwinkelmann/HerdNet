@@ -1,0 +1,49 @@
+wandb_notes: |
+  fine tune on full iguana dataset with timm DLA34 model
+
+defaults:
+  - /losses: herdnet_iguana
+#  - /losses: density_aware_herdnet_iguana
+  - /datasets: iguana_last_run
+#  - /datasets: iguana_marchena_sample
+  - /training_settings: delplanque2022_evaluator_stitcher_20251117
+#  - /training_settings: delplanque2022_evaluator_NoStitcher
+  - /model: DualBranchHerdNet
+#  - /model: dinov2_v2
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'f1_last_run'
+wandb_entity: 'karisu'
+wandb_run: 'x25_dual_branch_dino_convnext'
+wandb_tags: ["dla"]
+seed: 1
+device_name: null
+
+training_settings:
+  lr: 1.0e-05
+  epochs: 50
+  batch_size: 5
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        adapt_ts: 0.3
+
+  visualiser:
+    down_ratio:
+      4
+
+  debug_visualiser: null
+
+model:
+  kwargs:
+  #  load_from: /raid/cwinkelmann/herdnet/outputs/2025-11-17/14-15-53/best_model.pth # https://wandb.ai/karisu/f1_alldata_all_best_DINO/runs/gonz7gta/logs
+#    head_conv: 128 # was 64
+#    output_channels: [ 192, 384, 768 ]
+#    attention_layers: [ -3, -2, -1 ]
+
+    down_ratio: 4
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

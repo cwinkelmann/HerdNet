@@ -1,4 +1,4 @@
-# one of the best models trained from scratch: recall 0.92, precision 0.7 f5 0.92
+
 
 # name: 'HerdNetTimm'
 name: 'HerdNetDINOv2'
@@ -7,10 +7,7 @@ name: 'HerdNetDINOv2'
 from_torchvision: False
 #load_from: /raid/cwinkelmann/herdnet/outputs/2025-08-10/23-21-57/best_model.pth
 load_from: null
-# load_from: '/raid/cwinkelmann/herdnet/outputs/2025-08-01/09-28-39/best_model.pth'
-# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-10/09-12-38/best_model.pth" # https://wandb.ai/karisu/herdnet/runs/h6vo5nmp/overview
-# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-10/09-28-39/best_model.pth" # https://wandb.ai/karisu/herdnet/runs/h6vo5nmp/logs
-# load_from: "/raid/cwinkelmann/herdnet/outputs/2025-08-10/21-22-29/best_model.pth" # https://wandb.ai/karisu/herdnet/runs/9ijextab/logs
+
 
 resume_from: null
 kwargs:

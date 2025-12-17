@@ -18,10 +18,10 @@ train:
 #  name: 'CSVDataset'
   name: 'FolderDataset'
 
-#  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/herdnet_format_800_160_crops_no_HN.csv'
-#  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/crops_800_numNone_overlap160'
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/All_detection_extend/train/herdnet_format_800_160_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/All_detection_extend/train/crops_800_numNone_overlap160'
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/herdnet_format_800_160_crops_no_HN.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/marchena/train/crops_800_numNone_overlap160'
+#  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/All_detection_extend/train/herdnet_format_800_160_crops.csv'
+#  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/All_detection_extend/train/crops_800_numNone_overlap160'
 
 
   sampler: null
@@ -34,11 +34,7 @@ train:
       width: 512
       p: 1.0
       always_apply: True
-      empty_probability: 0.15
-    HorizontalFlip:
-      p: 0.5
-    MotionBlur:
-      p: 0.5
+      empty_probability: 0
     Normalize:
       p: 1.0
   end_transforms:

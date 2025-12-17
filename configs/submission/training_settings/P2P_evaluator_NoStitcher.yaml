@@ -1,0 +1,68 @@
+
+
+
+trainer: 'P2PNetTrainer'
+epochs: 100
+valid_freq: 1
+print_freq: 225
+batch_size: 5
+val_batch_size: 1 # TODO this still does not work with higher batch sizes, maybe for the stitcher case
+
+# optimizer: 'SGD'
+optimizer: 'adamW'
+lr: 0.001
+backbone_lr: 0.001
+head_lr: 0.0002
+weight_decay: 0.001
+weight_decay_backbone: 0.01
+num_workers: 2
+auto_lr:
+  mode: 'max'
+  patience: 5
+  threshold: 1e-4
+  threshold_mode: 'rel'
+  cooldown: 10
+  min_lr: 1e-7
+  verbose: True
+warmup_iters: 200
+
+# vizual_fn: "model_vizual"
+#vizual_fn: visualize_sample
+#visualiser:
+#  name: 'HeatMapVisualizer'
+#  output_dir: ./visualizations
+#  down_ratio: 1
+#
+#debug_visualiser:
+#  name: 'DebugVisualizer'
+#  output_dir: ./visualizations
+
+vizual_fn: null
+visualiser: null
+debug_visualiser: null
+
+
+loss_evaluation: null
+#loss_evaluation:
+#  name: 'LossEvaluator'
+#  select_mode: 'min'
+#  validate_on: 'total_loss'
+
+
+evaluator:
+  name: 'P2PNetEvaluator'
+  threshold: 100
+  select_mode: 'max'
+  validate_on: 'f1_score'
+  kwargs:
+    print_freq: 125
+
+
+#stitcher:
+#  name: 'HerdNetStitcher'
+#  kwargs:
+#    overlap: 120
+#    down_ratio: ${model.kwargs.down_ratio}
+#    up: False
+#    reduction: 'mean'
+stitcher: null

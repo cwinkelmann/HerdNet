@@ -17,7 +17,7 @@ weight_decay: 0.00016
 num_workers: 2
 auto_lr:
   mode: 'max'
-  patience: 35
+  patience: 5
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10

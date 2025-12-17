@@ -21,6 +21,7 @@ from typing import Optional
 from .register import LOSSES
 import torch
 from torch import nn
+from torch.nn import functional as F
 @LOSSES.register()
 class FocalLoss(torch.nn.Module):
     ''' Focal Loss module '''
@@ -307,3 +308,238 @@ class HerdNetLoss(nn.Module):
         dice_l = (1 - dice_score).mean()
 
         return focal_l + (self.dice_weight * dice_l)
+
+
+@LOSSES.register()
+class DensityAwareFocalLoss(nn.Module):
+    """
+    Focal Loss with density-aware weighting.
+
+    Isolated objects (low local density) receive higher weight than
+    objects in dense colonies. This helps the model learn to detect
+    harder-to-find lone individuals.
+
+    Density is computed using a local window around each positive location.
+    """
+
+    def __init__(
+            self,
+            alpha: float = 2,
+            beta: float = 4,
+            density_radius: int = 32,
+            min_weight: float = 0.5,
+            max_weight: float = 3.0,
+            density_scale: str = 'inverse',  # 'inverse', 'inverse_sqrt', 'inverse_log'
+            eps: float = 1e-6,
+            reduction: str = 'mean',
+    ):
+        """
+        Args:
+            alpha: Focal loss alpha (power for positive samples)
+            beta: Focal loss beta (power for negative weight)
+            density_radius: Radius (pixels) to compute local density
+            min_weight: Minimum weight for high-density regions
+            max_weight: Maximum weight for isolated objects
+            density_scale: How to scale weight by density:
+                - 'inverse': weight = 1 / density
+                - 'inverse_sqrt': weight = 1 / sqrt(density)
+                - 'inverse_log': weight = 1 / log(1 + density)
+            eps: Numerical stability
+            reduction: 'mean', 'sum', or 'none'
+        """
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.density_radius = density_radius
+        self.min_weight = min_weight
+        self.max_weight = max_weight
+        self.density_scale = density_scale
+        self.eps = eps
+        self.reduction = reduction
+
+        # Create density counting kernel (circular)
+        kernel_size = 2 * density_radius + 1
+        y, x = torch.meshgrid(
+            torch.arange(kernel_size) - density_radius,
+            torch.arange(kernel_size) - density_radius,
+            indexing='ij'
+        )
+        kernel = ((x ** 2 + y ** 2) <= density_radius ** 2).float()
+        kernel[density_radius, density_radius] = 0  # Don't count self
+        self.register_buffer('density_kernel', kernel.unsqueeze(0).unsqueeze(0))
+
+    def compute_density_map(self, gt: torch.Tensor) -> torch.Tensor:
+        """
+        Compute local density at each pixel.
+
+        Args:
+            gt: [B, C, H, W] ground truth heatmap
+
+        Returns:
+            density_map: [B, C, H, W] local object count at each pixel
+        """
+        B, C, H, W = gt.shape
+
+        # Binary mask of object centers (peaks)
+        pos_mask = gt.eq(1).float()
+
+        # Move kernel to same device and dtype as input
+        kernel = self.density_kernel.to(device=gt.device, dtype=gt.dtype)
+
+        # Count neighbors using convolution
+        padding = self.density_radius
+        density_map = F.conv2d(
+            pos_mask,
+            kernel.expand(C, -1, -1, -1),
+            padding=padding,
+            groups=C
+        )
+
+        return density_map
+
+    def compute_density_weights(self, gt: torch.Tensor) -> torch.Tensor:
+        """
+        Compute per-pixel weights based on local density.
+        Isolated objects get higher weights.
+
+        Args:
+            gt: [B, C, H, W] ground truth heatmap
+
+        Returns:
+            weights: [B, C, H, W] density-based weights
+        """
+        density_map = self.compute_density_map(gt)
+
+        # Only apply density weighting to positive locations
+        pos_mask = gt.eq(1).float()
+
+        # Compute weight based on density scaling method
+        # Add 1 to density to account for self (density=0 means truly isolated)
+        local_density = density_map + 1  # Now isolated = 1, pair = 2, etc.
+
+        if self.density_scale == 'inverse':
+            raw_weight = 1.0 / local_density
+        elif self.density_scale == 'inverse_sqrt':
+            raw_weight = 1.0 / torch.sqrt(local_density)
+        elif self.density_scale == 'inverse_log':
+            raw_weight = 1.0 / torch.log1p(local_density)
+        else:
+            raise ValueError(f"Unknown density_scale: {self.density_scale}")
+
+        # Normalize to [min_weight, max_weight] range
+        # raw_weight is highest for isolated (density=1), lowest for dense
+        raw_min = raw_weight[pos_mask.bool()].min() if pos_mask.sum() > 0 else torch.tensor(0.0)
+        raw_max = raw_weight[pos_mask.bool()].max() if pos_mask.sum() > 0 else torch.tensor(1.0)
+
+        if raw_max - raw_min > self.eps:
+            normalized_weight = (raw_weight - raw_min) / (raw_max - raw_min + self.eps)
+            weight = self.min_weight + normalized_weight * (self.max_weight - self.min_weight)
+        else:
+            weight = torch.ones_like(raw_weight) * (self.min_weight + self.max_weight) / 2
+
+        # Apply weights only to positive locations, negatives get weight=1
+        final_weights = torch.ones_like(gt)
+        final_weights = torch.where(pos_mask.bool(), weight, final_weights)
+
+        return final_weights
+
+    def forward(self, pred: torch.Tensor, gt: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            pred: [B, C, H, W] predicted heatmap (after sigmoid)
+            gt: [B, C, H, W] ground truth heatmap
+
+        Returns:
+            loss: scalar tensor
+        """
+        # Clamp predictions for numerical stability
+        pred = torch.clamp(pred, min=self.eps, max=1 - self.eps)
+
+        # Compute density-aware weights
+        density_weights = self.compute_density_weights(gt)
+
+        # Standard focal loss components
+        pos_mask = gt.eq(1).float()
+        neg_mask = gt.lt(1).float()
+        neg_weights = torch.pow(1 - gt, self.beta)
+
+        # Positive loss: -log(p) * (1-p)^alpha * density_weight
+        pos_loss = torch.log(pred) * torch.pow(1 - pred, self.alpha) * pos_mask * density_weights
+
+        # Negative loss: -log(1-p) * p^alpha * (1-gt)^beta
+        neg_loss = torch.log(1 - pred) * torch.pow(pred, self.alpha) * neg_weights * neg_mask
+
+        # Combine (note: both are negative, so we negate)
+        loss_map = -(pos_loss + neg_loss)
+
+        if self.reduction == 'none':
+            return loss_map
+
+        # Normalize by weighted positive count
+        num_pos = (pos_mask * density_weights).sum()
+
+        if self.reduction == 'mean':
+            if num_pos < self.eps:
+                return loss_map.sum()
+            return loss_map.sum() / num_pos
+        elif self.reduction == 'sum':
+            return loss_map.sum()
+
+
+@LOSSES.register()
+class DensityAwareHerdNetLoss(nn.Module):
+    """
+    Combines Density-Aware Focal Loss with Dice Loss.
+
+    Isolated iguanas receive higher weight than those in dense colonies.
+    """
+
+    def __init__(
+            self,
+            alpha: float = 2,
+            beta: float = 4,
+            density_radius: int = 32,
+            min_weight: float = 0.5,
+            max_weight: float = 3.0,
+            density_scale: str = 'inverse_sqrt',
+            dice_weight: float = 1.0,
+    ):
+        super().__init__()
+        self.focal = DensityAwareFocalLoss(
+            alpha=alpha,
+            beta=beta,
+            density_radius=density_radius,
+            min_weight=min_weight,
+            max_weight=max_weight,
+            density_scale=density_scale,
+            reduction='mean',
+        )
+        self.dice_weight = dice_weight
+
+    def forward(self, pred: torch.Tensor, gt: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            pred: [B, 1, H, W] predicted heatmap
+            gt: [B, C, H, W] ground truth (may have multiple classes)
+        """
+        # Collapse GT channels if needed
+        if pred.shape[1] == 1 and gt.shape[1] > 1:
+            gt, _ = torch.max(gt, dim=1, keepdim=True)
+
+        # Density-aware focal loss
+        focal_loss = self.focal(pred, gt)
+
+        # Soft dice loss
+        eps = 1e-6
+        B, C, H, W = pred.shape
+
+        pred_flat = pred.view(B, C, -1)
+        gt_flat = gt.view(B, C, -1)
+
+        intersection = (pred_flat * gt_flat).sum(dim=2)
+        union = pred_flat.sum(dim=2) + gt_flat.sum(dim=2)
+
+        dice_score = (2. * intersection + eps) / (union + eps)
+        dice_loss = (1 - dice_score).mean()
+
+        return focal_loss + self.dice_weight * dice_loss

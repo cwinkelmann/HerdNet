@@ -28,6 +28,7 @@ from torch.utils.data import Dataset
 import animaloc
 from animaloc.eval import Evaluator, PointsMetrics, Stitcher, BoxesMetrics, ImageLevelMetrics
 from animaloc.vizual.plots import Visualiser
+from animaloc.eval import DensityAwarePointsMetrics
 
 
 # from datasets import visualize_dataset_examples
@@ -195,7 +196,7 @@ def _define_evaluator(
         f'\'{name}\' class unfound, make sure you have included the class in the evaluators list'
 
     if anno_type == 'point':
-        metrics = PointsMetrics(
+        metrics = DensityAwarePointsMetrics(
             radius=cfg.training_settings.evaluator.threshold,
             num_classes=cfg.datasets.num_classes
         )

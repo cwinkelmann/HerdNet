@@ -1,0 +1,55 @@
+wandb_notes: |
+  fine tune on full iguana dataset with timm DLA34 model
+
+defaults:
+  - /losses: herdnet_iguana
+#  - /losses: density_aware_herdnet_iguana
+#  - /datasets: iguana_last_run
+  - /datasets: iguana_marchena_sample
+  - /training_settings: delplanque2022_evaluator_stitcher_20251117
+#  - /training_settings: delplanque2022_evaluator_NoStitcher
+  - /model: HerdNetTimmDLA34_dr2_imagenet
+#  - /model: dinov2_v2
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'f1_last_run'
+wandb_entity: 'karisu'
+wandb_run: 'x25_dla34'
+wandb_tags: ["dla"]
+seed: 1
+device_name: null
+
+training_settings:
+  lr: 1.0e-06
+  epochs: 50
+  batch_size: 25
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        adapt_ts: 0.3
+
+  visualiser:
+    down_ratio:
+      4
+
+  debug_visualiser: null
+
+datasets:
+  validate:
+
+    csv_file: '/raid/cwinkelmann/training_data/iguana/2025_10_11/Fernandina_s_detection/val/herdnet_format_512_0_crops.csv'
+    root_dir: '/raid/cwinkelmann/training_data/iguana/2025_10_11/Fernandina_s_detection/val/crops_512_numNone_overlap0'
+
+model:
+  load_from: /raid/cwinkelmann/herdnet/outputs/2025-12-16/10-43-05/best_model.pth # https://wandb.ai/karisu/f1_alldata_all_best_DINO/runs/gonz7gta/logs
+  kwargs:
+    head_conv: 128 # was 64
+#    output_channels: [ 192, 384, 768 ]
+#    attention_layers: [ -3, -2, -1 ]
+
+    down_ratio: 2
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

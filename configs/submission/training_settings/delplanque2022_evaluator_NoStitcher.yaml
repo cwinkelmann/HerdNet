@@ -31,7 +31,7 @@ vizual_fn: visualize_sample
 visualiser:
   name: 'HeatMapVisualizer'
   output_dir: ./visualizations
-  down_ratio: ${model.kwargs.down_ratio}
+  down_ratio: 1
 
 debug_visualiser:
   name: 'DebugVisualizer'

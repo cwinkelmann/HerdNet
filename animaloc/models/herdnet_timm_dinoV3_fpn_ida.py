@@ -7,6 +7,62 @@ from typing import List, Tuple, Optional
 from .register import MODELS
 
 
+class NormAwareHead(nn.Module):
+    """
+    A head that normalizes features before classification to solve the
+    'High Energy Noise' problem of DINO/Self-Supervised models.
+    """
+
+    def __init__(self, in_channels, hidden_dim=256, out_channels=2):
+        super().__init__()
+
+        # 1. Capacity Boost: Don't compress to 64 immediately.
+        # DINO features are rich (768+). Compressing to 64 loses the subtle
+        # difference between 'Rock' and 'Iguana'.
+
+        self.block1 = nn.Sequential(
+            nn.Conv2d(in_channels, hidden_dim, kernel_size=3, padding=1, bias=False),
+            # GroupNorm is safer than BatchNorm for small batches/patching
+            nn.GroupNorm(32, hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+
+        self.block2 = nn.Sequential(
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1, bias=False),
+            nn.GroupNorm(32, hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+
+        # 2. Temperature Scaling Parameter
+        # Allows the model to learn how to "stretch" the 0.6 score to 0.99
+        self.temperature = nn.Parameter(torch.ones(1) * 10.0)
+
+        self.final_conv = nn.Conv2d(hidden_dim, out_channels=out_channels, kernel_size=1)
+
+        # Initialize final conv to output low probability (focal init)
+        self.final_conv.bias.data.fill_(-4.6)
+
+    def forward(self, x):
+        # x: [B, C, H, W]
+
+        # 1. Non-linear refinement with Normalization
+        x = self.block1(x)
+        x = self.block2(x)
+
+        # 2. Classification
+        logits = self.final_conv(x)
+
+        # 3. Feature Norm Normalization (The "Cosine" Trick)
+        # If DINO features are unnormalized, magnitude dominates.
+        # But here we used GroupNorm inside the blocks, so 'x' is already normalized.
+
+        # 4. Temperature Scaling
+        # If the model is confident but outputs 0.6, this scalar multiplies it
+        # to e.g. 6.0, pushing sigmoid(6.0) -> 0.99
+        logits = logits * self.temperature
+
+        return torch.sigmoid(logits)
+
 # --- 1. The Pyramid Builder (Fixes the Resolution Mismatch) ---
 class SyntheticPyramid(nn.Module):
     """
@@ -152,13 +208,21 @@ class HerdNetDINOv3Pyramid(nn.Module):
         # 5. Heads
         # Input to head is 1/4 scale (feature stride 4)
         # We need to output stride 4 (128px for 512px input)
-        self.loc_head = nn.Sequential(
-            nn.Conv2d(fusion_dim, head_conv, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(head_conv, 1, 1),
-            nn.Sigmoid()
-        )
-        self.loc_head[-2].bias.data.fill_(-4.6)  # Focal Init
+        # self.loc_head = nn.Sequential(
+        #     nn.Conv2d(fusion_dim, head_conv, 3, padding=1),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(head_conv, 1, 1),
+        #     nn.Sigmoid()
+        # )
+        # self.loc_head[-2].bias.data.fill_(-4.6)  # Focal Init
+
+        # self.loc_head = nn.Sequential(
+        #     nn.Conv2d(fusion_dim, head_conv, 3, padding=1),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(head_conv, 2, 1),  # Output 2 channels
+        #     # No Sigmoid here! We use Softmax in forward/loss
+        # )
+        self.loc_head = NormAwareHead(in_channels=fusion_dim, hidden_dim=256)
 
         self.cls_head = nn.Sequential(
             nn.Conv2d(fusion_dim, head_conv, 3, padding=1),
@@ -181,10 +245,11 @@ class HerdNetDINOv3Pyramid(nn.Module):
 
         # 3. Fuse Top-Down -> 1/4 scale
         fused = self.fusion(pyramid_feats)
-
+        logits = self.loc_head(fused)  # [B, 2, H, W]
+        heatmap = torch.softmax(logits, dim=1)[:, 1:2, :, :]  # Take index 1, keep 4D
         # 4. Predict
-        heatmap = self.loc_head(fused)
-
+        # heatmap = self.loc_head(fused)
+        # TODO this is actually downsampling now
         # Sanity check: Ensure 128x128 output
         if heatmap.shape[2:] != (128, 128):
             heatmap = F.interpolate(heatmap, size=(128, 128), mode='bilinear')
