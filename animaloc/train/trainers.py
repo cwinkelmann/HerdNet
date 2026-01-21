@@ -349,23 +349,72 @@ class Trainer:
                             'avg_dscores': self.evaluator.metrics.avg_dscore(),
                         })
                         # if isinstance(self.evaluator.metrics, DensityAwarePointsMetrics):
-                        density_metrics = {'epoch': epoch}
+                        from collections import defaultdict
+
+                        # Define density buckets
+                        def get_bucket(d):
+                            """Map density to bucket name."""
+                            if isinstance(d, str):
+                                # Already a bucket like '15+'
+                                if d == '15+':
+                                    return '15+'
+                                try:
+                                    d = int(d)
+                                except ValueError:
+                                    return None
+
+                            if d == 1:
+                                return '1'
+                            elif 2 <= d <= 5:
+                                return '2_to_5'
+                            elif 6 <= d <= 15:
+                                return '6_to_15'
+                            elif d > 15:
+                                return '15+'
+                            return None
+
+                        # Aggregate stats per bucket
+                        bucket_stats = {name: defaultdict(float) for name in ['1', '2_to_5', '6_to_15', '15+']}
+
                         for gt_density, density_stats in self.evaluator.metrics.density_stats.items():
-                            prefix = f'density_{gt_density}'
+                            bucket_name = get_bucket(gt_density)
+                            if bucket_name and bucket_name in bucket_stats:
+                                bucket_stats[bucket_name]['tp'] += density_stats.tp
+                                bucket_stats[bucket_name]['fn'] += density_stats.fn
+                                bucket_stats[bucket_name]['fp'] += density_stats.fp
+                                bucket_stats[bucket_name]['sum_signed_error'] += density_stats.sum_signed_error
+                                bucket_stats[bucket_name]['total_pred'] += density_stats.total_pred
+                                bucket_stats[bucket_name]['total_gt'] += density_stats.total_gt
+                                bucket_stats[bucket_name]['count'] += 1
+
+                        # Compute derived metrics and log
+                        density_metrics = {'epoch': epoch}
+                        for bucket_name, stats in bucket_stats.items():
+                            prefix = f'density/{bucket_name}'
+                            tp, fn, fp = stats['tp'], stats['fn'], stats['fp']
+
+                            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+                            f2 = 5 * precision * recall / (4 * precision + recall) if (
+                                                                                                  4 * precision + recall) > 0 else 0
+                            mae = abs(stats['sum_signed_error']) / stats['count'] if stats['count'] > 0 else 0
+
                             density_metrics.update({
-                                f'{prefix}/tp': density_stats.tp,
-                                f'{prefix}/fn': density_stats.fn,
-                                f'{prefix}/fp': density_stats.fp,
-                                f'{prefix}/recall': density_stats.recall,
-                                f'{prefix}/precision': density_stats.precision,
-                                f'{prefix}/f1': density_stats.f1,
-                                f'{prefix}/f2': density_stats.f2,
-                                f'{prefix}/mae': density_stats.mae,
-                                f'{prefix}/sum_signed_error': density_stats.sum_signed_error,
-                                f'{prefix}/total_pred': density_stats.total_pred,
-                                f'{prefix}/total_gt': density_stats.total_gt,
+                                f'{prefix}/tp': tp,
+                                f'{prefix}/fn': fn,
+                                f'{prefix}/fp': fp,
+                                f'{prefix}/recall': recall,
+                                f'{prefix}/precision': precision,
+                                f'{prefix}/f1': f1,
+                                f'{prefix}/f2': f2,
+                                f'{prefix}/mae': mae,
+                                f'{prefix}/total_pred': stats['total_pred'],
+                                f'{prefix}/total_gt': stats['total_gt'],
                             })
+
                         wandb.log(density_metrics)
+
 
                 if self.val_loss_dataloader is not None:
                     val_flag = True

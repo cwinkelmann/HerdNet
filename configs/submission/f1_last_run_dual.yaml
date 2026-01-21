@@ -21,13 +21,13 @@ seed: 1
 device_name: null
 
 training_settings:
-  lr: 1.0e-05
-  epochs: 50
+  lr: 1.0e-04
+  epochs: 150
   batch_size: 5
   evaluator:
     kwargs:
       lmds_kwargs:
-        adapt_ts: 0.3
+        adapt_ts: 0.2
 
   visualiser:
     down_ratio:

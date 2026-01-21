@@ -17,20 +17,22 @@ class_def:
 train:
   name: 'CSVDataset'
 
-  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/herdnet_format_800_160_crops.csv'
-  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/crops_800_numNone_overlap160'
+#  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/herdnet_format_800_160_crops.csv'
+#  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/crops_800_numNone_overlap160'
 
+  csv_file: '/raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/herdnet_format.csv'
+  root_dir: '/raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/Default'
 
   sampler: null
   augmentation_multiplier: 1
 
   albu_transforms:
-#    ObjectAwareRandomCrop:
-#      height: 8
-#      width: 1000
-#      p: 1.0
-#      attempts: 10
-#      edge_black_blobs: true
+    ObjectAwareRandomCrop:
+      height: 700
+      width: 700
+      p: 0.5
+#      always_apply: True
+      empty_probability: 0.1
 #    RandomScale:
 #      scale_limit:
 #        - 0.8
@@ -47,20 +49,20 @@ train:
 #        - 0.05
 #        - 0.15
 #      p: 0.3
-#    Affine:
-#      scale:
-#        - 0.9
-#        - 1.1
-#      translate_percent:
-#        - 0.1
-#        - 0.1
-#      rotate:
-#        - -45
-#        - 45
-#      shear:
-#        - -10
-#        - 10
-#      p: 0.2
+    Affine:
+      scale:
+        - 0.9
+        - 1.1
+      translate_percent:
+        - 0.1
+        - 0.1
+      rotate:
+        - -45
+        - 45
+      shear:
+        - -10
+        - 10
+      p: 0.2
     HorizontalFlip:
       p: 0.5
     VerticalFlip:

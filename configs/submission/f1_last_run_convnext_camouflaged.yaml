@@ -31,13 +31,13 @@ training_settings:
 
   visualiser:
     down_ratio:
-      2
+      4
 
   debug_visualiser: null
 
 model:
   kwargs:
-    down_ratio: 2
+    down_ratio: 4
     backbone_size: base
 
 

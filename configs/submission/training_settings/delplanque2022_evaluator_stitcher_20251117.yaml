@@ -17,13 +17,13 @@ weight_decay: 0.00016
 num_workers: 2
 auto_lr:
   mode: 'max'
-  patience: 5
+  patience: 15
   threshold: 1e-4
   threshold_mode: 'rel'
   cooldown: 10
   min_lr: 1e-7
   verbose: True
-warmup_iters: 500
+warmup_iters: 1500
 
 # vizual_fn: "model_vizual"
 vizual_fn: visualize_sample

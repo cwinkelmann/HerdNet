@@ -346,17 +346,20 @@ class CamouflageDetectionHead(nn.Module):
     - Multi-scale dilated convolutions
     - CBAM attention for object focus
     - Lower threshold bias for high recall
+    - Configurable output resolution via down_ratio
     """
 
     def __init__(
             self,
             in_channels: int = 256,
             hidden_channels: int = 128,
-            use_edge_enhancement: bool = True
+            use_edge_enhancement: bool = True,
+            down_ratio: int = 4,
     ):
         super().__init__()
 
         self.use_edge_enhancement = use_edge_enhancement
+        self.down_ratio = down_ratio
 
         # Edge enhancement (if enabled)
         if use_edge_enhancement:
@@ -434,13 +437,14 @@ class CamouflageDetectionHead(nn.Module):
         nn.init.normal_(self.output.weight, std=0.01)
         nn.init.constant_(self.output.bias, -2.0)  # Even lower for camouflage
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, target_size: Optional[Tuple[int, int]] = None) -> torch.Tensor:
         """
         Args:
             x: Input features [B, in_channels, H, W]
+            target_size: Optional target output size (H, W). If None, output matches input size.
 
         Returns:
-            Detection logits [B, 1, H, W]
+            Detection logits [B, 1, H_out, W_out]
         """
         # Edge enhancement
         if self.use_edge_enhancement:
@@ -465,8 +469,16 @@ class CamouflageDetectionHead(nn.Module):
         # Output
         logits = self.output(fused)
 
-        return logits
+        # Resize to target if specified
+        if target_size is not None and logits.shape[2:] != target_size:
+            logits = F.interpolate(
+                logits,
+                size=target_size,
+                mode='bilinear',
+                align_corners=False
+            )
 
+        return logits
 
 # =============================================================================
 # Main Model - CamouflageHerdNetConvNeXt
@@ -500,7 +512,7 @@ class CamouflageHerdNetConvNeXt(nn.Module):
         use_multi_res: Enable multi-resolution processing
         resolutions: Resolutions for multi-res mode
         debug: Print debug information
-        down_ratio: Downsampling ratio (for compatibility)
+        down_ratio: Downsampling ratio for output heatmap (1, 2, 4, 8, 16)
         enable_debug_mode: Enable debug output in forward pass
     """
 
@@ -524,6 +536,8 @@ class CamouflageHerdNetConvNeXt(nn.Module):
 
         assert backbone_size in ['tiny', 'small', 'base'], \
             f"backbone_size must be 'tiny', 'small', or 'base', got '{backbone_size}'"
+        assert down_ratio in [1, 2, 4, 8, 16], \
+            f"down_ratio must be 1, 2, 4, 8, or 16, got '{down_ratio}'"
 
         self.backbone_size = backbone_size
         self.num_classes = num_classes
@@ -532,6 +546,7 @@ class CamouflageHerdNetConvNeXt(nn.Module):
         self.use_edge_enhancement = use_edge_enhancement
         self.use_multi_res = use_multi_res
         self.enable_debug_mode = enable_debug_mode
+        self.down_ratio = down_ratio  # Store down_ratio
 
         if debug:
             logger.info(f"\nInitializing CamouflageHerdNetConvNeXt:")
@@ -600,7 +615,8 @@ class CamouflageHerdNetConvNeXt(nn.Module):
         self.detection_head = CamouflageDetectionHead(
             in_channels=fpn_channels,
             hidden_channels=128,
-            use_edge_enhancement=use_edge_enhancement
+            use_edge_enhancement=use_edge_enhancement,
+            down_ratio=self.down_ratio
         )
 
         if debug:
@@ -704,7 +720,7 @@ class CamouflageHerdNetConvNeXt(nn.Module):
 
         # Store original input size for consistent output resolution
         original_h, original_w = x.shape[2], x.shape[3]
-        target_heatmap_size = (original_h // 4, original_w // 4)  # H/4, W/4
+        target_heatmap_size = (original_h // self.down_ratio, original_w // self.down_ratio)  # H/4, W/4
 
         # Resize if needed
         if x.shape[2:] != (self.img_size, self.img_size):
