@@ -1,5 +1,5 @@
 """
-config based inference script which takes the test/herdnets.yaml configuration file, predicts instances, evalustes performances etc
+config based inference script which takes the test/herdnets.yaml configuration file, predicts instances, evaluates performances etc
 
 """
 
@@ -194,6 +194,10 @@ config_name = "f1_alldata_all_best_dla34"
 config_path = "../configs/submission/"
 
 
+config_name = "f1_last_run_convnext_camouflaged"
+config_path = "../configs/submission/"
+
+
 @hydra.main(config_path=config_path, config_name=config_name)
 def main(cfg: DictConfig) -> None:
     """
@@ -201,7 +205,8 @@ def main(cfg: DictConfig) -> None:
     It initializes the model, prepares the dataset, and evaluates the model on the test set.
     """
     logger.info(f"Running inference test with config: {cfg}")
-    inference(cfg)
+    inference(cfg, plain_inference=True)
+
 
 
 def inference(cfg: DictConfig, plain_inference = False, vis_detections=False) -> pd.DataFrame:
@@ -300,7 +305,7 @@ def inference(cfg: DictConfig, plain_inference = False, vis_detections=False) ->
     evaluator = _define_evaluator(model, test_dataloader, metrics, cfg)
 
     # Start testing
-    logger.info(f'Starting testing ...')
+    logger.info(f'Starting testing on test data: {cfg.datasets.test.root_dir}')
     out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=True, dont_finish=True)
     logger.info(f'Done with predictions ...')
 

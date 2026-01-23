@@ -18,7 +18,7 @@ wandb_entity: 'karisu'
 wandb_run: 'x25_convnext_camouflaged'
 wandb_tags: ["convnext"]
 seed: 1
-device_name: null
+device_name: mps
 
 training_settings:
   lr: 1.0e-05
@@ -43,5 +43,5 @@ model:
 
 hydra:
   run:
-    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
 

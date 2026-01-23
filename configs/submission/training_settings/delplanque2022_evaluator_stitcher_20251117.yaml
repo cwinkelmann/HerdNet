@@ -45,7 +45,7 @@ evaluator:
   select_mode: 'max'
   validate_on: 'f1_score'
   kwargs:
-    print_freq: 125
+    print_freq: 1
     lmds_kwargs:
       kernel_size: [9, 9]
       adapt_ts: 0.7
