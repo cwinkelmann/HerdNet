@@ -1,0 +1,61 @@
+name: Run Tests
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - release/*
+      - dinov3
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: mambaorg/micromamba:1.5-jammy
+      options: --user root
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        apt-get update && apt-get install -y \
+          libgl1 libglib2.0-0 git \
+          && rm -rf /var/lib/apt/lists/*
+
+    - name: Install conda environment
+      run: |
+        micromamba install -y -n base -f environment.yml
+        micromamba clean --all --yes
+
+    - name: Install test dependencies
+      run: |
+        micromamba run -n base pip install pytest pytest-cov flake8
+      shell: bash
+
+    - name: Verify environment
+      run: |
+        micromamba run -n base python -c "from osgeo import gdal; print(f'GDAL: {gdal.__version__}')"
+        micromamba run -n base python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+      shell: bash
+
+    - name: Run tests
+      run: |
+        micromamba run -n base pytest -v --cov=. --cov-report=xml -m "not gpu"
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+
+    - name: Run flake8
+      run: |
+        micromamba run -n base flake8 animaloc --count --select=E9,F63,F7,F82 --show-source --statistics
+      shell: bash
