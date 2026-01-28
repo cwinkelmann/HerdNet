@@ -1,14 +1,14 @@
 
 
 # HerdNet 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/demo-training-testing-herdnet.ipynb)
 
 Code for paper "[From Crowd to Herd Counting: How to Precisely Detect and Count African Mammals using Aerial Imagery and Deep Learning?](https://doi.org/10.1016/j.isprsjprs.2023.01.025)"
 
 # This is Fork of the HerdNet Code
 See https://github.com/Alexandre-Delplanque/HerdNet for the original code
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
+[![Simplified Training with Configs](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
 
 ## Model Architecture
 ![](https://i.imgur.com/kevmlhV.png)
