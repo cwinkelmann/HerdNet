@@ -8,7 +8,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='animaloc',
-    version='0.2.1',
+    version='0.3.1',
     license='MIT License',
     license_files = ('LICENSE.md'),
     description='Animal localization in aerial imagery using Pytorch',
@@ -18,8 +18,8 @@ setup(
     url='https://github.com/Alexandre-Delplanque/HerdNet',
 
     # Author details
-    author='Alexandre Delplanque',
-    author_email='alexandre.delplanque@uliege.be',
+    author='Christian Winkelmann, Alexandre Delplanque',
+    author_email='christian.winkelmann@gmail.com, alexandre.delplanque@uliege.be',
 
     classifiers=[
         # How mature is this project? Common values are

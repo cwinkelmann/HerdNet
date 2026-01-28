@@ -3,10 +3,12 @@ from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
-from train import main
+
+from animaloc.utils.train import main
+
 # Defaults
-config_name = "dinoV2_large_publication_setting"
-config_path="../configs/experiment_publication_reproduction"
+config_name = "TODO"
+config_path="TODO"
 
 
 

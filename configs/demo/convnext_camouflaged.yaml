@@ -1,0 +1,45 @@
+wandb_notes: |
+  fine tune on full iguana dataset with timm convnext model
+
+defaults:
+  - /losses: herdnet_iguana
+  - /datasets: floreana_dataset
+  - /training_settings: evaluator
+  - /model: HerdNetTimmConvNext_Camouflaged
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'demo'
+wandb_entity: 'karisu'
+wandb_run: 'convnext_camouflaged'
+wandb_tags: ["convnext"]
+seed: 1
+device_name: null # or enforce mps on a mac
+
+# override
+training_settings:
+  lr: 1.0e-05
+  epochs: 2
+  batch_size: 12
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        adapt_ts: 0.5
+
+  visualiser:
+    down_ratio:
+      4
+
+  debug_visualiser: null
+
+model:
+  load_from: /home/cwinkelmann/work/Herdnet/best_models/17-02-44_convnext_camouflaged_zr7ljum7/best_model.pth
+  kwargs:
+    down_ratio: 4
+    backbone_size: base
+
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

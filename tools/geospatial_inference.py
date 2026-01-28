@@ -24,7 +24,7 @@ from animaloc.data.transforms import DownSample
 from animaloc.eval import PointsMetrics, BoxesMetrics
 from animaloc.utils.useful_funcs import current_date, mkdir
 from animaloc.vizual import PlotPrecisionRecall, draw_points, draw_text
-from tools.inference_test import _set_species_labels, _get_collate_fn, _build_model, _define_evaluator
+from animaloc.utils.inference import _set_species_labels, _get_collate_fn, _build_model, _define_evaluator
 
 Image.MAX_IMAGE_PIXELS = None  # Disable the limit
 

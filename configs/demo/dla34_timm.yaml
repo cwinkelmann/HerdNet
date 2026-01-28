@@ -1,0 +1,45 @@
+wandb_notes: |
+  fine tune on full iguana dataset with timm DLA34 model
+
+defaults:
+  - /losses: herdnet_iguana
+  - /datasets: floreana_dataset
+  - /training_settings: evaluator
+  - /model: HerdNetTimmDLA34
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'demo'
+wandb_entity: 'karisu'
+wandb_run: 'dla34_timm'
+wandb_tags: ["dla"]
+seed: 1
+device_name: null #
+
+
+
+training_settings:
+  lr: 1.0e-03
+  epochs: 15
+  batch_size: 5
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        adapt_ts: 0.5
+
+  visualiser:
+    down_ratio:
+      4
+
+  debug_visualiser: null
+
+model:
+  load_from: /home/cwinkelmann/work/Herdnet/best_models/10-51-48_20251216_x25_dla34_ys2uq6yf/best_model.pth
+  kwargs:
+    head_conv: 128 # was 64
+
+    down_ratio: 4
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
