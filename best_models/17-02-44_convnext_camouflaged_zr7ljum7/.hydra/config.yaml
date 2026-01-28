@@ -1,0 +1,158 @@
+losses:
+  FocalLoss:
+    print_name: focal_loss
+    from_torch: false
+    output_idx: 0
+    target_idx: 0
+    lambda_const: 1.0
+    kwargs:
+      alpha: 2
+      beta: 4
+      reduction: mean
+      normalize: false
+  CrossEntropyLoss:
+    print_name: ce_loss
+    from_torch: true
+    output_idx: 1
+    target_idx: 1
+    lambda_const: 1.0
+    background_class_weight: 0.1
+    kwargs:
+      reduction: mean
+      weight:
+      - ${losses.CrossEntropyLoss.background_class_weight}
+      - 5
+      - 0.1
+datasets:
+  img_size:
+  - 512
+  - 512
+  anno_type: point
+  num_classes: 3
+  collate_fn: null
+  class_def:
+    1: iguana_point
+    2: hard_negative
+  train:
+    name: CSVDataset
+    csv_file: /raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/herdnet_format_800_160_crops.csv
+    root_dir: /raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/train/crops_800_numNone_overlap160
+    sampler: null
+    augmentation_multiplier: 1
+    albu_transforms:
+      HorizontalFlip:
+        p: 0.5
+      VerticalFlip:
+        p: 0.5
+      MotionBlur:
+        p: 0.1
+      ObjectAwareRandomCropEdgeBlackout:
+        height: 512
+        width: 512
+        p: 1.0
+        attempts: 10
+      Normalize:
+        p: 1.0
+    end_transforms:
+      MultiTransformsWrapper:
+        FIDT:
+          num_classes: ${datasets.num_classes}
+          down_ratio: ${model.kwargs.down_ratio}
+          radius: 1
+        PointsToMask:
+          radius: 2
+          num_classes: ${datasets.num_classes}
+          squeeze: true
+          down_ratio: 32
+  validate:
+    name: CSVDataset
+    csv_file: /raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/val/herdnet_format_800_160_crops.csv
+    root_dir: /raid/cwinkelmann/training_data/iguana/2025_12_02/last_run/val/crops_800_numNone_overlap160
+    albu_transforms:
+      Normalize:
+        p: 1.0
+    end_transforms:
+      DownSample:
+        down_ratio: ${model.kwargs.down_ratio}
+        anno_type: ${datasets.anno_type}
+  test:
+    name: CSVDataset
+    csv_file: /raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_fwk/val/herdnet_format.csv
+    root_dir: /raid/cwinkelmann/training_data/iguana/2025_11_12/Fernandina_fwk/val/Default
+    albu_transforms:
+      Normalize:
+        p: 1.0
+    end_transforms:
+      DownSample:
+        down_ratio: ${model.kwargs.down_ratio}
+        anno_type: ${datasets.anno_type}
+training_settings:
+  trainer: Trainer
+  epochs: 50
+  valid_freq: 1
+  print_freq: 225
+  batch_size: 12
+  optimizer: adamW
+  lr: 0.0001
+  backbone_lr: 1.0e-05
+  head_lr: 0.001
+  weight_decay: 0.00016
+  num_workers: 2
+  auto_lr:
+    mode: max
+    patience: 35
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 10
+    min_lr: 1.0e-07
+    verbose: true
+  warmup_iters: 500
+  vizual_fn: visualize_sample
+  visualiser:
+    name: HeatMapVisualizer
+    output_dir: ./visualizations
+    down_ratio: 4
+  loss_evaluation: null
+  evaluator:
+    name: HerdNetEvaluator
+    threshold: 100
+    select_mode: max
+    validate_on: f1_score
+    kwargs:
+      print_freq: 125
+      lmds_kwargs:
+        kernel_size:
+        - 9
+        - 9
+        adapt_ts: 0.3
+        scale_factor: 1
+        up: true
+  stitcher:
+    name: HerdNetStitcher
+    kwargs:
+      overlap: 120
+      down_ratio: ${model.kwargs.down_ratio}
+      up: false
+      reduction: mean
+  debug_visualiser: null
+model:
+  name: CamouflageHerdNetConvNeXt
+  from_torchvision: false
+  load_from: null
+  resume_from: null
+  kwargs:
+    pretrained: true
+    down_ratio: 4
+    backbone_size: base
+  freeze: null
+wandb_notes: 'fine tune on full iguana dataset with timm DLA34 model
+
+  '
+wandb_flag: true
+wandb_project: f1_last_run
+wandb_entity: karisu
+wandb_run: x25_convnext_camouflaged
+wandb_tags:
+- convnext
+seed: 1
+device_name: null

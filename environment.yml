@@ -4,8 +4,8 @@ channels:
 dependencies:
   - python=3.11
   - pip
-  - gdal=3.10.2
-  - numpy=2.2.6
+#  - gdal=3.12.1
+  - numpy=2.4.1
   - scipy=1.16.0
   - pandas=2.3.1
 
@@ -22,7 +22,7 @@ dependencies:
       - gdown==5.2.0
       #- jupyterlab==3.4.4
 
-      #- matplotlib
+      - matplotlib==3.10.8
       # - torchvision==0.20.1
       - tqdm==4.67.1
       - loguru==0.7.3

@@ -6,7 +6,7 @@
 trainer: 'Trainer'
 epochs: 100
 valid_freq: 1
-print_freq: 225
+print_freq: 1
 batch_size: 5
 # optimizer: 'SGD'
 optimizer: 'adamW'
@@ -48,7 +48,7 @@ evaluator:
     print_freq: 1
     lmds_kwargs:
       kernel_size: [9, 9]
-      adapt_ts: 0.7
+      adapt_ts: 0.2
       scale_factor: 1 # was 8 in the non patching case TODO fix this so it is 8 for single use and 1 for patching
       # scale_factor_patching: 1
       up: True

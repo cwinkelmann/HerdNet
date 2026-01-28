@@ -240,8 +240,6 @@ class Evaluator:
             """
 
 
-            # TODO implement a density aware evaluation
-
             iter_metrics.feed(**output_prediction)
             iter_metrics.aggregate()
 

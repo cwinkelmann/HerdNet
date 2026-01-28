@@ -263,8 +263,10 @@ def inference(cfg: DictConfig, plain_inference = False, vis_detections=False) ->
         n = len(img_names)
         if n == 0:
             raise FileNotFoundError(f"No images found in {cfg.datasets.test.root_dir}.")
+        else:
+            logger.info(f"Inferencing {n} images from {cfg.datasets.test.root_dir}.")
         test_df = pandas.DataFrame(data={'images': img_names, 'x': [0] * n, 'y': [0] * n, 'labels': [1] * n})
-        test_df["species"] = "iguana"
+        test_df["species"] = "iguana_point"
     # load ground truth annotations
     else:
         test_df = pandas.read_csv(cfg.datasets.test.csv_file)
@@ -306,6 +308,8 @@ def inference(cfg: DictConfig, plain_inference = False, vis_detections=False) ->
 
     # Start testing
     logger.info(f'Starting testing on test data: {cfg.datasets.test.root_dir}')
+
+    # TODO fix the evaluation by removing the computation of the confusion matrix
     out = evaluator.evaluate(wandb_flag=cfg.wandb_flag, viz=True, dont_finish=True)
     logger.info(f'Done with predictions ...')
 

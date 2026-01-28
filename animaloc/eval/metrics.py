@@ -552,8 +552,11 @@ class PointsMetrics(Metrics):
         y_true = [gt['labels'][k] for k, d, i in filter_match_gt]
         y_pred = [preds['labels'][i] for k, d, i in filter_match_gt]
 
-        self._confusion_matrix += confusion_matrix(
-            y_true, y_pred, labels=list(range(1, self.num_classes)))
+        try:
+            self._confusion_matrix += confusion_matrix(
+                y_true, y_pred, labels=list(range(1, self.num_classes)))
+        except ValueError:
+            logger.warning('Confusion matrix is empty')
 
         for c in range(1, self.num_classes):
             n_gt = len([lab for lab in gt['labels'] if lab == c])
