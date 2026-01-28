@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 # Paths for testing
 TEST_MODEL_PATH =  PROJECT_ROOT / "best_models/17-02-44_convnext_camouflaged_zr7ljum7/best_model.pth"
-TEST_DATA_DIR = Path("data/single_images/ISWF01_22012023_subset")
+TEST_DATA_DIR = PROJECT_ROOT / Path("tests/data/single_images/ISWF01_22012023_subset")
 
 
 @pytest.fixture
@@ -194,7 +194,7 @@ class TestInference:
 
     def test_inference_runs(self, inference_config):
         """Test that inference runs without errors."""
-        from tools.inference_test import inference
+        from animaloc.utils.inference import inference
 
         # Run inference
         detections = inference(inference_config, plain_inference=True, vis_detections=False)
@@ -206,7 +206,7 @@ class TestInference:
 
     def test_inference_output_format(self, inference_config):
         """Test that inference output has expected columns."""
-        from tools.inference_test import inference
+        from animaloc.utils.inference import inference
 
         detections = inference(inference_config, plain_inference=True, vis_detections=False)
 
@@ -219,7 +219,7 @@ class TestInference:
     #
     # def test_inference_coordinates_valid(self, inference_config):
     #     """Test that detection coordinates are valid."""
-    #     from tools.inference_test import inference
+    #     from animaloc.utils.inference import inference
 
         detections = inference(inference_config, plain_inference=True, vis_detections=False)
 
@@ -234,7 +234,7 @@ class TestInference:
 
     def test_inference_detects_iguanas(self, inference_config):
         """Test that inference detects at least some iguanas."""
-        from tools.inference_test import inference
+        from animaloc.utils.inference import inference
 
         detections = inference(inference_config, plain_inference=True, vis_detections=False)
 
@@ -253,7 +253,7 @@ class TestInferencePerformance:
     def test_inference_speed(self, inference_config):
         """Test inference completes within reasonable time."""
         import time
-        from tools.inference_test import inference
+        from animaloc.utils.inference import inference
 
         start = time.time()
         detections = inference(inference_config, plain_inference=True, vis_detections=False)
@@ -272,7 +272,7 @@ class TestInferencePerformance:
 @pytest.mark.parametrize("threshold", [0.3, 0.5, 0.7, 0.9])
 def test_detection_counts_at_thresholds(inference_config, threshold):
     """Test detection counts at various confidence thresholds."""
-    from tools.inference_test import inference
+    from animaloc.utils.inference import inference
 
     detections = inference(inference_config, plain_inference=True, vis_detections=False)
 

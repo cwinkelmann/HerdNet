@@ -32,7 +32,7 @@ import animaloc
 from animaloc.models.utils import LossWrapper, load_model
 from animaloc.utils.seed import set_seed
 from animaloc.utils.useful_funcs import current_date
-from tools.train_helper import _get_collate_fn, _build_sampler, _load_albu_transforms, _load_end_transforms, \
+from animaloc.utils.train_helper import _get_collate_fn, _build_sampler, _load_albu_transforms, _load_end_transforms, \
     _build_model, _load_losses, _define_evaluator, _define_visualiser, get_least_occupied_gpu_nvidia_smi, \
     _get_show_batch_fn, _define_debug_visualiser
 from animaloc.vizual.custom_vis import plot_heatmaps, plot_heatmaps_combined
