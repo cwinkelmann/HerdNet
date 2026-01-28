@@ -5,7 +5,6 @@ on:
     branches-ignore:
       - main
       - release/*
-      - dinov3
   pull_request:
     branches:
       - main
