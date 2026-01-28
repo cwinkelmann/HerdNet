@@ -1,12 +1,14 @@
 
 
 # HerdNet 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb)
 
 Code for paper "[From Crowd to Herd Counting: How to Precisely Detect and Count African Mammals using Aerial Imagery and Deep Learning?](https://doi.org/10.1016/j.isprsjprs.2023.01.025)"
 
 # This is Fork of the HerdNet Code
 See https://github.com/Alexandre-Delplanque/HerdNet for the original code
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
 
 ## Model Architecture
 ![](https://i.imgur.com/kevmlhV.png)
@@ -45,7 +47,8 @@ Models were trained separatly for each of the two datasets. These pre-trained mo
 
 Note that these metrics have been computed on full-size test images.
 
-## Installation
+
+## Long Installation
 Create and activate the conda environment
 ```shell
 conda env create -n herdnet -f environment.yml
@@ -309,49 +312,5 @@ Here is a [Google Colab demo](https://colab.research.google.com/github/Alexandre
 The code used in the paper is the one corresponding to the tag [`v0.1.0`](https://github.com/Alexandre-Delplanque/HerdNet/releases/tag/v0.1.0). The 'main' branch contains the latest stable version with fixed bugs and new features, it is recommended to use this branch for your development. The file [CHANGELOG.md](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/CHANGELOG.md) contains the details of the commits for each version of the code.
 
 
-## Setup Extended
 
-### Docker Training container
-```shell
-docker build -t herdnet -f Dockerfile .
-
-```
-
-### Run a wandb sweep
-Since the training generates many models set .wandb/settings
-[default]
-artifact_cache_size = 10GB
-
-```shell
-conda activate HerdNetCarrotConda
-wandb sweep sweep_hyp.yaml 
-
-Run sweep agent with: 
-
-CUDA_VISIBLE_DEVICES=0 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-CUDA_VISIBLE_DEVICES=1 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-CUDA_VISIBLE_DEVICES=2 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-CUDA_VISIBLE_DEVICES=3 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-CUDA_VISIBLE_DEVICES=4 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-
-CUDA_VISIBLE_DEVICES=5 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-
-
-CUDA_VISIBLE_DEVICES=6 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-
-CUDA_VISIBLE_DEVICES=7 PYTHONPATH=../ wandb agent karisu/herdnet/bottq19g
-
-
-
-```
-
-
-```shell
-
-
-PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="aed_dinov2_base_publication_setting_train_full_eval_crop_aug_all" --config-path="../configs/experiment_publication_reproduction"
-
-
-PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="aed_dinov2_base_publication_setting_train_full_eval_crop_aug_all" --config-path="../configs/experiment_publication_reproduction" --config-name="aed_t_dinov2_base_publication_setting_train_full_eval_crop_aug_all"
---config-path="../configs/experiment_publication_reproduction" &
 ```
