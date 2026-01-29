@@ -1,5 +1,18 @@
 ## Setup Extended
 
+### Local setup of Active learning repo
+
+```shell
+pip install -e .
+```
+
+When you use a quite old GPU this might be necessary:
+```shell
+pip uninstall torch torchvision torchaudio
+
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
 ### Docker Training container
 ```shell
 docker build -t herdnet -f Dockerfile .
