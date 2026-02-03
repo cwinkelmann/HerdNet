@@ -8,6 +8,9 @@ rsync -av  --progress --stats --human-readable -e "ssh -i .ssh/id_ed25519" "cwin
 
 
 rsync -av  --progress --stats --human-readable -e "ssh -i .ssh/id_ed25519" "cwinkelmann@10.188.1.1:/home/cwinkelmann/work/Herdnet/best_models/17-02-44_convnext_camouflaged_zr7ljum7/best_model.pth" '/Users/christian/PycharmProjects/hnee/HerdNet/best_models/17-02-44_convnext_camouflaged_zr7ljum7'
+
+rsync -av  --progress --stats --human-readable -e "ssh -i .ssh/id_ed25519" "cwinkelmann@10.188.1.1:/home/cwinkelmann/work/Herdnet/best_models/10-51-48_20251216_x25_dla34_ys2uq6yf/best_model.pth" '/Users/christian/PycharmProjects/hnee/HerdNet/best_models/10-51-48_20251216_x25_dla34_ys2uq6yf/best_model.pth'
+
 ```
 
 

@@ -8,7 +8,7 @@ Code for paper "[From Crowd to Herd Counting: How to Precisely Detect and Count 
 # This is Fork of the HerdNet Code
 See https://github.com/Alexandre-Delplanque/HerdNet for the original code
 
-[![Simplified Training with Configs](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
+Simplified Training with Configs: [![Simplified Training with Configs](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
 
 ## Model Architecture
 ![](https://i.imgur.com/kevmlhV.png)

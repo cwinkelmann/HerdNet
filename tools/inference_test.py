@@ -17,7 +17,7 @@ config_name = "f1_last_run_convnext_camouflaged"
 config_path = "../configs/submission/"
 
 
-@hydra.main(config_path=config_path, config_name=config_name)
+@hydra.main(config_path=config_path, config_name=config_name, version_base="1.1")
 def main(cfg: DictConfig) -> None:
     """
     Main function to run the inference test with the given configuration.
