@@ -11,7 +11,7 @@ See https://github.com/Alexandre-Delplanque/HerdNet for the original code
 Simplified Training with Configs: [![Simplified Training with Configs](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
 
 ## Model Architecture
-![](https://i.imgur.com/kevmlhV.png)
+![](https://i.imgur.com/kevmlhV.png)[demo-training-testing-herdnet.ipynb](notebooks/demo-training-testing-herdnet.ipynb)
 
 ## Detection Examples
 ![](https://i.imgur.com/MCZWn8Z.jpg)
@@ -51,7 +51,7 @@ Note that these metrics have been computed on full-size test images.
 ## Long Installation
 Create and activate the conda environment
 ```shell
-conda env create -n herdnet -f environment.yml
+conda create -n herdnet -f environment.yml
 conda activate herdnet
 ```
 
@@ -64,7 +64,7 @@ conda env update --file environment.yml --prune
 
 ```shell
 #pip install -r requirements.txt
-pip install pytest pytest-cov flake8
+pip install pytest pytest-cov flake8 jupyterlab
 ```
 
 Install the code
