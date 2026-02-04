@@ -1,0 +1,47 @@
+wandb_notes: |
+  fine tune on full iguana dataset with timm DLA34 model
+
+defaults:
+  - /losses: herdnet_iguana
+#  - /losses: density_aware_herdnet_iguana
+  - /datasets: iguana_last_run
+#  - /datasets: iguana_marchena_sample
+  - /training_settings: delplanque2022_evaluator_stitcher_20251117
+#  - /training_settings: delplanque2022_evaluator_NoStitcher
+  - /model: HerdNetTimmConvNext_Camouflaged
+#  - /model: dinov2_v2
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'f1_last_run'
+wandb_entity: 'karisu'
+wandb_run: 'x25_convnext_camouflaged'
+wandb_tags: ["convnext"]
+seed: 1
+device_name: mps
+
+training_settings:
+  lr: 1.0e-05
+  epochs: 150
+  batch_size: 12
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        adapt_ts: 0.2
+
+  visualiser:
+    down_ratio:
+      4
+
+  debug_visualiser: null
+
+model:
+  kwargs:
+    down_ratio: 4
+    backbone_size: base
+
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

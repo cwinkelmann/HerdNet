@@ -13,6 +13,7 @@ __author__ = "Alexandre Delplanque"
 __license__ = "MIT License"
 __version__ = "0.2.1"
 
+import numpy as np
 import pandas as pd
 import torch
 import pandas
@@ -21,6 +22,7 @@ import numpy
 import wandb
 import matplotlib
 from matplotlib import pyplot as plt
+from typing import List, Dict, Any
 
 from animaloc.vizual import Visualiser
 
@@ -55,6 +57,7 @@ class Evaluator:
         print_freq: int = 10,
         stitcher: Optional[Stitcher] = None,
         vizual_fn: Optional[Visualiser] = None,
+        vizual_debug_fn: Optional[Visualiser] = None,
         work_dir: Optional[str] = None,
         header: Optional[str] = None
         ):
@@ -100,6 +103,9 @@ class Evaluator:
         
         assert callable(vizual_fn) or isinstance(vizual_fn, type(None)), \
             f'vizual_fn argument must be a callable function, got \'{type(vizual_fn)}\''
+
+        assert callable(vizual_debug_fn) or isinstance(vizual_debug_fn, type(None)), \
+            f'vizual_debug_fn argument must be a callable function, got \'{type(vizual_debug_fn)}\''
         
         self.model = model
         self.dataloader = dataloader
@@ -108,6 +114,7 @@ class Evaluator:
         self.print_freq = print_freq
         self.stitcher = stitcher
         self.vizual_fn = vizual_fn
+        self.vizual_debug_fn = vizual_debug_fn
         self.current_epoch = None
         self.work_dir = work_dir
         if self.work_dir is None:
@@ -187,6 +194,9 @@ class Evaluator:
         iter_metrics = self.metrics.copy()
 
         for i, (images, targets) in enumerate(logger.log_every(self.dataloader, self.print_freq, self.header)):
+
+            debug_output = None
+            
             # loguru_logger.info(f'[{i}/{len(self.dataloader)}], {targets["image_name"]} ')
             images, targets = self.prepare_data(images, targets)
             if len(images) > 1:
@@ -199,19 +209,24 @@ class Evaluator:
             else:
                 # output, _ = self.model(images, targets)  
                 model_output, _ = self.model(images)
-
-
-
-
+                if self.vizual_debug_fn is not None:
+                    debug_output = self.model.model( images, debug=True)
 
             # the model output is a list of 2 tensors, one heatmap one class map
             output_prediction = self.prepare_feeding(targets, model_output)
 
             if viz and self.vizual_fn is not None:
                 if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
-                    fig = self._vizual(image = images,
-                                       target = targets,
-                                       output = model_output, visualise_predictions = pd.DataFrame(output_prediction["preds"]))
+                    self._vizual(image=images,
+                                 target=targets,
+                                 output=model_output,
+                                 visualise_predictions=pd.DataFrame(output_prediction["preds"]))
+                    if debug_output:
+                        self._vizual_debug(debug_output=debug_output,
+                                           image=images,
+                                           target=targets,
+                                           output=model_output,
+                                           visualise_predictions=pd.DataFrame(output_prediction["preds"]))
 
             # for each image feed outputs and aggregate metrics, should look like
             """
@@ -223,8 +238,21 @@ class Evaluator:
             'loc': [[9.0, 1181.0], [174.0, 187.0], [182.0, 1025.0], [423.0, 1246.0], [581.0, 840.0], [1007.0, 54.0], [1593.0, 1744.0]], 
             'scores': [0.8123772740364075, 0.970843493938446, 0.9492995738983154, 0.9641066193580627, 0.9905760288238525, 0.9475813508033752, 0.9999991655349731]}}
             """
+
+
             iter_metrics.feed(**output_prediction)
             iter_metrics.aggregate()
+
+            # print("\n" + iter_metrics.density_report())
+            # print("\n" + iter_metrics.occupancy_report())
+            #
+            # # Show DataFrame
+            # print("\nDensity DataFrame:")
+            # print(iter_metrics.density_dataframe().to_string(index=False))
+            #
+            # print("\nTile Results (first 5):")
+            # print(iter_metrics.tile_results_dataframe().head().to_string(index=False))
+
             if log_meters:
                 logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp))
                 logger.add_meter('tp', sum(iter_metrics.tp))
@@ -259,6 +287,7 @@ class Evaluator:
                     'RMSE': iter_metrics.rmse(),
                     'avg_score': iter_metrics.avg_score(),
                     'avg_dscore': iter_metrics.avg_dscore(),
+
                     })
 
             iter_metrics.flush()
@@ -290,6 +319,8 @@ class Evaluator:
             wandb.run.summary['n'] =  sum(self.metrics.fp) +  sum(self.metrics.fn) + sum(self.metrics.tp)
             wandb.run.summary['avg_score'] =  self.metrics.avg_score()
             wandb.run.summary['avg_dscore'] =  self.metrics.avg_dscore()
+
+
 
             print(f"Wandb summary: {wandb.run.summary}")
 
@@ -390,7 +421,21 @@ class Evaluator:
         fig = self.vizual_fn(image=image,
                              target=target,
                              output=output,
-                             epoch=self.current_epoch, visualise_predictions=visualise_predictions)
+                             epoch=self.current_epoch,
+                             visualise_predictions=visualise_predictions)
+
+        return fig
+
+    def _vizual_debug(self, debug_output, image: Any, target: Any, output: Any,
+                      visualise_predictions: pd.DataFrame = None) -> None:
+        debug_fig = self.vizual_debug_fn(debug_data=debug_output,
+                                   image=image,
+                                   target=target,
+                                   output=output,
+                                   epoch=self.current_epoch,
+                                   visualise_predictions=visualise_predictions)
+
+        return debug_fig
 
 
 
@@ -405,6 +450,7 @@ class HerdNetEvaluator(Evaluator):
                  print_freq: int = 10,
                  stitcher: Optional[Stitcher] = None,
                  vizual_fn: Optional[Callable] = None,
+                 vizual_debug_fn: Optional[Callable] = None,
                  work_dir: Optional[str] = None,
                  header: Optional[str] = None
         ) -> None:
@@ -413,10 +459,14 @@ class HerdNetEvaluator(Evaluator):
                          metrics,
                          device_name=device_name,
                          print_freq=print_freq,
-            vizual_fn=vizual_fn,
+                        vizual_fn=vizual_fn,
                          stitcher=stitcher,
                          work_dir=work_dir,
-                         header=header)
+                         header=header,
+
+                        vizual_debug_fn=vizual_debug_fn,
+
+                         )
 
         self.lmds_kwargs = lmds_kwargs
 
@@ -516,3 +566,437 @@ class FasterRCNNEvaluator(Evaluator):
         counts = [preds['labels'].count(i+1) for i in range(num_classes)]
 
         return dict(gt = gt, preds = preds, est_count = counts)
+
+
+
+
+
+@EVALUATORS.register()
+class P2PNetEvaluator(Evaluator):
+    """
+    Evaluator specialized for Point-to-Point (P2P) Networks.
+
+    Handles both output formats:
+    - Dense grid: logits [B, C, H, W], points [B, H*W, 2]
+    - Sparse query: logits [B, N, C], points [B, N, 2]
+    """
+
+    def __init__(
+            self,
+            model: torch.nn.Module,
+            dataloader: torch.utils.data.DataLoader,
+            metrics: Metrics,
+            device_name: str = 'cuda',
+            print_freq: int = 10,
+            stitcher: Optional[Stitcher] = None,
+            vizual_fn: Optional[Callable] = None,
+            vizual_debug_fn: Optional[Callable] = None,
+            work_dir: Optional[str] = None,
+            header: Optional[str] = None,
+            confidence_threshold: float = 0.1,
+    ) -> None:
+        super().__init__(
+            model,
+            dataloader,
+            metrics,
+            device_name=device_name,
+            print_freq=print_freq,
+            vizual_fn=vizual_fn,
+            stitcher=stitcher,
+            work_dir=work_dir,
+            header=header,
+            vizual_debug_fn=vizual_debug_fn,
+        )
+        self.confidence_threshold = confidence_threshold
+
+    def prepare_data(self, images: torch.Tensor, targets: List[dict]) -> tuple:
+        """Move images and target tensors to device."""
+        images = images.to(self.device)
+
+        targets_on_device = []
+        for t in targets:
+            t_on_device = {}
+            for k, v in t.items():
+                if torch.is_tensor(v):
+                    t_on_device[k] = v.to(self.device)
+                else:
+                    t_on_device[k] = v
+            targets_on_device.append(t_on_device)
+
+        return images, targets_on_device
+
+    def _get_tensor(self, output: Dict, *keys) -> Optional[torch.Tensor]:
+        """Safely get tensor from dict, trying multiple keys."""
+        for key in keys:
+            if key in output and output[key] is not None:
+                return output[key]
+        return None
+
+    def _detect_format(self, output: Dict) -> str:
+        """Detect whether output is from dense or sparse model."""
+        logits = self._get_tensor(output, 'logits', 'pred_logits')
+
+        if logits is None:
+            raise ValueError("No 'logits' or 'pred_logits' in output")
+
+        if logits.dim() == 4:
+            return 'dense'  # [B, C, H, W]
+        elif logits.dim() == 3:
+            return 'sparse'  # [B, N, C]
+        else:
+            raise ValueError(f"Unexpected logits shape: {logits.shape}")
+
+    def _extract_predictions(self, output: Dict) -> tuple:
+        """
+        Extract predictions from model output, handling both formats.
+
+        Returns:
+            pred_points: [N, 2] tensor of (x, y) pixel coordinates
+            pred_scores: [N] tensor of confidence scores
+            pred_labels: [N] tensor of class labels
+        """
+        fmt = self._detect_format(output)
+
+        logits = self._get_tensor(output, 'logits', 'pred_logits')
+        points = self._get_tensor(output, 'points', 'pred_points')
+
+        if fmt == 'dense':
+            # Dense: logits [B, C, H, W], points [B, H*W, 2]
+            B, C, H, W = logits.shape
+
+            # Flatten logits: [B, C, H, W] -> [B, H*W, C]
+            logits_flat = logits.flatten(2).transpose(1, 2)  # [B, H*W, C]
+
+            # Get probabilities and scores
+            probs = F.softmax(logits_flat, dim=-1)  # [B, H*W, C]
+
+            # For binary case: score is P(foreground)
+            # For multiclass: score is max P(any foreground class)
+            if C == 2:
+                scores = probs[0, :, 1]  # [H*W]
+                labels = torch.ones(H * W, dtype=torch.long, device=logits.device)
+            else:
+                # Multiclass: take max over non-background classes
+                fg_probs = probs[0, :, 1:]  # [H*W, C-1]
+                scores, class_idx = fg_probs.max(dim=-1)  # [H*W]
+                labels = class_idx + 1  # Shift to account for background class
+
+            # Points should be [B, H*W, 2]
+            pred_points = points[0]  # [H*W, 2]
+
+        else:
+            # Sparse: logits [B, N, C], points [B, N, 2]
+            B, N, C = logits.shape
+
+            probs = F.softmax(logits, dim=-1)  # [B, N, C]
+
+            if C == 2:
+                scores = probs[0, :, 1]  # [N]
+                labels = torch.ones(N, dtype=torch.long, device=logits.device)
+            else:
+                fg_probs = probs[0, :, 1:]  # [N, C-1]
+                scores, class_idx = fg_probs.max(dim=-1)  # [N]
+                labels = class_idx + 1
+
+            pred_points = points[0]  # [N, 2]
+
+        return pred_points, scores, labels
+
+    """
+    DIAGNOSTIC prepare_feeding for P2PNetEvaluator
+
+    Replace your prepare_feeding method with this one to see what's happening.
+    """
+
+    import torch
+    import torch.nn.functional as F
+    import numpy as np
+    from typing import List, Any
+
+    def prepare_feeding(self, targets: List[dict], output: Any) -> dict:
+        """
+        Diagnostic version with extensive logging to identify issues.
+        """
+
+        def _get(d, *keys):
+            for k in keys:
+                if k in d and d[k] is not None:
+                    return d[k]
+            return None
+
+        output_dict = output[0] if isinstance(output, list) else output
+        targets_dict = targets[0]
+
+        # ==================== GROUND TRUTH ====================
+        gt_points = targets_dict.get('points', torch.empty((0, 2))).cpu()
+        gt_labels = targets_dict.get('labels', torch.empty((0,)).long()).cpu().tolist()
+
+        gt_coords = gt_points.tolist()  # Keep as-is, already (x, y)
+
+
+        print(f"\n{'=' * 60}")
+        print(f"DIAGNOSTIC: prepare_feeding")
+        print(f"{'=' * 60}")
+        print(f"GT points (first 3): {gt_coords[:3]}")
+        print(f"GT labels: {gt_labels[:5]}...")
+        print(f"Total GT: {len(gt_coords)}")
+
+        # ==================== PREDICTIONS ====================
+        logits = _get(output_dict, 'logits', 'pred_logits')
+        points = _get(output_dict, 'points', 'pred_points')
+
+        if logits is None or points is None:
+            print(f"ERROR: logits is None: {logits is None}, points is None: {points is None}")
+            print(f"Available keys: {output_dict.keys()}")
+            return dict(
+                gt=dict(loc=gt_coords, labels=gt_labels),
+                preds=dict(loc=[], labels=[], scores=[]),
+                est_count=[0]
+            )
+
+        print(f"\nLogits shape: {logits.shape}")
+        print(f"Points shape: {points.shape}")
+
+        # ==================== EXTRACT SCORES ====================
+        if logits.dim() == 4:  # Dense: [B, C, H, W]
+            B, C, H, W = logits.shape
+            logits_flat = logits.flatten(2).transpose(1, 2)
+            probs = F.softmax(logits_flat, dim=-1)
+            scores = probs[0, :, 1] if C == 2 else probs[0, :, 1:].max(dim=-1)[0]
+            pred_points = points[0]
+            print(f"Format: DENSE, grid {H}x{W} = {H * W} positions")
+        else:  # Sparse: [B, N, C]
+            B, N, C = logits.shape
+            probs = F.softmax(logits, dim=-1)
+            scores = probs[0, :, 1] if C == 2 else probs[0, :, 1:].max(dim=-1)[0]
+            pred_points = points[0]
+            print(f"Format: SPARSE, {N} queries")
+
+        pred_points = pred_points.cpu()
+        scores = scores.cpu()
+
+        # ==================== SCORE STATISTICS ====================
+        print(f"\n--- Score Statistics ---")
+        print(f"  Min: {scores.min():.4f}")
+        print(f"  Max: {scores.max():.4f}")
+        print(f"  Mean: {scores.mean():.4f}")
+        print(f"  Std: {scores.std():.4f}")
+        print(f"  Above 0.5: {(scores > 0.5).sum().item()}")
+        print(f"  Above 0.3: {(scores > 0.3).sum().item()}")
+        print(f"  Above 0.1: {(scores > 0.1).sum().item()}")
+        print(f"  Above 0.05: {(scores > 0.05).sum().item()}")
+
+        # ==================== COORDINATE STATISTICS ====================
+        print(f"\n--- Coordinate Statistics ---")
+        print(f"  Pred points range X: [{pred_points[:, 0].min():.1f}, {pred_points[:, 0].max():.1f}]")
+        print(f"  Pred points range Y: [{pred_points[:, 1].min():.1f}, {pred_points[:, 1].max():.1f}]")
+
+        if len(gt_coords) > 0:
+            gt_arr = np.array(gt_coords)
+            print(f"  GT points range X: [{gt_arr[:, 0].min():.1f}, {gt_arr[:, 0].max():.1f}]")
+            print(f"  GT points range Y: [{gt_arr[:, 1].min():.1f}, {gt_arr[:, 1].max():.1f}]")
+
+        # ==================== DISTANCE TO GT ====================
+        if len(gt_coords) > 0:
+            print(f"\n--- Distance to GT (for top-10 scoring predictions) ---")
+            top_k = min(10, len(scores))
+            top_scores, top_idx = scores.topk(top_k)
+            top_points = pred_points[top_idx].numpy()
+            gt_arr = np.array(gt_coords)
+
+            for i, (idx, score, pt) in enumerate(zip(top_idx, top_scores, top_points)):
+                # Find nearest GT
+                dists = np.sqrt(((gt_arr - pt) ** 2).sum(axis=1))
+                nearest_dist = dists.min()
+                print(f"  Pred {i}: score={score:.4f}, coord=({pt[0]:.1f}, {pt[1]:.1f}), "
+                      f"nearest GT dist={nearest_dist:.1f}px")
+
+        # ==================== APPLY THRESHOLD ====================
+        threshold = getattr(self, 'confidence_threshold', 0.1)
+        mask = scores >= threshold
+        n_pass = mask.sum().item()
+
+        print(f"\n--- Thresholding (threshold={threshold}) ---")
+        print(f"  Predictions passing: {n_pass}")
+
+        pred_points_filtered = pred_points[mask].tolist()
+        pred_scores_filtered = scores[mask].tolist()
+        pred_points = pred_points.cpu()
+        scores = scores.cpu()
+
+        # ADD THIS DIAGNOSTIC:
+        print(f"\n=== COORDINATE DIAGNOSTIC ===")
+        print(f"Scores > 0.1: {(scores > 0.1).sum().item()} / {len(scores)}")
+        print(f"Score range: [{scores.min():.4f}, {scores.max():.4f}]")
+        print(f"Pred coords mean: ({pred_points[:, 0].mean():.1f}, {pred_points[:, 1].mean():.1f})")
+        print(f"Pred coords std: ({pred_points[:, 0].std():.1f}, {pred_points[:, 1].std():.1f})")
+        print(f"Pred coords range X: [{pred_points[:, 0].min():.1f}, {pred_points[:, 0].max():.1f}]")
+        print(f"Pred coords range Y: [{pred_points[:, 1].min():.1f}, {pred_points[:, 1].max():.1f}]")
+        print(f"First 5 pred coords: {pred_points[:5].tolist()}")
+        print(f"GT coords (first 5): {gt_coords[:5]}")
+        print(f"PointsMetrics radius: {self.metrics.threshold}")
+
+
+
+        # ==================== CHECK MATCHING RADIUS ====================
+        # The PointsMetrics uses a radius threshold for matching
+        # If predictions are further than this radius from GT, they won't match!
+        if hasattr(self, 'metrics') and hasattr(self.metrics, 'threshold'):
+            matching_radius = self.metrics.threshold
+            print(f"\n--- Matching Radius Check ---")
+            print(f"  PointsMetrics radius: {matching_radius}")
+
+            if n_pass > 0 and len(gt_coords) > 0:
+                pred_arr = np.array(pred_points_filtered)
+                gt_arr = np.array(gt_coords)
+
+                # For each prediction, check if ANY GT is within radius
+                n_within_radius = 0
+                for pt in pred_arr:
+                    dists = np.sqrt(((gt_arr - pt) ** 2).sum(axis=1))
+                    if dists.min() <= matching_radius:
+                        n_within_radius += 1
+
+                print(f"  Predictions within matching radius of ANY GT: {n_within_radius}/{n_pass}")
+                if n_within_radius == 0:
+                    print(f"  ⚠️  NO predictions are close enough to GT to be matched!")
+                    print(f"  This is why recall/precision are 0!")
+
+        print(f"{'=' * 60}\n")
+
+        # ==================== RETURN ====================
+        num_fg_classes = self.metrics.num_classes - 1 if hasattr(self, 'metrics') else 1
+        est_count = None  # Simple count for single class
+
+        return dict(
+            gt=dict(loc=gt_coords, labels=gt_labels),
+            preds=dict(
+                loc=pred_points_filtered,
+                labels=[1] * len(pred_scores_filtered),
+                scores=pred_scores_filtered,
+            ),
+            est_count=est_count
+        )
+    def post_stitcher(self, output: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle output from stitcher (tiled inference)."""
+        # Stitcher should return merged predictions in same format
+        return output
+
+    @torch.no_grad()
+    def evaluate(
+            self,
+            returns: str = 'recall',
+            wandb_flag: bool = False,
+            viz: bool = False,
+            log_meters: bool = True,
+            dont_finish: bool = False,
+    ) -> float:
+        """Evaluate the P2PNet model."""
+
+        self.model.eval()
+        self.metrics.flush()
+
+        logger = CustomLogger(
+            delimiter=' ',
+            filename=self.logs_filename,
+            work_dir=self.work_dir
+        )
+        iter_metrics = self.metrics.copy()
+
+        for i, (images, targets) in enumerate(
+                logger.log_every(self.dataloader, self.print_freq, self.header)
+        ):
+            # 1. Prepare data
+            images, targets = self.prepare_data(images, targets)
+
+            # 2. Forward pass
+            if self.stitcher is not None:
+                model_output = self.stitcher(images[0])
+                model_output = self.post_stitcher(model_output)
+            else:
+                model_output = self.model(images, targets)
+
+            # 3. Prepare for metrics
+            output_prediction = self.prepare_feeding(targets, model_output)
+
+            # 4. Visualization
+            if viz and self.vizual_fn is not None:
+                if i % self.print_freq == 0 or i == len(self.dataloader) - 1:
+                    self._vizual(
+                        image=images,
+                        target=targets,
+                        output=model_output,
+                        visualise_predictions=pd.DataFrame(output_prediction["preds"])
+                    )
+
+            # 5. Update metrics
+            iter_metrics.feed(**output_prediction)
+            iter_metrics.aggregate()
+
+            if log_meters:
+                logger.add_meter('n', sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp))
+                logger.add_meter('tp', sum(iter_metrics.tp))
+                logger.add_meter('fp', sum(iter_metrics.fp))
+                logger.add_meter('fn', sum(iter_metrics.fn))
+                logger.add_meter('recall', round(iter_metrics.recall(), 2))
+                logger.add_meter('precision', round(iter_metrics.precision(), 2))
+                logger.add_meter('f1_score', round(iter_metrics.fbeta_score(), 2))
+                logger.add_meter('f2_score', round(iter_metrics.fbeta_score(beta=2), 2))
+                logger.add_meter('MAE', round(iter_metrics.mae(), 2))
+                logger.add_meter('RMSE', round(iter_metrics.rmse(), 2))
+
+            if wandb_flag:
+                wandb.log({
+                    'n': sum(iter_metrics.tp) + sum(iter_metrics.fn) + sum(iter_metrics.fp),
+                    'tp': sum(iter_metrics.tp),
+                    'fp': sum(iter_metrics.fp),
+                    'fn': sum(iter_metrics.fn),
+                    'recall': iter_metrics.recall(),
+                    'precision': iter_metrics.precision(),
+                    'f1_score': iter_metrics.fbeta_score(),
+                    'MAE': iter_metrics.mae(),
+                    'RMSE': iter_metrics.rmse(),
+                })
+
+            iter_metrics.flush()
+            self.metrics.feed(**output_prediction)
+
+        # Final aggregation
+        self._stored_metrics = self.metrics.copy()
+        mAP = np.mean([
+            self.metrics.ap(c) for c in range(1, self.metrics.num_classes)
+        ]).item()
+        self.metrics.aggregate()
+
+        # Log final results
+        if wandb_flag:
+            wandb.run.summary['recall'] = self.metrics.recall()
+            wandb.run.summary['precision'] = self.metrics.precision()
+            wandb.run.summary['f1_score'] = self.metrics.fbeta_score()
+            wandb.run.summary['MAE'] = self.metrics.mae()
+            wandb.run.summary['RMSE'] = self.metrics.rmse()
+            wandb.run.summary['mAP'] = mAP
+            wandb.run.summary['tp'] = sum(self.metrics.tp)
+            wandb.run.summary['fn'] = sum(self.metrics.fn)
+            wandb.run.summary['fp'] = sum(self.metrics.fp)
+
+            if not dont_finish:
+                wandb.run.finish()
+
+        # Return requested metric
+        metric_map = {
+            'recall': self.metrics.recall,
+            'precision': self.metrics.precision,
+            'f1_score': self.metrics.fbeta_score,
+            'f2_score': lambda: self.metrics.fbeta_score(beta=2),
+            'mae': self.metrics.mae,
+            'mse': self.metrics.mse,
+            'rmse': self.metrics.rmse,
+            'accuracy': self.metrics.accuracy,
+            'mAP': lambda: mAP,
+        }
+
+        if returns in metric_map:
+            return metric_map[returns]()
+        else:
+            raise ValueError(f"Unknown return metric: {returns}")

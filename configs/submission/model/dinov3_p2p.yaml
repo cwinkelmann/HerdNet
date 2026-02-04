@@ -1,0 +1,20 @@
+
+
+
+
+name: 'HerdNetP2P'
+
+# work_dir: "./outputs/"
+from_torchvision: False
+load_from: null
+
+resume_from: null
+kwargs:
+  backbone: 'timm/vit_large_patch16_dinov3.sat493m'
+  pretrained: True
+  # pretrained_path: '/home/cwinkelmann/work/Herdnet/data/models/dla34_224/model_best.pth.tar'
+  # pretrained_path: null
+  freeze_backbone: True # Freeze the backbone, if you want to train only the heads
+
+
+

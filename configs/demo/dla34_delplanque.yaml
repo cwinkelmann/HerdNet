@@ -1,0 +1,56 @@
+wandb_notes: |
+  fine tune on full iguana dataset with Delplanque DLA34 model
+
+defaults:
+  - /losses: herdnet_general_dataset
+  - /datasets: floreana_dataset
+  - /training_settings: evaluator
+  - /model: Herdnet34_Delplanque
+  - _self_  # Include this config's content
+
+wandb_flag: True
+wandb_project: 'demo'
+wandb_entity: 'karisu'
+wandb_run: 'dla34_delplanque'
+wandb_tags: ["dla"]
+seed: 1
+device_name: null # or enforce mps on a mac
+
+datasets:
+  num_classes: 7 # One class more for the background
+
+  class_def:
+    1: 'Alcelaphinae'
+    2: 'Buffalo'
+    3: 'Kob'
+    4: 'Warthog'
+    5: 'Waterbuck'
+    6: 'Elephant'
+
+training_settings:
+  lr: 1.0e-04
+  epochs: 5
+  batch_size: 5
+  evaluator:
+    kwargs:
+      lmds_kwargs:
+        adapt_ts: 0.5
+
+  visualiser:
+    down_ratio:
+      2
+
+  debug_visualiser: null
+
+model:
+  load_from: /home/cwinkelmann/work/Herdnet/best_models/20220413_HerdNet_General_dataset_2022.pth # https://github.com/Alexandre-Delplanque/HerdNet
+
+  kwargs:
+    down_ratio: 2
+
+
+
+hydra:
+  run:
+    dir: /raid/cwinkelmann/herdnet/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

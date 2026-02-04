@@ -1,0 +1,10 @@
+name: 'HerdNet'
+from_torchvision: False
+load_from: null
+resume_from: null
+kwargs:
+  num_layers: 34
+  pretrained: True
+  down_ratio: 2  # was two before
+  head_conv: 64 # was 64
+freeze: null

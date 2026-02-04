@@ -23,7 +23,7 @@ train:
 
 
   sampler: null
-  augmentation_multiplier: 20
+  augmentation_multiplier: 1
 
   albu_transforms:
     ObjectAwareRandomCrop:

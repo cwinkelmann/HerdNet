@@ -17,6 +17,7 @@ __version__ = "0.2.1"
 from .register import LOSSES
 from .ssim import *
 from .focal import *
+from .p2p import *
 
 
 __all__ = ['LOSSES', *LOSSES.registry_names]

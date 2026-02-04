@@ -35,6 +35,15 @@ def collate_fn(batch):
     batched_images = cat_list(images)
     return batched_images, targets
 
+
+def p2p_collate_fn(batch):
+    # Standard images stack
+    images = torch.stack([b[0] for b in batch])
+    # Targets MUST be a list of tensors, not a tensor
+    # Ensure your Dataset __getitem__ returns (image, keypoints_tensor)
+    targets = [b[1] for b in batch]
+    return images, targets
+
 def to_xywh(bbox):
     ''' Bbox from [x_min,y_min,x_max,y_max] to [x,y,width,height] '''
     width = bbox[2] - bbox[0]

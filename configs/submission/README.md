@@ -59,7 +59,7 @@ PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_floreana_
 
 ```
 
-### Training Data Curve
+### Learning Data Curve
 
 ```shell
 PYTHONPATH=$PYTHONPATH:./ python3 tools/train_wrapper.py > /dev/null 2>&1 & 
@@ -93,6 +93,18 @@ training_data_preparation/orthomosaic/0432_convert_shapefile_ortho_herdnet.py
 ```
 
 
+Train a big dino model
+```shell
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_best_dla34" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_dinov2" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_dinov3" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_fernandina_all_dinov3_fpn" --config-path="../configs/submission/"  > /dev/null 2>&1 &
+```
+
 
 Train a big dino model
 ```shell
@@ -103,9 +115,17 @@ PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_alldata_a
 
 ### Final training will all combined insights, corrected datasets
 ```shell
-PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_alldata_all_best_dla34_20251117" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_last_run_DINO" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
 
-PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_alldata_benchmark_dla34_20251117" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_last_run_dla34" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
 
-PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_alldata_all_best_dino_20251117" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_last_run_convnext" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_last_run_swin" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_last_run_convnext_camouflaged" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+
+PYTHONPATH=$PYTHONPATH:./ python3 tools/train_cli.py --config-name="f1_last_run_dual" --config-path="../configs/submission/"  > /dev/null 2>&1 & 
+
+
 ```

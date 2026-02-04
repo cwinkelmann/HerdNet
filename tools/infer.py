@@ -1,217 +1,96 @@
-__copyright__ = \
-    """
-    Copyright (C) 2024 University of Liège, Gembloux Agro-Bio Tech, Forest Is Life
-    All rights reserved.
+#!/usr/bin/env python
+"""
+Inference script for HerdNet using Hydra config.
 
-    This source code is under the MIT License.
+Usage:
+    python infer.py --config-dir ./models/general_2022 --images ./data/test_sample/
 
-    Please contact the author Alexandre Delplanque (alexandre.delplanque@uliege.be) for any questions.
+    # With additional overrides:
+    python infer.py --config-dir ./models/general_2022 --images ./data/test_sample/ \
+        --model ./models/general_2022/model.pth \
+        --overrides "inference.patch_size=512" "inference.overlap=160"
+"""
 
-    Last modification: March 18, 2024
-    """
-__author__ = "Alexandre Delplanque"
+__author__ = "Alexandre Delplanque, Christian Winkelmann (refactored)"
 __license__ = "MIT License"
-__version__ = "0.2.1"
-
+__version__ = "0.3.0"
 
 import argparse
-import torch
-import os
-import pandas
-import warnings
-import numpy
-import PIL
+from pathlib import Path
 
-import albumentations as A
-from loguru import logger
+from hydra import initialize_config_dir, compose
+from hydra.core.global_hydra import GlobalHydra
+from omegaconf import OmegaConf
 
-from torch.utils.data import DataLoader
-from PIL import Image
-
-from animaloc.data.transforms import DownSample, Rotate90
-from animaloc.models import LossWrapper, HerdNet
-from animaloc.eval import HerdNetStitcher, HerdNetEvaluator
-from animaloc.eval.metrics import PointsMetrics
-from animaloc.datasets import CSVDataset
-from animaloc.utils.useful_funcs import mkdir, current_date
-from animaloc.vizual import draw_points, draw_text
-
-warnings.filterwarnings('ignore')
-PIL.Image.MAX_IMAGE_PIXELS = None
+from animaloc.utils.inference import inference
 
 
-parser = argparse.ArgumentParser(
-    prog='inference', 
-    description='Collects the detections of a pretrained HerdNet model on a set of images '
+def parse_args():
+    parser = argparse.ArgumentParser(
+        prog='infer',
+        description='Run HerdNet inference using Hydra config'
     )
 
-parser.add_argument('root', type=str,
-    help='path to the JPG images folder (str)')
-parser.add_argument('pth', type=str,
-    help='path to PTH file containing your model parameters (str)')  
-parser.add_argument('-size', type=int, default=512,
-    help='patch size use for stitching. Defaults to 512.')
-parser.add_argument('-over', type=int, default=160,
-    help='overlap for stitching. Defaults to 160.')
-parser.add_argument('-device', type=str, default='cuda',
-    help='device on which model and images will be allocated (str). \
-        Possible values are \'cpu\' or \'cuda\'. Defaults to \'cuda\'.')
-parser.add_argument('-ts', type=int, default=256,
-    help='thumbnail size. Defaults to 256.')
-parser.add_argument('-pf', type=int, default=10,
-    help='print frequency. Defaults to 10.')
-parser.add_argument('-rot', type=int, default=0,
-    help='number of times to rotate by 90 degrees. Defaults to 0.')
+    parser.add_argument('--config-dir', type=str, required=True,
+        help='Path to config directory containing config.yaml')
+    parser.add_argument('--config-name', type=str, default='config',
+        help='Name of config file (without .yaml). Defaults to "config"')
+    parser.add_argument('--images', type=str, required=True,
+        help='Path to images directory')
+    parser.add_argument('--model', type=str, default=None,
+        help='Path to model .pth file (overrides config)')
+    parser.add_argument('--output', type=str, default=None,
+        help='Output directory for results (overrides config)')
+    parser.add_argument('--vis', action='store_true',
+        help='Visualize detections')
+    parser.add_argument('--overrides', nargs='*', default=[],
+        help='Additional Hydra-style overrides, e.g., "inference.patch_size=512"')
 
-args = parser.parse_args()
+    return parser.parse_args()
+
 
 def main():
+    args = parse_args()
 
-    # Create destination folder
-    curr_date = current_date()
-    dest = os.path.join(args.root, f"{curr_date}_HerdNet_results")
-    mkdir(dest)
-    logger.info(f"Results will be saved in {dest}")
+    # Clear any previous Hydra state
+    GlobalHydra.instance().clear()
 
+    # Convert to absolute path (required by Hydra)
+    config_dir = str(Path(args.config_dir).resolve())
 
-    # Read info from PTH file
-    map_location = torch.device(args.device)
-    if torch.cuda.is_available():
-        map_location = torch.device('cuda')
+    # Build overrides list
+    overrides = list(args.overrides)
 
+    # Add image directory override
+    overrides.append(f"datasets.test.root_dir={args.images}")
 
-    ## TODO get the classes from the config and not the model
-    checkpoint = torch.load(args.pth, map_location=map_location)
-    # classes = checkpoint['classes']
+    # Add model path override if provided
+    if args.model:
+        overrides.append(f"model.load_from={args.model}")
 
-    classes = {
-        1: 'iguana',
-        2: 'hard_negative',
-        3: 'Kob',
-        4: 'Warthog',
-        5: 'Waterbuck',
-        6: 'Elephant',
-        7: 'Impala',
-               }
+    # Add output directory override if provided
+    if args.output:
+        overrides.append(f"work_dir={args.output}")
 
-    num_classes = len(classes) + 1
+    # Load config
+    with initialize_config_dir(config_dir=config_dir, version_base="1.1"):
+        cfg = compose(config_name=args.config_name, overrides=overrides)
 
-    # Fixme this is not persisted in training, have a look at the README and why
-    # img_mean = checkpoint['mean']
-    # img_std = checkpoint['std']
+    # Print config
+    print("=" * 50)
+    print("Configuration:")
+    print("=" * 50)
+    print(OmegaConf.to_yaml(cfg))
+    print("=" * 50)
 
-    img_mean= [0.485, 0.456, 0.406]
-    img_std= [0.229, 0.224, 0.225]
-    # Prepare dataset and dataloader
-    img_names = [i for i in os.listdir(args.root) 
-            if i.endswith(('.JPG','.jpg','.JPEG','.jpeg', ".tiff", ".tif"))]
-    n = len(img_names)
-    if n == 0:
-        raise FileNotFoundError(f"No images found in {args.root}.")
-    df = pandas.DataFrame(data={'images': img_names, 'x': [0]*n, 'y': [0]*n, 'labels': [1]*n})
-    
-    end_transforms = []
-    # TODO: Why would I want to rotate the images?
-    if args.rot != 0:
-        end_transforms.append(Rotate90(k=args.rot))
-    end_transforms.append(DownSample(down_ratio = 2, anno_type = 'point'))
-    
-    albu_transforms = [A.Normalize(mean=img_mean, std=img_std)]
-    
-    dataset = CSVDataset(
-        csv_file = df,
-        root_dir = args.root,
-        albu_transforms = albu_transforms,
-        end_transforms = end_transforms
-        )
-    
-    
-    ## TODO why a batch size of 1? This slows inference down a lot
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
-        sampler=torch.utils.data.SequentialSampler(dataset))
-    
-    # Build the trained model
-    print('Building the model ...')
-    device = torch.device(args.device)
-    model = HerdNet(num_classes=num_classes, pretrained=False)
-    model = LossWrapper(model, [])
-    model.load_state_dict(checkpoint['model_state_dict'])
+    # Run inference
+    detections = inference(cfg, plain_inference=True, vis_detections=args.vis)
 
-    # Build the evaluator
-    stitcher = HerdNetStitcher(
-            model = model,
-            size = (args.size, args.size),
-            overlap = args.over,
-            down_ratio = 2,
-            up = True, # Because of this the output is 2x the input size and the plotting works
-            reduction = 'mean',
-            device_name = device
-            ) 
+    print(f"\nDetections: {len(detections)} total")
+    print(detections.head())
 
-    metrics = PointsMetrics(radius=5, num_classes = num_classes)
+    return detections
 
-    evaluator = HerdNetEvaluator(
-        model = model,
-        dataloader = dataloader,
-        metrics = metrics,
-        lmds_kwargs = dict(kernel_size=(3, 3), adapt_ts=0.2), # TODO get this from a config
-        device_name = device,
-        print_freq = args.pf,
-        stitcher = stitcher,
-        work_dir=dest,
-        header = '[INFERENCE]'
-        )
-
-    # Start inference
-    logger.info('Starting inference ...')
-    out = evaluator.evaluate(wandb_flag=False, viz=True, log_meters=False)
-    logger.info('Done inference ...')
-
-    # Save the detections
-    print('Saving the detections ...')
-    detections = evaluator.detections
-    detections.dropna(inplace=True)
-    logger.info(f"Num detections: {len(detections)}")
-
-    # FIXME get this right later
-    detections['species'] = detections['labels'].map(classes)
-
-
-    detections.to_csv(os.path.join(dest, f'{curr_date}_detections.csv'), index=False)
-
-    # Draw detections on images and create thumbnails
-    print('Exporting plots and thumbnails ...')
-    dest_plots = os.path.join(dest, 'plots')
-    mkdir(dest_plots)
-    dest_thumb = os.path.join(dest, 'thumbnails')
-    mkdir(dest_thumb)
-    img_names = numpy.unique(detections['images'].values).tolist()
-
-    for img_name in img_names:
-        img = Image.open(os.path.join(args.root, img_name))
-
-        if args.rot != 0:
-            rot = args.rot * 90
-            img = img.rotate(rot, expand=True)
-
-        img_cpy = img.copy()
-        pts = list(detections[detections['images']==img_name][['y','x']].to_records(index=False))
-
-        pts = [(y, x) for y, x in pts]
-        output = draw_points(img, pts, color='red', size=10)
-        output.save(os.path.join(dest_plots, img_name), quality=95)
-
-        # Create and export thumbnails
-        sp_score = list(detections[detections['images']==img_name][['species','scores']].to_records(index=False))
-        for i, ((y, x), (sp, score)) in enumerate(zip(pts, sp_score)):
-            off = args.ts//2
-            coords = (x - off, y - off, x + off, y + off)
-            thumbnail = img_cpy.crop(coords)
-            score = round(score * 100, 0)
-            thumbnail = draw_text(thumbnail, f"{sp} | {score}%", position=(10,5), font_size=int(0.08*args.ts))
-            thumbnail.save(os.path.join(dest_thumb, img_name[:-4] + f'_{i}.JPG'))
-
-    logger.info(f"Inference done, wrote results to: {dest}")
 
 if __name__ == '__main__':
     main()

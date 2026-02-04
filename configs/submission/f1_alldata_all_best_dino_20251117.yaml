@@ -19,7 +19,8 @@ device_name: null
 
 #
 model:
-  load_from: /raid/cwinkelmann/herdnet/outputs/2025-11-17/14-15-53/best_model.pth # https://wandb.ai/karisu/f1_alldata_all_best_DINO/runs/gonz7gta/logs
+  pretrained_path: /raid/cwinkelmann/work/timm/output/iguanas_empty_dinov2/checkpoint-59.pth.tar
+#  load_from: /raid/cwinkelmann/herdnet/outputs/2025-11-17/14-15-53/best_model.pth # https://wandb.ai/karisu/f1_alldata_all_best_DINO/runs/gonz7gta/logs
   kwargs:
     down_ratio: 4
 

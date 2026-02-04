@@ -21,8 +21,19 @@ from .dla import *
 from .herdnet import *
 from .herdnet_timm_dla import *
 from .herdnet_timm_convnext import *
+from .herdnet_timm_convnext_camouflaged import *
 from .herdnet_timm_dinoSvin import *
+from .herdnet_timm_swin import *
+from .herdnet_dino_v2 import *
+from .herdnet_timm_dinoV3 import *
+from .herdnet_timm_dinoV3_fpn import *
+from .dual_head_ensemble import *
+from .herdnet_timm_dinoV3_fpn_ida import *
+from .herdnet_dino_v3_attn import *
+
 from .herdnet_timm_dino_fpn import *
+
+from .herdnet_p2p import *
 from .utils import *
 from .ss_dla import *
 

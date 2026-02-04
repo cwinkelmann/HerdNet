@@ -23,7 +23,7 @@ CrossEntropyLoss:
     weight:
       - ${losses.CrossEntropyLoss.background_class_weight}
       - 5 # iguana_point
-      - 0.1 # hard_negative
+#      - 0.1 # hard_negative
 
 
      # One weight for each class including the background

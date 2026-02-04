@@ -1,0 +1,62 @@
+#OHEMFocalLoss:
+#  print_name: 'OHEMFocalLoss'
+#  from_torch: False
+#  output_idx: 0
+#  target_idx: 0
+#  lambda_const: 1.0
+#  kwargs:
+#    alpha: 5  # Changed from 2
+#    beta: 2   # Changed from 4
+##    reduction: None
+##    normalize: False
+
+#HerdNetLoss:
+#  print_name: 'DiceLoss'
+#  from_torch: False
+#  output_idx: 0
+#  target_idx: 0
+#  lambda_const: 0.5
+#  kwargs:
+#    alpha: 5  # Changed from 2
+#    beta: 2   # Changed from 4
+##    reduction: None
+##    normalize: False
+
+FastFocalLoss:
+  print_name: 'fast_focal_loss'
+  from_torch: False
+  output_idx: 0
+  target_idx: 0
+  lambda_const: 1.0
+  kwargs:
+    alpha: 2  # Changed from 2
+    beta: 4   # Changed from 4
+    reduction: 'mean'
+#    normalize: False
+
+FocalLoss:
+  print_name: 'focal_loss'
+  from_torch: False
+  output_idx: 0
+  target_idx: 0
+  lambda_const: 1.0
+  kwargs:
+    alpha: 2  # Changed from 2
+    beta: 4   # Changed from 4
+    reduction: 'mean'
+    normalize: False
+
+CrossEntropyLoss:
+  print_name: 'ce_loss'
+  from_torch: True
+  output_idx: 1
+  target_idx: 1
+  lambda_const: 0.5
+  background_class_weight: 0.1
+  class_1_weight: 4  # Changed from 5
+  kwargs:
+    reduction: 'mean'
+    weight:
+      - ${losses.CrossEntropyLoss.background_class_weight}
+      - ${losses.CrossEntropyLoss.class_1_weight}  # iguana_point: 4
+      - 0.1  # hard_negative: keep same
