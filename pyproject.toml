@@ -38,6 +38,11 @@ dependencies = [
     "numpy==2.4.1",
     "scipy==1.16.0",
     "pandas==2.3.1",
+    "loguru",
+    "jupyterlab",
+    "huggingface-hub",
+    "ipywidgets",
+
 ]
 
 [project.optional-dependencies]

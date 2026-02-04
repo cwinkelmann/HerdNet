@@ -137,15 +137,15 @@ training_settings:
       reduction: mean
   debug_visualiser: null
 model:
-  name: HerdNetTimmDLA
-  from_torchvision: false
+  name: 'HerdNet'
+  from_torchvision: False
   load_from: null
   resume_from: null
   kwargs:
-    backbone: timm/dla34
-    pretrained: true
-    down_ratio: 2
-    head_conv: 64
+    num_layers: 34
+    pretrained: True
+    down_ratio: 2  # was two before
+    head_conv: 64 # was 64
   freeze: null
 wandb_notes: 'fine tune on full iguana dataset with timm DLA34 model
 

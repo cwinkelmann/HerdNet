@@ -1,5 +1,14 @@
 ## Setup Extended
 
+Use anaconda with python 3.11 to create a new environment and install the dependencies:
+
+```shell
+conda env create -n HerdNet python=3.11 
+conda activate HerdNet
+
+```
+
+
 ### Local setup of Active learning repo
 
 ```shell
@@ -13,7 +22,16 @@ pip uninstall torch torchvision torchaudio
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
-### Docker Training container
+No test if the demo notebook works
+´´´shell
+jupyter lab
+
+´´´
+
+
+
+
+## Docker Training container
 ```shell
 docker build -t herdnet -f Dockerfile .
 
