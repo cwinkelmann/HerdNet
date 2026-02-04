@@ -42,6 +42,7 @@ dependencies = [
     "jupyterlab",
     "huggingface-hub",
     "ipywidgets",
+    "fiftyone",
 
 ]
 

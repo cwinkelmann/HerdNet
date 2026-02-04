@@ -1,14 +1,13 @@
 
 
 # HerdNet 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/demo-training-testing-herdnet.ipynb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/main/notebooks/demo-training-testing-herdnet_local.ipynb)
 
 Code for paper "[From Crowd to Herd Counting: How to Precisely Detect and Count African Mammals using Aerial Imagery and Deep Learning?](https://doi.org/10.1016/j.isprsjprs.2023.01.025)"
 
 # This is Fork of the HerdNet Code
 See https://github.com/Alexandre-Delplanque/HerdNet for the original code
 
-Simplified Training with Configs: [![Simplified Training with Configs](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/dinov3/notebooks/train.ipynb)
 
 ## Model Architecture
 ![](https://i.imgur.com/kevmlhV.png)[demo-training-testing-herdnet.ipynb](notebooks/demo-training-testing-herdnet.ipynb)
@@ -35,6 +34,18 @@ If you use this code in your work, please cite our [paper](https://doi.org/10.10
     }
 ```
 
+Changes in this Repository were also used in the [thesis](https://doi.org/10.6084/m9.figshare.30719999) project:
+```
+@article{Winkelmann2025,
+    author = "Christian Winkelmann",
+    title = "{Automated Marine Iguana Detection Using Drone Imagery and Deep Learning on the Galápagos Islands}",
+    year = "2025",
+    month = "11",
+    url = "https://figshare.com/articles/thesis/Automated_Marine_Iguana_Detection_Using_Drone_Imagery_and_Deep_Learning_on_the_Gal_pagos_Islands/30719999",
+    doi = "10.6084/m9.figshare.30719999.v1"
+}
+```
+
 ## Pretrained Models
 Models were trained separatly for each of the two datasets. These pre-trained models follow the ([`CC BY-NC-SA-4.0`](https://creativecommons.org/licenses/by-nc-sa/4.0/)) license and are available for academic research purposes only, no commercial use is permitted.
 
@@ -51,25 +62,19 @@ Note that these metrics have been computed on full-size test images.
 ## Long Installation
 Create and activate the conda environment
 ```shell
-conda create -n herdnet -f environment.yml
+conda create -n herdnet python=3.11 -y
 conda activate herdnet
-```
-
-```shell
-# update the conda environment
-conda env update --file environment.yml --prune
 ```
 
 ### install development dependencies
 
 ```shell
-#pip install -r requirements.txt
 pip install pytest pytest-cov flake8 jupyterlab
 ```
 
 Install the code
 ```shell
-python setup.py install
+python install -e .
 ```
 
 Create a [Weights & Biases](https://wandb.ai/home) account and then log in
@@ -103,7 +108,7 @@ Example_2.JPG,47,253,65,369,1
 An image containing *n* objects is therefore spread over *n* lines.
 
 ## Quick Start 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/main/notebooks/demo-training-testing-herdnet_local.ipynb)
 
 Set the seed for reproducibility
 ```python
@@ -256,25 +261,15 @@ A training session can easily be launched using the `train.py` tool. This tool u
 python tools/train.py
 ```
 
-You can also create your own config file. Save it first into the [`configs/train`](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/configs/train) folder and then run:
+You can also create your own config file. Save it first into the [`configs/train`](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/configs/train) folder and then run it like this. Replace the `...` with your actual paths:
 ```console
-python tools/train.py train=<your config name>
+python tools/train.py --config-path .../models/general_2022 --config-name config datasets.train.root_dir=...data/test_sample datasets.train.csv_file=.../data/test_sample.csv datasets.validate.root_dir=.../data/test_sample datasets.validate.csv_file=/home/christian/hnee/HerdNet/notebooks/data/test_sample.csv model.load_from=.../models/general_2022/20220413_HerdNet_General_dataset_2022.pth
 ```
 Click [here](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/doc/configs_train.md) to see how to write a **training config file**.
 
 You can also make multiple different configurations runs or modify some parameters directly from the command line (see the [doc](https://hydra.cc/docs/intro)).
 
-### Starting a Testing Session
-A testing session can easily be launched using the `test.py` tool. This tool uses [Hydra](https://hydra.cc/) framework again. You simply need to modify the basic config file and then run:
-```console
-python tools/test.py
-```
 
-You can also create your own config file. Save it first into the [`configs/test`](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/configs/test) folder and then run:
-```console
-python tools/test.py test=<your config name>
-```
-Click [here](https://github.com/Alexandre-Delplanque/HerdNet/tree/main/doc/configs_test.md) to see how to write a **testing config file**.
 
 ### Visualizing Ground Truth (and Detections)
 You can view your ground truth and your model's detections by using the `view.py` tool. This tool uses [FiftyOne](https://voxel51.com/fiftyone/). You simply need to specify a root directory that contains your images (`root`), your CSV file containing the ground truth (`gt`) and optionaly a CSV file containing model's detections (`-dets`). See dataset format below for your CSV files format.
@@ -285,7 +280,7 @@ python tools/view.py root gt [-dets]
 ### Making Inference with a PTH File
 You can get HerdNet detections from new images using the `infer.py` tool. To use it, you will need a `.pth` file obtained using this code, which also contains the label-species correspondence (`classes`) as well as the mean (`mean`) and std (`std`) values for normalization (see the code snippet below to add this information in your `.pth` file). This tool exports the detections in `.csv` format, the plots of the detections on the images, and thumbnails of the detected animals. All this is saved in the same folder as the one containing the images (i.e. `-root`). You can adjust the size of the thumbnails by changing the `-ts` argument (defaults to 256), the frequency of the prints by changing the `-pf` argument (defaults to 10), as well as the computing device by changing the `-device` argument (defaults to cuda).
 ```console
-python tools/infer.py root pth [-ts] [-pf] [-device]
+python tools/infer.py --config-dir <Config Dir> --images <Path to Image Folder> --overrides "model.load_from=/home/christian/hnee/HerdNet/notebooks/models/general_2022/20220413_HerdNet_General_dataset_2022.pth"
 ```
 
 For help, run:
@@ -305,7 +300,7 @@ torch.save(pth_file, 'path/to/the/file.pth')
 ```
 
 ## Colab Demo
-Here is a [Google Colab demo](https://colab.research.google.com/github/Alexandre-Delplanque/HerdNet/blob/main/notebooks/demo-training-testing-herdnet.ipynb) based on the [UAV nadir dataset](https://doi.org/10.58119/ULG/MIRUU5) used in the paper:
+Here is a [Google Colab demo](https://colab.research.google.com/github/cwinkelmann/HerdNet/blob/main/notebooks/demo-training-testing-herdnet_local.ipynb) based on the [UAV nadir dataset](https://doi.org/10.58119/ULG/MIRUU5) used in the paper:
 > *Delplanque, A., Foucher, S., Lejeune, P., Linchant, J. and Théau, J. (2022), Multispecies detection and identification of African mammals in aerial imagery using convolutional neural networks. Remote Sens Ecol Conserv, 8: 166-179. https://doi.org/10.1002/rse2.234*.
 
 ## Code Versioning

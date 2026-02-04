@@ -26,10 +26,6 @@ def main_wrapper(cfg: DictConfig = None):
     """
     Main function to run the training process with hydra configuration.
     """
-
-    # Convert the config to a dictionary and check if everything is there
-    cfg = omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-
     # Call the main function with the config
     main(cfg)
 

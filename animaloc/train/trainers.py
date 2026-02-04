@@ -852,6 +852,8 @@ class Trainer:
             return torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer)
 
         elif isinstance(self.auto_lr, dict):
+            self.auto_lr = {k: v for k, v in self.auto_lr.items() if k != 'verbose'}
+
             return torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, **self.auto_lr)
 
         elif self.lr_milestones is not None:
