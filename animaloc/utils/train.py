@@ -401,7 +401,6 @@ def main(cfg: DictConfig) -> Path:
             if not path.exists():
                 raise FileNotFoundError(f'\'{pth_name}\' not found in {current_directory}')
 
-            # TODO add this to the training loop somehow
             pth_file = torch.load(path)
             norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
             pth_file['classes'] = dict(cfg.datasets.class_def)
