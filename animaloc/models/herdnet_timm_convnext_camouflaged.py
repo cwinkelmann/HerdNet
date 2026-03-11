@@ -684,6 +684,13 @@ class CamouflageHerdNetConvNeXt(nn.Module):
             'backbone_trainable': backbone_trainable
         }
 
+    def reshape_classes(self, num_classes: int) -> None:
+        """Reshape classification head for a new number of classes."""
+        self.cls_head[-1] = nn.Conv2d(128, num_classes, kernel_size=1)
+        nn.init.kaiming_normal_(self.cls_head[-1].weight, mode='fan_out', nonlinearity='relu')
+        nn.init.zeros_(self.cls_head[-1].bias)
+        self.num_classes = num_classes
+
     def _process_at_resolution(self, x: torch.Tensor, target_size: int) -> List[torch.Tensor]:
         """Process input at a specific resolution."""
         if x.shape[2] != target_size:

@@ -22,8 +22,12 @@ from typing import List, Tuple, Any
 import hydra
 import pandas
 import torch
-import wandb
 from loguru import logger
+
+try:
+    import wandb
+except ImportError:
+    wandb = None
 from matplotlib import pyplot as plt
 from omegaconf import DictConfig, omegaconf
 from torch.utils.data import DataLoader
@@ -40,22 +44,35 @@ from animaloc.vizual.custom_vis import plot_heatmaps, plot_heatmaps_combined
 config_path = '../configs/reference_data/delplanque2022'
 config_name = 'dla34_custom_publication'
 
+def _setup_file_logging(log_dir: Path) -> int:
+    """Add a loguru file sink. Returns the sink ID for cleanup."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    date = current_date()
+    log_path = log_dir / f"{date}_training.log"
+    sink_id = logger.add(
+        str(log_path),
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {name}:{function}:{line} - {message}",
+        level="INFO",
+        rotation="100 MB",
+    )
+    logger.info(f"Logging to {log_path}")
+    return sink_id
+
+
 def main(cfg: DictConfig) -> Path:
     work_dir = None
-    logger.info(f"Using config: {cfg}")
-    # if cfg.work_dir is not None:
-    #     work_dir = Path(cfg.work_dir).resolve()
-    #     if not work_dir.exists():
-    #         work_dir.mkdir(parents=True)
+    current_directory = Path(os.curdir).resolve()
 
-    cfg = cfg
+    # Set up file logging in the Hydra output dir (or cwd)
+    log_sink_id = _setup_file_logging(current_directory)
+
+    logger.info(f"Using config: {cfg}")
+
     train_args = cfg.datasets.train
     val_args = cfg.datasets.validate
-    # test_args = cfg.datasets.test
-    # Set the seed
+
     logger.info(f'Setting the seed to {cfg.seed}')
     set_seed(cfg.seed)
-    current_directory = Path(os.curdir).resolve()
     logger.info(f"current_directory: {current_directory}")
     # Prepare datasets and dataloaders
     logger.info('Building datasets ...')
@@ -124,11 +141,12 @@ def main(cfg: DictConfig) -> Path:
         losses = list(cfg.losses.keys())
 
     # Disable cache for this run
-    os.environ["WANDB_ARTIFACT_CACHE_SIZE"] = "10GB"
-
-    # Or set custom cache location
-    os.environ["WANDB_CACHE_DIR"] = "/raid/cwinkelmann/.cache/wandb-cache"
+    os.environ.setdefault("WANDB_ARTIFACT_CACHE_SIZE", "10GB")
     date = current_date()
+
+    if cfg.wandb_flag and wandb is None:
+        logger.warning("wandb_flag is True but wandb is not installed. Install with: pip install -e '.[tracking]'")
+        cfg.wandb_flag = False
 
     if cfg.wandb_flag:
         wandb.init(
@@ -243,23 +261,13 @@ def main(cfg: DictConfig) -> Path:
     except AttributeError as e:
         logger.error(f"The model has not check for trainable_parameters: {e}")
 
-    # model.reshape_classes(num_classes=cfg.datasets.num_classes)
-    # Prepare for training
-    # Prepare for training
+    # TODO check if this works
+    model.reshape_classes(num_classes=cfg.datasets.num_classes)
     logger.info('Preparing for training ...')
 
-    # --- CONDITIONAL WRAPPING LOGIC ---
-    if cfg.model.name == "HerdNetP2P":
-        # P2PNet calculates loss internally. No wrapping needed.
-        logger.info("P2PNet detected: Bypassing LossWrapper.")
-        criterions = _load_losses(cfg)  # Satisfy downstream logging/config (though unused by model)
-        model.set_criterion(criterions[0]["loss"])
-        final_model = model.to(device)  # <--- Use the raw model
-
-    else:
-        # Standard behavior for Density Models: Load external losses and wrap.
-        criterions = _load_losses(cfg)
-        final_model = LossWrapper(model, criterions).to(device)
+    # Standard behavior for Density Models: Load external losses and wrap.
+    criterions = _load_losses(cfg)
+    final_model = LossWrapper(model, criterions).to(device)
 
     if cfg.model.load_from is not None:
         final_model = load_model(final_model, cfg.model.load_from, device=device)
@@ -401,11 +409,12 @@ def main(cfg: DictConfig) -> Path:
             if not path.exists():
                 raise FileNotFoundError(f'\'{pth_name}\' not found in {current_directory}')
 
-            pth_file = torch.load(path)
+            pth_file = torch.load(path, weights_only=False)
             norm_trans = _load_albu_transforms(train_args.albu_transforms)[-1]
             pth_file['classes'] = dict(cfg.datasets.class_def)
             pth_file['mean'] = list(norm_trans.mean)
             pth_file['std'] = list(norm_trans.std)
+            pth_file['config'] = cfg # TODO add the config into the pth
 
             torch.save(pth_file, path)
             logger.info(f"Saved Model {pth_name} with added information in {path}")
@@ -414,6 +423,9 @@ def main(cfg: DictConfig) -> Path:
 
     if cfg.wandb_flag:
         wandb.finish()
+
+    logger.info(f"Training complete. Output in {current_directory}")
+    logger.remove(log_sink_id)
 
     return current_directory
 

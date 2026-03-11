@@ -21,6 +21,8 @@ import os
 import logging
 import csv
 
+from loguru import logger as loguru_logger
+
 # Personnals
 from ..utils.torchvision_utils import *
 from ..utils.useful_funcs import current_date, get_date_time
@@ -38,6 +40,12 @@ class CustomLogger(MetricLogger):
             self.logger = self._create_logger(self.logfilename, work_dir)
             if csv:
                 self.csvlogger = self._create_csv_logger(self.logfilename, work_dir)
+
+    @staticmethod
+    def _emit(msg: str):
+        """Send message to both stdout and loguru (which writes to log file)."""
+        print(msg)
+        loguru_logger.info(msg)
 
     def log_every(self, iterable, print_freq, header=None):
         ''' Override intial method '''
@@ -92,7 +100,7 @@ class CustomLogger(MetricLogger):
                         **self.meters
                     )
 
-                    print(printed_msg)
+                    self._emit(printed_msg)
 
                 else:
                     printed_msg = log_msg.format(
@@ -107,7 +115,7 @@ class CustomLogger(MetricLogger):
                         **self.meters
                     )
 
-                    print(printed_msg)
+                    self._emit(printed_msg)
                 
                 # Logs
                 if self.logger is not None:
@@ -127,7 +135,7 @@ class CustomLogger(MetricLogger):
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         total_msg = '{} Total time: {} ({:.4f} s / it)'.format(
             header, total_time_str, total_time / len(iterable))
-        print(total_msg)
+        self._emit(total_msg)
 
         # Logs
         if self.logger is not None:

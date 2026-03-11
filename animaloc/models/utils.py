@@ -37,7 +37,7 @@ def load_model(model: torch.nn.Module, pth_path: str, device: str = 'cuda') -> t
     if torch.cuda.is_available():
         map_location = torch.device(device)
     
-    checkpoint = torch.load(pth_path, map_location=map_location)
+    checkpoint = torch.load(pth_path, map_location=map_location, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'], strict=False)
 
     return model

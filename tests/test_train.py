@@ -1,52 +1,76 @@
-import os
+"""
+Training pipeline tests.
+
+Uses HuggingFace sample data (downloaded + patched in conftest.py).
+Runs 2-epoch training with each model architecture to verify the full pipeline.
+"""
+import torch
 from pathlib import Path
 
-import hydra
-from omegaconf import DictConfig
-
-from tools.train import main
-
 import pytest
-
-import pytest
-from hydra import initialize_config_dir, compose
-from hydra.core.global_hydra import GlobalHydra
-from pathlib import Path
+from animaloc.utils.train import main
 
 
-@pytest.fixture(autouse=True)
-def clear_hydra():
-    """Clear Hydra state before each test."""
-    GlobalHydra.instance().clear()
-    yield
-    GlobalHydra.instance().clear()
+def _detect_device():
+    """Pick the best available device for testing."""
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def _common_overrides(training_data, tmp_output_dir):
+    """Return overrides shared by all training tests."""
+    return [
+        f"datasets.train.csv_file={training_data['train_csv']}",
+        f"datasets.train.root_dir={training_data['train_root']}",
+        f"datasets.validate.csv_file={training_data['val_csv']}",
+        f"datasets.validate.root_dir={training_data['val_root']}",
+        "training_settings.epochs=2",
+        "training_settings.batch_size=2",
+        "training_settings.num_workers=0",
+        "training_settings.warmup_iters=1",
+        "wandb_flag=False",
+        "model.load_from=null",
+        f"hydra.run.dir={tmp_output_dir}",
+        f"device_name={_detect_device()}",
+    ]
 
 
 @pytest.fixture
-def load_config():
-    config_dir = str(Path(__file__).parent.parent / "configs" / "demo")
-
-    def _load(config_name: str, overrides: list = None):
-        with initialize_config_dir(config_dir=config_dir, version_base="1.1"):
-            return compose(config_name=config_name, overrides=overrides or [])
-
-    return _load
-
-def test_train_dla34(load_config):
-
-    cfg = load_config("dla34_delplanque")
-    result = main(cfg)
+def tmp_output_dir(tmp_path):
+    return str(tmp_path / "output")
 
 
-def test_train_timm_dla34(load_config):
+def test_train_dla34(load_config, training_data, tmp_output_dir):
+    overrides = _common_overrides(training_data, tmp_output_dir) + [
+        "datasets.num_classes=7",
+        "++datasets.class_def={1: buffalo, 2: elephant, 3: kob, 4: topi, 5: warthog, 6: waterbuck}",
+        "losses.CrossEntropyLoss.kwargs.weight=[0.1,1.0,2.0,1.0,6.0,12.0,1.0]",
+    ]
+    cfg = load_config("dla34_delplanque", overrides=overrides)
+    results = main(cfg)
+    assert results is not None
 
-    cfg = load_config("dla34_timm")
-    result = main(cfg)
+
+def test_train_timm_dla34(load_config, training_data, tmp_output_dir):
+    overrides = _common_overrides(training_data, tmp_output_dir) + [
+        "datasets.num_classes=7",
+        "++datasets.class_def={1: buffalo, 2: elephant, 3: kob, 4: topi, 5: warthog, 6: waterbuck}",
+        "losses.CrossEntropyLoss.kwargs.weight=[0.1,1.0,2.0,1.0,6.0,12.0,1.0]",
+    ]
+    cfg = load_config("dla34_timm", overrides=overrides)
+    results = main(cfg)
+    assert results is not None
 
 
-
-
-
-def test_train_convnext_camouflaged(load_config):
-    cfg = load_config("convnext_camouflaged")
-    result = main(cfg)
+def test_train_convnext_camouflaged(load_config, training_data, tmp_output_dir):
+    overrides = _common_overrides(training_data, tmp_output_dir) + [
+        "datasets.num_classes=7",
+        "++datasets.class_def={1: buffalo, 2: elephant, 3: kob, 4: topi, 5: warthog, 6: waterbuck}",
+        "losses.CrossEntropyLoss.kwargs.weight=[0.1,1.0,2.0,1.0,6.0,12.0,1.0]",
+    ]
+    cfg = load_config("convnext_camouflaged", overrides=overrides)
+    results = main(cfg)
+    assert results is not None
