@@ -1,0 +1,53 @@
+name: Integration Tests (slow)
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Models to test (e.g. "convnext" or "all")'
+        required: false
+        default: 'all'
+  pull_request:
+    branches: [main]
+    types: [labeled]
+
+jobs:
+  integration-test:
+    # Run on manual dispatch, or when PR has 'run-integration' label
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.label.name, 'run-integration'))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache HuggingFace data
+        uses: actions/cache@v4
+        with:
+          path: tests/.cache
+          key: hf-all-data-v1
+
+      - name: Install PyTorch (CPU)
+        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install animaloc
+        run: pip install -e ".[dev]"
+
+      - name: Run all pretrained inference tests (including ConvNeXt)
+        run: pytest tests/test_pretrained.py -v --tb=short -m "" -x
+
+      - name: Run all training tests (including ConvNeXt)
+        run: pytest tests/test_train.py -v --tb=short -m "" -x
+
+      - name: Run all pretrained training tests (including ConvNeXt)
+        run: pytest tests/test_pretrained.py -v --tb=short -m "" -x -k "Train"

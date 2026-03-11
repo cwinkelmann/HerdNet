@@ -38,7 +38,25 @@ def load_model(model: torch.nn.Module, pth_path: str, device: str = 'cuda') -> t
         map_location = torch.device(device)
     
     checkpoint = torch.load(pth_path, map_location=map_location, weights_only=False)
-    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+    state_dict = checkpoint['model_state_dict']
+
+    # Filter out keys with shape mismatches (e.g. loading 3-class weights
+    # into a 7-class model for transfer learning with reshape_classes).
+    model_state = model.state_dict()
+    filtered = {}
+    skipped = []
+    for k, v in state_dict.items():
+        if k in model_state and v.shape != model_state[k].shape:
+            skipped.append(f"{k}: checkpoint {list(v.shape)} vs model {list(model_state[k].shape)}")
+        else:
+            filtered[k] = v
+
+    if skipped:
+        logger.warning(f"Skipped {len(skipped)} keys with shape mismatch (will be reinitialized by reshape_classes):")
+        for s in skipped:
+            logger.warning(f"  {s}")
+
+    model.load_state_dict(filtered, strict=False)
 
     return model
 

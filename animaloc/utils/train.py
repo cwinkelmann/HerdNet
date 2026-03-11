@@ -261,7 +261,6 @@ def main(cfg: DictConfig) -> Path:
     except AttributeError as e:
         logger.error(f"The model has not check for trainable_parameters: {e}")
 
-    # TODO check if this works
     model.reshape_classes(num_classes=cfg.datasets.num_classes)
     logger.info('Preparing for training ...')
 
@@ -271,6 +270,9 @@ def main(cfg: DictConfig) -> Path:
 
     if cfg.model.load_from is not None:
         final_model = load_model(final_model, cfg.model.load_from, device=device)
+        # After loading, reshape again to reinitialize any classification
+        # head layers that were skipped due to shape mismatch.
+        final_model.model.reshape_classes(num_classes=cfg.datasets.num_classes)
 
         # if 'HerdNet' in cfg.model.name:
         #     if cfg.model.freeze is not None and cfg.model.freeze > 0:

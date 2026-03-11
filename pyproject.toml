@@ -61,6 +61,12 @@ all = [
 [project.urls]
 Homepage = "https://github.com/cwinkelmann/HerdNet"
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: long-running integration tests (e.g. convnext training, 35+ min on CPU)",
+]
+addopts = "-m 'not slow'"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["animaloc*"]

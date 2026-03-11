@@ -704,8 +704,9 @@ class CamouflageHerdNetConvNeXt(nn.Module):
             gabor_features = self.gabor_extractor(x_resized)
             # Store for potential use (currently not directly used)
 
-        # Extract features
-        features = self.backbone(x_resized)
+        # Extract features (make contiguous — ConvNeXt outputs channels-last
+        # format which causes .view() failures in backward pass on CPU/MPS)
+        features = [f.contiguous() for f in self.backbone(x_resized)]
         return features
 
     def forward(self, x: torch.Tensor, debug: bool = False) -> Tuple[torch.Tensor, torch.Tensor] | Dict:
@@ -770,8 +771,9 @@ class CamouflageHerdNetConvNeXt(nn.Module):
                 gabor_features = self.gabor_extractor(x)
                 # Currently not directly used, but available for future fusion
 
-            # Extract hierarchical features
-            features = self.backbone(x)
+            # Extract hierarchical features (make contiguous — ConvNeXt outputs
+            # channels-last format which causes backward failures on CPU/MPS)
+            features = [f.contiguous() for f in self.backbone(x)]
 
         # Feature pyramid fusion
         fpn_features = self.fpn(features)

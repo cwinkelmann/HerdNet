@@ -48,7 +48,10 @@ jobs:
           "
 
       - name: Run training tests (DLA34 variants)
-        run: pytest tests/test_train.py -v --tb=short -x -k "not convnext"
+        run: pytest tests/test_train.py -v --tb=short -x
+
+      - name: Run pretrained inference tests (DLA34 variants)
+        run: pytest tests/test_pretrained.py -v --tb=short -x
 
   uv-install:
     strategy:
@@ -97,7 +100,12 @@ jobs:
       - name: Run training tests (DLA34 variants)
         run: |
           source .venv/bin/activate
-          pytest tests/test_train.py -v --tb=short -x -k "not convnext"
+          pytest tests/test_train.py -v --tb=short -x
+
+      - name: Run pretrained inference tests (DLA34 variants)
+        run: |
+          source .venv/bin/activate
+          pytest tests/test_pretrained.py -v --tb=short -x
 
   conda-install:
     strategy:
@@ -148,4 +156,8 @@ jobs:
 
       - name: Run training tests (DLA34 variants)
         shell: bash -el {0}
-        run: pytest tests/test_train.py -v --tb=short -x -k "not convnext"
+        run: pytest tests/test_train.py -v --tb=short -x
+
+      - name: Run pretrained inference tests (DLA34 variants)
+        shell: bash -el {0}
+        run: pytest tests/test_pretrained.py -v --tb=short -x
