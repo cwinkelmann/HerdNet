@@ -19,7 +19,10 @@ import torch
 import math
 import sys
 import os
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 import matplotlib
 
 import matplotlib.pyplot as plt

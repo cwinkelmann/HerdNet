@@ -22,7 +22,10 @@ import numpy as np
 import pandas as pd
 import torch
 import hydra
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 import animaloc
 import os
 import torchvision
