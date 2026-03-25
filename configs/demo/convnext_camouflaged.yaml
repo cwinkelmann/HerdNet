@@ -19,7 +19,7 @@ device_name: null # or enforce mps on a mac
 # override
 training_settings:
   lr: 1.0e-05
-  epochs: 2
+  epochs: 1
   batch_size: 12
   evaluator:
     kwargs:
