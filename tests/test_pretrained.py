@@ -150,6 +150,7 @@ def tmp_output_dir(tmp_path):
     return str(tmp_path / "output")
 
 
+@pytest.mark.slow
 class TestTrainGeneral2022:
     """Fine-tune 7-class DLA34 on 7-class General Dataset (no reshape needed)."""
     def test_finetune(self, load_config, training_data, tmp_output_dir, model_general_2022):
@@ -161,6 +162,7 @@ class TestTrainGeneral2022:
         assert results is not None
 
 
+@pytest.mark.slow
 class TestTrainTimmDla34:
     """Load 3-class timm DLA34, reshape to 7 classes, fine-tune on General Dataset."""
     def test_finetune(self, load_config, training_data, tmp_output_dir, model_timm_dla34):

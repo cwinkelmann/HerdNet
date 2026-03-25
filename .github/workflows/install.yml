@@ -7,6 +7,7 @@ on:
     branches: [main]
 
 jobs:
+  # ── Install + fast tests across all environments ──────────────────────
   pip-install:
     strategy:
       fail-fast: false
@@ -21,37 +22,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache HuggingFace test data
-        uses: actions/cache@v4
-        with:
-          path: tests/.cache
-          key: hf-test-data-v1
-
       - name: Install PyTorch (CPU)
         run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install animaloc
         run: pip install -e ".[dev]"
 
-      - name: Verify import
-        run: python -c "import animaloc; print(f'animaloc imported OK')"
-
-      - name: Verify torch integration
-        run: |
-          python -c "
-          import torch
-          from animaloc.models import HerdNet
-          model = HerdNet(num_classes=3, down_ratio=2)
-          x = torch.randn(1, 3, 512, 512)
-          out = model(x)
-          print(f'HerdNet forward pass OK, output shapes: {[o.shape for o in out]}')
-          "
-
-      - name: Run training tests (DLA34 variants)
-        run: pytest tests/test_train.py -v --tb=short -x
-
-      - name: Run pretrained inference tests (DLA34 variants)
-        run: pytest tests/test_pretrained.py -v --tb=short -x
+      - name: Run install tests
+        run: pytest tests/test_install.py -v --tb=short
 
   uv-install:
     strategy:
@@ -67,12 +45,6 @@ jobs:
         with:
           version: "latest"
 
-      - name: Cache HuggingFace test data
-        uses: actions/cache@v4
-        with:
-          path: tests/.cache
-          key: hf-test-data-v1
-
       - name: Install with uv
         run: |
           uv venv --python ${{ matrix.python-version }}
@@ -80,32 +52,10 @@ jobs:
           uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           uv pip install -e ".[dev]"
 
-      - name: Verify import
+      - name: Run install tests
         run: |
           source .venv/bin/activate
-          python -c "import animaloc; print('animaloc imported OK')"
-
-      - name: Verify torch integration
-        run: |
-          source .venv/bin/activate
-          python -c "
-          import torch
-          from animaloc.models import HerdNet
-          model = HerdNet(num_classes=3, down_ratio=2)
-          x = torch.randn(1, 3, 512, 512)
-          out = model(x)
-          print(f'HerdNet forward pass OK, output shapes: {[o.shape for o in out]}')
-          "
-
-      - name: Run training tests (DLA34 variants)
-        run: |
-          source .venv/bin/activate
-          pytest tests/test_train.py -v --tb=short -x
-
-      - name: Run pretrained inference tests (DLA34 variants)
-        run: |
-          source .venv/bin/activate
-          pytest tests/test_pretrained.py -v --tb=short -x
+          pytest tests/test_install.py -v --tb=short
 
   conda-install:
     strategy:
@@ -124,12 +74,6 @@ jobs:
           activate-environment: herdnet
           auto-activate-base: false
 
-      - name: Cache HuggingFace test data
-        uses: actions/cache@v4
-        with:
-          path: tests/.cache
-          key: hf-test-data-v1
-
       - name: Install PyTorch via conda
         shell: bash -el {0}
         run: conda install pytorch torchvision cpuonly -c pytorch -y
@@ -138,26 +82,33 @@ jobs:
         shell: bash -el {0}
         run: pip install -e ".[dev]"
 
-      - name: Verify import
+      - name: Run install tests
         shell: bash -el {0}
-        run: python -c "import animaloc; print('animaloc imported OK')"
+        run: pytest tests/test_install.py -v --tb=short
 
-      - name: Verify torch integration
-        shell: bash -el {0}
-        run: |
-          python -c "
-          import torch
-          from animaloc.models import HerdNet
-          model = HerdNet(num_classes=3, down_ratio=2)
-          x = torch.randn(1, 3, 512, 512)
-          out = model(x)
-          print(f'HerdNet forward pass OK, output shapes: {[o.shape for o in out]}')
-          "
+  # ── Training tests: run once after all installs pass ──────────────────
+  training:
+    needs: [pip-install, uv-install, conda-install]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Run training tests (DLA34 variants)
-        shell: bash -el {0}
-        run: pytest tests/test_train.py -v --tb=short -x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Run pretrained inference tests (DLA34 variants)
-        shell: bash -el {0}
-        run: pytest tests/test_pretrained.py -v --tb=short -x
+      - name: Cache HuggingFace test data
+        uses: actions/cache@v4
+        with:
+          path: tests/.cache
+          key: hf-test-data-v1
+
+      - name: Install PyTorch (CPU)
+        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install animaloc
+        run: pip install -e ".[dev]"
+
+      - name: Run all tests (including slow training)
+        run: pytest tests/test_train.py tests/test_pretrained.py -v --tb=short -m "" -x

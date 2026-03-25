@@ -43,6 +43,7 @@ def tmp_output_dir(tmp_path):
     return str(tmp_path / "output")
 
 
+@pytest.mark.slow
 def test_train_dla34(load_config, training_data, tmp_output_dir):
     overrides = _common_overrides(training_data, tmp_output_dir) + [
         "datasets.num_classes=7",
@@ -54,6 +55,7 @@ def test_train_dla34(load_config, training_data, tmp_output_dir):
     assert results is not None
 
 
+@pytest.mark.slow
 def test_train_timm_dla34(load_config, training_data, tmp_output_dir):
     overrides = _common_overrides(training_data, tmp_output_dir) + [
         "datasets.num_classes=7",
