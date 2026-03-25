@@ -24,7 +24,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 from loguru import logger
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle

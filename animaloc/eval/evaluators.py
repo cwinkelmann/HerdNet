@@ -19,7 +19,10 @@ import torch
 import pandas
 import os
 import numpy
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 import matplotlib
 from matplotlib import pyplot as plt
 from typing import List, Dict, Any
