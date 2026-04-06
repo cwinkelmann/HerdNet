@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "animaloc"
-version = "0.3.2"
+version = "0.3.3"
 description = "Animal localization in aerial imagery using PyTorch"
 readme = "README.md"
 license = {text = "MIT"}
