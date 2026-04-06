@@ -73,14 +73,12 @@ def training_data():
             min_visibility=0.0,
         )
 
-        # Limit to first 20 patches for faster testing
-        limited_buffer = buffer.buffer.head(20)
-        limited_buffer.drop(columns="limits").to_csv(str(gt_csv), index=False)
+        buffer.buffer.drop(columns="limits").to_csv(str(gt_csv), index=False)
 
-        for img_name in limited_buffer["base_images"].unique():
+        for img_name in buffer.buffer["base_images"].unique():
             pil_img = Image.open(str(images_dir / img_name)).convert("RGB")
 
-            img_patches = limited_buffer[limited_buffer["base_images"] == img_name]
+            img_patches = buffer.buffer[buffer.buffer["base_images"] == img_name]
             for row in img_patches[["images", "limits"]].to_numpy().tolist():
                 patch_name, limits = row[0], row[1]
                 cropped = pil_img.crop(limits.get_tuple)
