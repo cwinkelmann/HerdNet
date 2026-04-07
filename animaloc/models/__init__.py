@@ -32,6 +32,7 @@ from .herdnet_timm_dinoV3_fpn_ida import *
 from .herdnet_dino_v3_attn import *
 
 from .herdnet_timm_dino_fpn import *
+from .herdnet_hybrid_convnext_transformer import *
 
 from .herdnet_p2p import *
 from .utils import *

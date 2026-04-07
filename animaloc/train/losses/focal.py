@@ -543,3 +543,101 @@ class DensityAwareHerdNetLoss(nn.Module):
         dice_loss = (1 - dice_score).mean()
 
         return focal_loss + self.dice_weight * dice_loss
+
+
+@LOSSES.register()
+class FIDTRegressionLoss(nn.Module):
+    """Pixel-wise regression loss on FIDT heatmaps.
+
+    Unlike FocalLoss which treats the FIDT map as binary (peak=1 vs rest=0),
+    this loss regresses toward the actual FIDT distribution values.
+    Every pixel is supervised: if the GT FIDT value is 0.6, the model should
+    predict ~0.6, not 0.
+
+    Combines:
+    - Weighted MSE: pixel-wise regression with higher weight near objects
+    - Structural similarity: penalizes shape mismatch of the Gaussian blobs
+
+    The weighting scheme upweights pixels near objects (GT > 0) relative to
+    pure background (GT = 0) to handle the extreme class imbalance in
+    heatmaps (most pixels are background).
+
+    Args:
+        bg_weight: Weight for background pixels (GT=0). Lower = less focus
+            on background. Default 0.1.
+        peak_weight: Extra weight multiplier for peak pixels (GT=1.0).
+            Default 5.0.
+        smooth_l1_beta: Beta for smooth L1 loss. Smaller = more L1-like
+            (robust to outliers). Default 0.1.
+        ssim_weight: Weight for the structural similarity component.
+            Default 1.0. Set to 0 to disable.
+    """
+
+    def __init__(
+        self,
+        bg_weight: float = 0.1,
+        peak_weight: float = 5.0,
+        smooth_l1_beta: float = 0.1,
+        ssim_weight: float = 1.0,
+    ):
+        super().__init__()
+        self.bg_weight = bg_weight
+        self.peak_weight = peak_weight
+        self.smooth_l1_beta = smooth_l1_beta
+        self.ssim_weight = ssim_weight
+
+    def forward(self, pred: torch.Tensor, gt: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            pred: [B, C, H, W] predicted heatmap (after sigmoid, values 0-1)
+            gt:   [B, C, H, W] ground truth FIDT heatmap (values 0-1)
+
+        Returns:
+            Scalar loss
+        """
+        # Collapse GT channels if pred has fewer channels
+        if pred.shape[1] == 1 and gt.shape[1] > 1:
+            gt, _ = torch.max(gt, dim=1, keepdim=True)
+
+        # Per-pixel weight map: background gets bg_weight, objects get
+        # linearly increasing weight based on GT value, peaks get peak_weight
+        weight_map = torch.where(
+            gt > 0,
+            1.0 + (self.peak_weight - 1.0) * gt,  # Linear ramp: 1.0 at GT=eps, peak_weight at GT=1.0
+            torch.full_like(gt, self.bg_weight),
+        )
+
+        # Weighted Smooth L1 (pixel-wise regression)
+        pixel_loss = F.smooth_l1_loss(pred, gt, beta=self.smooth_l1_beta, reduction='none')
+        weighted_loss = (pixel_loss * weight_map).mean()
+
+        if self.ssim_weight <= 0:
+            return weighted_loss
+
+        # Structural similarity component (local patch correlation)
+        # Uses a simple local mean/variance comparison
+        kernel_size = 7
+        pad = kernel_size // 2
+        C = pred.shape[1]
+
+        # Uniform averaging kernel
+        kernel = torch.ones(C, 1, kernel_size, kernel_size, device=pred.device, dtype=pred.dtype)
+        kernel = kernel / (kernel_size * kernel_size)
+
+        mu_pred = F.conv2d(pred, kernel, padding=pad, groups=C)
+        mu_gt = F.conv2d(gt, kernel, padding=pad, groups=C)
+
+        sigma_pred_sq = F.conv2d(pred * pred, kernel, padding=pad, groups=C) - mu_pred * mu_pred
+        sigma_gt_sq = F.conv2d(gt * gt, kernel, padding=pad, groups=C) - mu_gt * mu_gt
+        sigma_cross = F.conv2d(pred * gt, kernel, padding=pad, groups=C) - mu_pred * mu_gt
+
+        # SSIM constants
+        c1 = 0.01 ** 2
+        c2 = 0.03 ** 2
+
+        ssim_map = ((2 * mu_pred * mu_gt + c1) * (2 * sigma_cross + c2)) / \
+                   ((mu_pred ** 2 + mu_gt ** 2 + c1) * (sigma_pred_sq + sigma_gt_sq + c2))
+
+        ssim_loss = (1 - ssim_map).mean()
+
+        return weighted_loss + self.ssim_weight * ssim_loss

@@ -1,0 +1,229 @@
+# =============================================================================
+# HerdNet Hydra Configuration Template
+# =============================================================================
+# Complete, annotated configuration for training HerdNet with optimal parameters
+# from the Miesner 2025 thesis (marine iguana detection on Galapagos Islands).
+#
+# This template inlines all 4 config levels for reference. In practice, each
+# section below would be a separate YAML file in the config tree:
+#   main.yaml -> model/, datasets/, losses/, training_settings/
+#
+# Usage:
+#   1. Copy this template
+#   2. Update file paths (csv_file, root_dir) for your data
+#   3. Adjust num_classes and class_def for your species
+#   4. Adjust evaluator.threshold (matching_radius) for your animal size
+#   5. Run: python tools/train.py --config-path /your/config/dir
+# =============================================================================
+
+# ---- TOP-LEVEL CONFIG (main.yaml) ----
+
+defaults:
+  - /losses: herdnet_iguana            # -> losses/herdnet_iguana.yaml
+  - /datasets: floreana_dataset        # -> datasets/floreana_dataset.yaml
+  - /training_settings: evaluator      # -> training_settings/evaluator.yaml
+  - /model: HerdNetTimmDLA34          # -> model/HerdNetTimmDLA34.yaml
+  - _self_                             # This file's values override sub-configs
+
+# Weights & Biases configuration
+wandb_flag: True                       # Set to False to disable W&B logging
+wandb_project: 'herdnet'
+wandb_entity: 'your_team_or_username'
+wandb_run: 'experiment_name'
+wandb_tags: ["dla34", "dr4", "optimal"]
+wandb_notes: |
+  Training HerdNet with optimal parameters from Miesner 2025 thesis.
+  Backbone: DLA-34, DR=4, head_conv=64.
+
+seed: 42                               # Random seed for reproducibility
+device_name: null                       # null = auto-select GPU; or 'cuda:0', 'cpu'
+
+# Override sub-config values from top level:
+model:
+  load_from: null                       # Path to pretrained checkpoint (fine-tuning)
+  kwargs:
+    down_ratio: 4                       # OPTIMAL: 4 (overrides default of 2)
+    head_conv: 64                       # OPTIMAL: 64
+
+training_settings:
+  lr: 1.0e-4                           # Head learning rate
+  backbone_lr: 1.0e-6                  # Backbone learning rate (much lower)
+  weight_decay: 3.25e-4                # OPTIMAL: 3.25e-4 (default was 1.6e-4)
+  warmup_iters: 100                    # Linear warmup iterations
+  epochs: 20
+  batch_size: 2
+  evaluator:
+    threshold: 75                       # CRITICAL: matching radius in pixels
+    kwargs:
+      lmds_kwargs:
+        kernel_size: [5, 5]            # OPTIMAL: (5,5), default was (3,3)
+        adapt_ts: 0.5                  # OPTIMAL: 0.5, default was 0.3
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+
+# =============================================================================
+# ---- MODEL CONFIG (model/HerdNetTimmDLA34.yaml) ----
+# =============================================================================
+# name: 'HerdNetTimmDLA'
+# from_torchvision: False
+# load_from: null                       # Set to .pth path for fine-tuning
+# resume_from: null                     # Set to .pth path to resume training
+# kwargs:
+#   backbone: 'timm/dla34'             # timm model name
+#   pretrained: True                    # ImageNet pretrained weights
+#   down_ratio: 2                       # Default (overridden to 4 in main.yaml)
+#   head_conv: 64                       # Intermediate channels in heads
+# freeze: null                          # List of layer names to freeze, or null
+
+
+# =============================================================================
+# ---- DATASET CONFIG (datasets/floreana_dataset.yaml) ----
+# =============================================================================
+# img_size: [512, 512]                  # Image processing size
+# anno_type: 'point'                    # 'point' for HerdNet
+# num_classes: 3                        # CRITICAL: background(0) + iguana(1) + hard_neg(2)
+# collate_fn: null
+#
+# class_def:                            # Human-readable class names
+#   1: 'iguana_point'
+#   2: 'hard_negative'
+#
+# train:
+#   name: 'CSVDataset'
+#   csv_file: '/path/to/train/annotations.csv'    # UPDATE THIS
+#   root_dir: '/path/to/train/images/'             # UPDATE THIS
+#   sampler: null
+#   augmentation_multiplier: 1
+#
+#   albu_transforms:                    # Albumentations augmentations
+#     ObjectAwareRandomCrop:            # Random crop keeping annotations
+#       height: 512
+#       width: 512
+#       p: 1.0
+#     Normalize:                        # ImageNet normalization
+#       p: 1.0
+#
+#   end_transforms:                     # Post-augmentation transforms
+#     MultiTransformsWrapper:
+#       FIDT:                           # Focal Inverse Distance Transform
+#         num_classes: ${datasets.num_classes}           # INTERPOLATION
+#         down_ratio: ${model.kwargs.down_ratio}         # INTERPOLATION
+#         radius: 2                     # Point buffer radius
+#       PointsToMask:                   # Classification target mask
+#         radius: 2
+#         num_classes: ${datasets.num_classes}           # INTERPOLATION
+#         squeeze: true
+#         down_ratio: 32                # Classification head operates at stride 16
+#
+# validate:
+#   name: 'CSVDataset'
+#   csv_file: '/path/to/val/annotations.csv'       # UPDATE THIS
+#   root_dir: '/path/to/val/images/'                # UPDATE THIS
+#   albu_transforms:
+#     Normalize:
+#       p: 1.0
+#   end_transforms:
+#     DownSample:
+#       down_ratio: ${model.kwargs.down_ratio}       # INTERPOLATION
+#       anno_type: ${datasets.anno_type}             # INTERPOLATION
+#
+# test:
+#   name: 'CSVDataset'
+#   csv_file: '/path/to/test/annotations.csv'      # UPDATE THIS
+#   root_dir: '/path/to/test/images/'               # UPDATE THIS
+#   albu_transforms:
+#     Normalize:
+#       p: 1.0
+#   end_transforms:
+#     DownSample:
+#       down_ratio: ${model.kwargs.down_ratio}       # INTERPOLATION
+#       anno_type: ${datasets.anno_type}             # INTERPOLATION
+
+
+# =============================================================================
+# ---- LOSSES CONFIG (losses/herdnet_iguana.yaml) ----
+# =============================================================================
+# FocalLoss:
+#   print_name: 'focal_loss'
+#   from_torch: False                   # Custom loss from animaloc
+#   output_idx: 0                       # Maps to heatmap (model output[0])
+#   target_idx: 0                       # Maps to FIDT map (target[0])
+#   lambda_const: 1.0                   # Loss weighting factor
+#   kwargs:
+#     alpha: 2                          # Focal loss alpha
+#     beta: 5                           # OPTIMAL: 5 (default was 4)
+#     reduction: 'mean'
+#     normalize: False
+#
+# CrossEntropyLoss:
+#   print_name: 'ce_loss'
+#   from_torch: True                    # Standard PyTorch loss
+#   output_idx: 1                       # Maps to class map (model output[1])
+#   target_idx: 1                       # Maps to class mask (target[1])
+#   lambda_const: 1.0
+#   background_class_weight: 0.1        # Referenced by weight list below
+#   kwargs:
+#     reduction: 'mean'
+#     weight:                           # MUST have num_classes entries
+#       - ${losses.CrossEntropyLoss.background_class_weight}   # 0: background = 0.1
+#       - 5                                                     # 1: iguana = 5.0
+#       - 0.1                                                   # 2: hard_negative = 0.1
+
+
+# =============================================================================
+# ---- TRAINING SETTINGS CONFIG (training_settings/evaluator.yaml) ----
+# =============================================================================
+# trainer: 'Trainer'
+# epochs: 20
+# valid_freq: 1                         # Validate every epoch
+# print_freq: 20                        # Print every 20 iterations
+# batch_size: 2
+# optimizer: 'adamW'
+# lr: 1.0e-4                           # Head learning rate
+# backbone_lr: 1.0e-6                  # Backbone learning rate
+# head_lr: 1.0e-4                      # Same as lr
+# weight_decay: 3.25e-4                # OPTIMAL: stronger regularization
+# num_workers: 4                        # DataLoader workers
+# warmup_iters: 100                    # Linear warmup from 0 to lr
+#
+# auto_lr:                              # ReduceLROnPlateau scheduler
+#   mode: 'max'                         # 'max' for F1 (higher is better)
+#   patience: 15                        # Epochs before reducing LR
+#   threshold: 1e-4
+#   threshold_mode: 'rel'
+#   cooldown: 10                        # Epochs to wait after reduction
+#   min_lr: 1e-7
+#   verbose: True
+#
+# vizual_fn: visualize_sample
+# visualiser:
+#   name: 'HeatMapVisualizer'
+#   output_dir: ./visualizations
+#   down_ratio: ${model.kwargs.down_ratio}              # INTERPOLATION
+#
+# debug_visualiser: null
+# loss_evaluation: null
+#
+# evaluator:
+#   name: 'HerdNetEvaluator'
+#   threshold: 75                       # MATCHING RADIUS -- CRITICAL
+#   select_mode: 'max'                  # Select checkpoint with highest metric
+#   validate_on: 'f1_score'             # Metric for checkpoint selection
+#   kwargs:
+#     print_freq: 100
+#     lmds_kwargs:
+#       kernel_size: [5, 5]            # OPTIMAL: (5,5)
+#       adapt_ts: 0.5                  # OPTIMAL: 0.5
+#       scale_factor: 1                # 1 when using stitcher
+#       up: True                        # True without stitcher, False with
+#
+# stitcher:
+#   name: 'HerdNetStitcher'
+#   kwargs:
+#     overlap: 120                      # Recommended overlap
+#     down_ratio: ${model.kwargs.down_ratio}              # INTERPOLATION
+#     up: False                         # Don't upsample in stitcher
+#     reduction: 'mean'                 # Average overlapping regions

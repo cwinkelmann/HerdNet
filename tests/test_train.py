@@ -50,8 +50,9 @@ def test_train_dla34(load_config, training_data, tmp_output_dir):
         "losses.CrossEntropyLoss.kwargs.weight=[0.1,1.0,2.0,1.0,6.0,12.0,1.0]",
     ]
     cfg = load_config("dla34_delplanque", overrides=overrides)
-    results = main(cfg)
+    results, metrics = main(cfg)
     assert results is not None
+    assert 'f1_score' in metrics
 
 
 def test_train_timm_dla34(load_config, training_data, tmp_output_dir):
@@ -61,8 +62,9 @@ def test_train_timm_dla34(load_config, training_data, tmp_output_dir):
         "losses.CrossEntropyLoss.kwargs.weight=[0.1,1.0,2.0,1.0,6.0,12.0,1.0]",
     ]
     cfg = load_config("dla34_timm", overrides=overrides)
-    results = main(cfg)
+    results, metrics = main(cfg)
     assert results is not None
+    assert 'f1_score' in metrics
 
 
 @pytest.mark.slow
@@ -73,5 +75,6 @@ def test_train_convnext_camouflaged(load_config, training_data, tmp_output_dir):
         "losses.CrossEntropyLoss.kwargs.weight=[0.1,1.0,2.0,1.0,6.0,12.0,1.0]",
     ]
     cfg = load_config("convnext_camouflaged", overrides=overrides)
-    results = main(cfg)
+    results, metrics = main(cfg)
     assert results is not None
+    assert 'f1_score' in metrics

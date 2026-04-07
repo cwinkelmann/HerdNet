@@ -162,6 +162,10 @@ class Trainer:
         
         self.device = torch.device(device_name)
 
+        # AMP (Automatic Mixed Precision) for faster training on CUDA
+        self.use_amp = self.device.type == 'cuda'
+        self.scaler = torch.amp.GradScaler('cuda', enabled=self.use_amp)
+
         self.model = model.to(self.device)
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
@@ -794,9 +798,10 @@ class Trainer:
 
             images, targets = self.prepare_data(images, targets)
 
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
 
-            loss_dict = self.model(images, targets)
+            with torch.amp.autocast('cuda', enabled=self.use_amp):
+                loss_dict = self.model(images, targets)
 
             if wandb_flag:
                 wandb.log(loss_dict)
@@ -814,12 +819,14 @@ class Trainer:
                 logger.info(loss_dict_reduced)
                 sys.exit(1)
 
-            self.losses.backward()
+            self.scaler.scale(self.losses).backward()
 
             # Clip gradients to prevent explosions in the Transformer head
+            self.scaler.unscale_(self.optimizer)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
 
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
             if self.adaloss is not None:
                 self.adaloss.feed(self.losses)

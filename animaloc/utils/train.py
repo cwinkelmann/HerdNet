@@ -59,7 +59,7 @@ def _setup_file_logging(log_dir: Path) -> int:
     return sink_id
 
 
-def main(cfg: DictConfig) -> Path:
+def main(cfg: DictConfig) -> Tuple[Path, dict]:
     work_dir = None
     current_directory = Path(os.curdir).resolve()
 
@@ -359,6 +359,7 @@ def main(cfg: DictConfig) -> Path:
     auto_lr = cfg.training_settings.auto_lr
     if auto_lr:
         auto_lr = dict(cfg.training_settings.auto_lr)
+        auto_lr.pop('verbose', None)  # removed in PyTorch 2.x
 
     vizual_fn = None
     if cfg.training_settings.vizual_fn is not None:
@@ -426,10 +427,24 @@ def main(cfg: DictConfig) -> Path:
     if cfg.wandb_flag:
         wandb.finish()
 
+    # Extract metrics for programmatic use (e.g. AutoML loop)
+    metrics = {}
+    if hasattr(trainer, 'evaluator') and trainer.evaluator is not None:
+        m = trainer.evaluator.metrics
+        metrics = {
+            'f1_score': m.fbeta_score(c=1, beta=1),
+            'f2_score': m.fbeta_score(c=1, beta=2),
+            'recall': m.recall(),
+            'precision': m.precision(),
+            'mae': m.mae(),
+            'rmse': m.rmse(),
+        }
+    metrics['best_val'] = trainer.best_val
+
     logger.info(f"Training complete. Output in {current_directory}")
     logger.remove(log_sink_id)
 
-    return current_directory
+    return current_directory, metrics
 
 
 

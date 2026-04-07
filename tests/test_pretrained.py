@@ -157,7 +157,7 @@ class TestTrainGeneral2022:
             f"model.load_from={model_general_2022}",
         ]
         cfg = load_config("dla34_delplanque", overrides=overrides)
-        results = main(cfg)
+        results, metrics = main(cfg)
         assert results is not None
 
 
@@ -170,7 +170,7 @@ class TestTrainTimmDla34:
             f"model.load_from={model_timm_dla34}",
         ]
         cfg = load_config("dla34_timm", overrides=overrides)
-        results = main(cfg)
+        results, metrics = main(cfg)
         assert results is not None
 
 
@@ -182,5 +182,5 @@ class TestTrainConvNext:
             f"model.load_from={model_convnext}",
         ]
         cfg = load_config("convnext_camouflaged", overrides=overrides)
-        results = main(cfg)
+        results, metrics = main(cfg)
         assert results is not None

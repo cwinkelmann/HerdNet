@@ -90,26 +90,24 @@ class DINOv2AttentionExtractor(nn.Module):
             self.hooks.append(hook)
 
     def _save_attention(self, module, input, output, layer_idx):
-        """Extract attention weights efficiently.
+        """Extract attention weights with gradient flow for learning.
 
-        Optimization: Uses torch.no_grad() since we don't backprop through attention weights.
+        Allows gradients to flow through the attention pathway so the model
+        can learn to improve attention-based feature selection during training.
         """
         x = input[0]
         B, N, C = x.shape
 
-        # Optimization: No gradients needed for attention extraction
-        with torch.no_grad():
-            qkv = module.qkv(x).reshape(B, N, 3, module.num_heads, C // module.num_heads).permute(2, 0, 3, 1, 4)
-            q, k, v = qkv.unbind(0)
+        qkv = module.qkv(x).reshape(B, N, 3, module.num_heads, C // module.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)
 
-            attn_weights = (q @ k.transpose(-2, -1)) * module.scale
-            attn_weights = attn_weights.softmax(dim=-1)
+        attn_weights = (q @ k.transpose(-2, -1)) * module.scale
+        attn_weights = attn_weights.softmax(dim=-1)
 
-            # Skip all prefix tokens (CLS + registers)
-            if N > self.num_prefix_tokens:
-                cls_attention = attn_weights[:, :, 0, self.num_prefix_tokens:].mean(dim=1)
-                # FIXED: Store in same dtype as input (for AMP compatibility)
-                self.attention_maps[layer_idx] = cls_attention.to(x.dtype)
+        # Skip all prefix tokens (CLS + registers)
+        if N > self.num_prefix_tokens:
+            cls_attention = attn_weights[:, :, 0, self.num_prefix_tokens:].mean(dim=1)
+            self.attention_maps[layer_idx] = cls_attention.to(x.dtype)
 
     def forward(self, x):
         self.attention_maps.clear()
@@ -668,10 +666,13 @@ class HerdNetDINOv21(nn.Module):
             heatmap: Detection heatmap [B, 1, 128, 128]
             classification: Classification logits [B, num_classes, 16, 16]
         """
-        # Resize input if needed
-        target_size = (self.patch_size * 37, self.patch_size * 37)
-        if x.shape[2:] != target_size:
-            x = F.interpolate(x, size=target_size, mode='bilinear', align_corners=False)
+        original_h, original_w = x.shape[2], x.shape[3]
+        # Pad input to nearest multiple of patch_size instead of resizing
+        # to preserve spatial correspondence with ground truth
+        pad_h = (self.patch_size - original_h % self.patch_size) % self.patch_size
+        pad_w = (self.patch_size - original_w % self.patch_size) % self.patch_size
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
 
         # Extract features (no external checkpoint - uses backbone's internal if enabled)
         patch_features, attention_maps = self.attention_extractor(x)
@@ -687,22 +688,24 @@ class HerdNetDINOv21(nn.Module):
         # Detection head
         bottleneck_features = self.bottleneck_conv(fused_features)
         heatmap_logits = self.loc_head(bottleneck_features)
-        heatmap = torch.sigmoid(heatmap_logits / self.temperature)
+        heatmap = torch.sigmoid(heatmap_logits / self.temperature.clamp(min=0.1))
 
         # Classification head
         cls_out = self.cls_head(multi_scale_features[-1])
-        cls_out_16x16 = F.interpolate(cls_out, size=(16, 16),
-                                      mode='bilinear', align_corners=False)
+        cls_target_size = (original_h // 32, original_w // 32)
+        cls_out_resized = F.interpolate(cls_out, size=cls_target_size,
+                                        mode='bilinear', align_corners=False)
 
-        # Upscale heatmap to final resolution
-        heatmap_upscaled = F.interpolate(heatmap, size=(128, 128),
+        # Upscale heatmap to target resolution based on down_ratio
+        heatmap_target_size = (original_h // self.down_ratio, original_w // self.down_ratio)
+        heatmap_upscaled = F.interpolate(heatmap, size=heatmap_target_size,
                                          mode='bilinear', align_corners=False)
 
         if debug:
             # Return comprehensive debug information
             return {
                 'prediction': heatmap_upscaled,
-                'classification': cls_out_16x16,
+                'classification': cls_out_resized,
                 'fused': fused_features,
                 'bottleneck': bottleneck_features,
                 'backbone': {
@@ -716,7 +719,7 @@ class HerdNetDINOv21(nn.Module):
                 'temperature': self.temperature.item(),
             }
 
-        return heatmap_upscaled, cls_out_16x16
+        return heatmap_upscaled, cls_out_resized
 
     def freeze(self, layers: List[str]) -> None:
         """Freeze specified layers.
