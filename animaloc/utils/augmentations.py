@@ -175,17 +175,26 @@ from albumentations import DualTransform
 
 class ObjectAwareRandomCrop(DualTransform):
     """
-    Random crop that ensures at least one keypoint is included with a minimum distance from edges.
+    Random crop that ensures at least one keypoint is included, with stitch-aware positioning.
 
-    This transformation selects a random keypoint and positions the crop such that the keypoint
-    is at least `min_edge_distance` pixels away from all crop edges.
+    Designed for training models that will run inference with a sliding-window stitcher.
+    The crop position is chosen so the selected keypoint can land anywhere in the crop —
+    including near edges — matching the distribution the model will see during tiled inference.
 
     Args:
         height (int): Height of the crop.
         width (int): Width of the crop.
-        min_edge_distance (int): Minimum distance in pixels between THE SELECTED keypoint and crop edge. Default: 10.
-        empty_probability (float): Probability of creating a crop without any keypoints. Default: 0.0.
-        max_attempts (int): Maximum attempts to find a valid crop with min_edge_distance. Default: 10.
+        min_edge_distance (int): Minimum distance in pixels between THE SELECTED keypoint and
+            crop edge. Set to 0 for uniform placement (recommended for stitcher compatibility).
+            Default: 0.
+        empty_probability (float): Probability of creating a crop without any keypoints
+            (pure background). Default: 0.0.
+        edge_probability (float): Probability of deliberately placing the selected keypoint
+            in the edge zone (within `edge_zone` pixels of the crop border). This trains the
+            model to be confident at tile boundaries during stitched inference. Default: 0.0.
+        edge_zone (int): Width of the edge zone in pixels. Should match the stitcher overlap
+            (e.g. 120px for overlap=120). Only used when edge_probability > 0. Default: 120.
+        max_attempts (int): Maximum attempts to find a valid crop. Default: 10.
         always_apply (bool): Whether to always apply this transform. Default: False.
         p (float): Probability of applying the transform. Default: 1.0.
     """
@@ -194,23 +203,29 @@ class ObjectAwareRandomCrop(DualTransform):
             self,
             height: int,
             width: int,
-            min_edge_distance: int = 10,
+            min_edge_distance: int = 0,
             empty_probability: float = 0.0,
+            edge_probability: float = 0.0,
+            edge_zone: int = 120,
             max_attempts: int = 10,
             always_apply: bool = False,
             p: float = 1.0,
     ):
-        super().__init__(always_apply, p)
+        super().__init__(p=p)
         self.height = height
         self.width = width
         self.min_edge_distance = min_edge_distance
         self.empty_probability = empty_probability
+        self.edge_probability = edge_probability
+        self.edge_zone = edge_zone
         self.max_attempts = max_attempts
 
         if self.min_edge_distance < 0:
             raise ValueError("min_edge_distance must be non-negative")
         if not 0.0 <= self.empty_probability <= 1.0:
             raise ValueError("empty_probability must be between 0.0 and 1.0")
+        if not 0.0 <= self.edge_probability <= 1.0:
+            raise ValueError("edge_probability must be between 0.0 and 1.0")
         if self.max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
 
@@ -327,6 +342,52 @@ class ObjectAwareRandomCrop(DualTransform):
 
         return is_valid, min_dist
 
+    def _get_edge_crop_position(
+            self,
+            keypoint_x: float,
+            keypoint_y: float,
+            image_height: int,
+            image_width: int
+    ) -> Tuple[int, int]:
+        """
+        Position the crop so the keypoint lands in the edge zone (within self.edge_zone
+        pixels of the crop border). This simulates what the model sees at tile boundaries
+        during stitched inference.
+        """
+        # Pick a random edge: 0=left, 1=right, 2=top, 3=bottom
+        edge = random.randint(0, 3)
+        ez = self.edge_zone
+
+        if edge == 0:  # keypoint near LEFT edge of crop: kp_x_in_crop in [0, ez)
+            # crop_x such that keypoint_x - crop_x is in [0, ez)
+            crop_x_min = max(0, int(keypoint_x - ez + 1))
+            crop_x_max = min(image_width - self.width, int(keypoint_x))
+        elif edge == 1:  # keypoint near RIGHT edge
+            crop_x_min = max(0, int(keypoint_x - self.width + 1))
+            crop_x_max = min(image_width - self.width, int(keypoint_x - self.width + ez))
+        else:
+            # For top/bottom edges, x is unconstrained (just keep keypoint in crop)
+            crop_x_min = max(0, int(keypoint_x - self.width + 1))
+            crop_x_max = min(image_width - self.width, int(keypoint_x))
+
+        if edge == 2:  # keypoint near TOP edge
+            crop_y_min = max(0, int(keypoint_y - ez + 1))
+            crop_y_max = min(image_height - self.height, int(keypoint_y))
+        elif edge == 3:  # keypoint near BOTTOM edge
+            crop_y_min = max(0, int(keypoint_y - self.height + 1))
+            crop_y_max = min(image_height - self.height, int(keypoint_y - self.height + ez))
+        else:
+            crop_y_min = max(0, int(keypoint_y - self.height + 1))
+            crop_y_max = min(image_height - self.height, int(keypoint_y))
+
+        if crop_x_min > crop_x_max or crop_y_min > crop_y_max:
+            # Fallback: just include the keypoint anywhere
+            crop_x = max(0, min(int(keypoint_x - self.width // 2), image_width - self.width))
+            crop_y = max(0, min(int(keypoint_y - self.height // 2), image_height - self.height))
+            return crop_x, crop_y
+
+        return random.randint(crop_x_min, crop_x_max), random.randint(crop_y_min, crop_y_max)
+
     def _get_crop_with_keypoint(
             self,
             keypoint_coords: List[Tuple[float, float]],
@@ -334,23 +395,30 @@ class ObjectAwareRandomCrop(DualTransform):
             image_width: int
     ) -> Tuple[int, int]:
         """
-        Get a crop position that includes a random keypoint with min edge distance.
+        Get a crop position that includes a random keypoint.
 
-        Returns:
-            Tuple of (crop_x, crop_y)
+        With edge_probability > 0, sometimes places the keypoint in the edge zone
+        to train the model for stitcher tile boundaries.
         """
         # Shuffle keypoints to try them in random order
         available_keypoints = keypoint_coords.copy()
         random.shuffle(available_keypoints)
 
+        # Decide if this crop should have the keypoint in the edge zone
+        force_edge = random.random() < self.edge_probability
+
         # Try to find a valid keypoint and crop position
         for attempt in range(min(int(self.max_attempts), len(available_keypoints) * 2)):
-            # Select keypoint (cycle through if needed)
             target_x, target_y = available_keypoints[attempt % len(available_keypoints)]
+
+            if force_edge:
+                crop_x, crop_y = self._get_edge_crop_position(
+                    target_x, target_y, image_height, image_width
+                )
+                return crop_x, crop_y
 
             # Check if this keypoint can possibly satisfy the constraint
             if not self._is_keypoint_valid_for_crop(target_x, target_y, image_height, image_width):
-                # Try another keypoint
                 continue
 
             # Get valid crop ranges
@@ -358,35 +426,18 @@ class ObjectAwareRandomCrop(DualTransform):
                 target_x, target_y, image_height, image_width
             )
 
-            # Check if valid crop is possible
             if x_min <= x_max and y_min <= y_max:
-                # Random position within valid range
                 crop_x = random.randint(x_min, x_max)
                 crop_y = random.randint(y_min, y_max)
 
-                # Verify the constraint is satisfied for the selected keypoint
                 is_valid, min_dist = self._verify_crop_constraint(target_x, target_y, crop_x, crop_y)
-
                 if is_valid:
                     return crop_x, crop_y
 
-        # If we couldn't find a valid crop after max_attempts, use best-effort
-        # This happens when all keypoints are too close to image edges
-        # warnings.warn(
-        #     f"Could not find a crop satisfying min_edge_distance={self.min_edge_distance} "
-        #     f"after {self.max_attempts} attempts. Using best-effort crop. "
-        #     f"Consider using a smaller min_edge_distance or larger image/crop size.",
-        #     UserWarning
-        # )
-
-        # Best-effort: select a random keypoint and center on it
+        # Best-effort: center on a random keypoint
         target_x, target_y = random.choice(keypoint_coords)
-        crop_x = int(target_x - self.width // 2)
-        crop_y = int(target_y - self.height // 2)
-
-        # Clamp to image bounds
-        crop_x = max(0, min(crop_x, image_width - self.width))
-        crop_y = max(0, min(crop_y, image_height - self.height))
+        crop_x = max(0, min(int(target_x - self.width // 2), image_width - self.width))
+        crop_y = max(0, min(int(target_y - self.height // 2), image_height - self.height))
 
         return crop_x, crop_y
 
@@ -394,26 +445,16 @@ class ObjectAwareRandomCrop(DualTransform):
         """Apply the crop to the image."""
         return img[crop_y:crop_y + self.height, crop_x:crop_x + self.width]
 
-    def apply_to_keypoint(
-            self,
-            keypoint: Tuple[float, float, float, float],
-            crop_x: int = 0,
-            crop_y: int = 0,
-            **params
-    ) -> Tuple[float, float, float, float]:
-        """Apply the crop to keypoints."""
-        x, y, angle, scale = keypoint
+    def apply_to_keypoint(self, keypoint, crop_x: int = 0, crop_y: int = 0, **params):
+        """Apply the crop to a single keypoint. Handles variable-length keypoint tuples."""
+        x, y = keypoint[0], keypoint[1]
+        rest = keypoint[2:] if len(keypoint) > 2 else ()
+        return (x - crop_x, y - crop_y, *rest)
 
-        # Adjust keypoint coordinates relative to the crop
-        x_new = x - crop_x
-        y_new = y - crop_y
-
-        return x_new, y_new, angle, scale
-
-    def get_params_dependent_on_targets(self, params: Dict) -> Dict:
-        """Generate parameters for the transformation."""
-        img = params['image']
-        keypoints = params.get('keypoints', [])
+    def get_params_dependent_on_data(self, params: Dict, data: Dict) -> Dict:
+        """Generate crop parameters based on image and keypoints (albumentations v2 API)."""
+        img = data['image']
+        keypoints = data.get('keypoints', [])
         image_height, image_width = img.shape[:2]
 
         # Validate crop size
@@ -448,12 +489,13 @@ class ObjectAwareRandomCrop(DualTransform):
 
         return {'crop_x': crop_x, 'crop_y': crop_y}
 
-    @property
-    def targets_as_params(self) -> List[str]:
-        return ['image', 'keypoints']
+    def apply_to_keypoints(self, keypoints, crop_x=0, crop_y=0, **params):
+        """Apply the crop to a list of keypoints (albumentations v2 API)."""
+        result = [self.apply_to_keypoint(kp, crop_x=crop_x, crop_y=crop_y, **params) for kp in keypoints]
+        return np.array(result) if result else np.array([])
 
     def get_transform_init_args_names(self) -> Tuple[str, ...]:
-        return ('height', 'width', 'min_edge_distance', 'empty_probability', 'max_attempts')
+        return ('height', 'width', 'min_edge_distance', 'empty_probability', 'edge_probability', 'edge_zone', 'max_attempts')
 
 # class ObjectAwareRandomCrop(DualTransform):
 #     """
@@ -694,8 +736,8 @@ class PasspartoutAugmentation(DualTransform):
 
         self.mask_cache = None  # to avoid recomputing for same shape
 
-    def get_params_dependent_on_targets(self, params):
-        h, w = params["image"].shape[:2]
+    def get_params_dependent_on_data(self, params, data):
+        h, w = data["image"].shape[:2]
         diag = np.sqrt(h ** 2 + w ** 2)
 
         # Possibly randomize center and radius
