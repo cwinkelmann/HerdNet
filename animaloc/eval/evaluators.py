@@ -310,7 +310,7 @@ class Evaluator:
             wandb.run.summary['f2_score'] =  self.metrics.fbeta_score(beta=2)
             wandb.run.summary['f5_score'] =  self.metrics.fbeta_score(beta=5)
             wandb.run.summary['MAE'] =  self.metrics.mae()
-            wandb.run.summary['ME'] =  iter_metrics.me()
+            wandb.run.summary['ME'] =  self.metrics.me()
 
             wandb.run.summary['MSE'] =  self.metrics.mse()
             wandb.run.summary['RMSE'] =  self.metrics.rmse()

@@ -18,6 +18,7 @@ from .register import LOSSES
 from .ssim import *
 from .focal import *
 from .p2p import *
+from .p2p_adapter import *
 
 
 __all__ = ['LOSSES', *LOSSES.registry_names]

@@ -214,27 +214,55 @@ class Stitcher(ImageToPatches):
 @STITCHERS.register()
 class HerdNetStitcher(Stitcher):
 
+    def __init__(self, *args, tta: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tta = tta
+
+    def _run_model(self, patch: torch.Tensor) -> torch.Tensor:
+        """Run model on a batch and return concatenated [heatmap, clsmap]."""
+        outputs = self.model(patch)[0]
+        heatmap = outputs[0]
+        scale_factor = heatmap.size(-1) // outputs[1].size(-1)
+        clsmap = F.interpolate(outputs[1], scale_factor=scale_factor, mode='nearest')
+        return torch.cat([heatmap, clsmap], dim=1)
+
+    def _run_model_tta(self, patch: torch.Tensor) -> torch.Tensor:
+        """Run model with 4-fold TTA (orig, H-flip, V-flip, 180°) and average."""
+        # Original
+        out = self._run_model(patch)
+
+        # Horizontal flip
+        out_hf = self._run_model(torch.flip(patch, [-1]))
+        out_hf = torch.flip(out_hf, [-1])
+
+        # Vertical flip
+        out_vf = self._run_model(torch.flip(patch, [-2]))
+        out_vf = torch.flip(out_vf, [-2])
+
+        # 180° rotation (H-flip + V-flip)
+        out_180 = self._run_model(torch.flip(patch, [-2, -1]))
+        out_180 = torch.flip(out_180, [-2, -1])
+
+        return (out + out_hf + out_vf + out_180) / 4.0
+
     @torch.no_grad()
     def _inference(self, patches: torch.Tensor) -> List[torch.Tensor]:
-        
+
         self.model.eval()
 
         dataset = TensorDataset(patches)
         dataloader = DataLoader(
-            dataset,   
+            dataset,
             batch_size=self.batch_size,
             sampler=SequentialSampler(dataset)
             )
 
+        run_fn = self._run_model_tta if self.tta else self._run_model
+
         maps = []
         for patch in dataloader:
             patch = patch[0].to(self.device)
-            outputs = self.model(patch)[0]
-            heatmap = outputs[0]
-            scale_factor = heatmap.size(-1) // outputs[1].size(-1) # see https://github.com/Alexandre-Delplanque/HerdNet/commit/a2111b219836fc9f6fd45eb5213a6b8f71ca65fc
-            clsmap = F.interpolate(outputs[1], scale_factor=scale_factor, mode='nearest')
-            # cat
-            outmaps = torch.cat([heatmap, clsmap], dim=1)
+            outmaps = run_fn(patch)
             maps = [*maps, *outmaps.unsqueeze(0)]
 
         return maps

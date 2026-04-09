@@ -572,10 +572,19 @@ class CamouflageHerdNetConvNeXt(nn.Module):
                 out_channels=32,
                 kernel_size=11,
             )
+            # Projection to fuse Gabor features into backbone stage 0
+            # Gabor output is at full resolution, stage 0 is at 1/4 resolution
+            self.gabor_proj = nn.Sequential(
+                nn.Conv2d(32, self.feature_channels[0], kernel_size=1, bias=False),
+                nn.BatchNorm2d(self.feature_channels[0]),
+                nn.GELU(),
+            )
             if debug:
                 logger.info("  Gabor filters: 8 filters (4 orientations × 2 frequencies)")
+                logger.info(f"  Gabor fusion: 32 -> {self.feature_channels[0]} channels into stage 0")
         else:
             self.gabor_extractor = None
+            self.gabor_proj = None
 
         # Create ConvNeXt backbone
         try:
@@ -699,14 +708,20 @@ class CamouflageHerdNetConvNeXt(nn.Module):
         else:
             x_resized = x
 
-        # Apply Gabor if enabled
-        if self.use_gabor and self.gabor_extractor is not None:
-            gabor_features = self.gabor_extractor(x_resized)
-            # Store for potential use (currently not directly used)
-
         # Extract features (make contiguous — ConvNeXt outputs channels-last
         # format which causes .view() failures in backward pass on CPU/MPS)
         features = [f.contiguous() for f in self.backbone(x_resized)]
+
+        # Fuse Gabor texture features into stage 0 (finest backbone scale)
+        if self.use_gabor and self.gabor_extractor is not None:
+            gabor_features = self.gabor_extractor(x_resized)
+            # Gabor is at full res, stage 0 is at 1/4 — downsample to match
+            gabor_projected = self.gabor_proj(gabor_features)
+            gabor_downsampled = F.interpolate(
+                gabor_projected, size=features[0].shape[2:], mode='bilinear', align_corners=False
+            )
+            features[0] = features[0] + gabor_downsampled
+
         return features
 
     def forward(self, x: torch.Tensor, debug: bool = False) -> Tuple[torch.Tensor, torch.Tensor] | Dict:

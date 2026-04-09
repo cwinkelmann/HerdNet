@@ -22,6 +22,8 @@ from .herdnet import *
 from .herdnet_timm_dla import *
 from .herdnet_timm_convnext import *
 from .herdnet_timm_convnext_camouflaged import *
+from .herdnet_timm_convnext_camouflaged_v2 import *
+from .herdnet_timm_convnext_camouflaged_v3 import *
 from .herdnet_timm_dinoSvin import *
 from .herdnet_timm_swin import *
 from .herdnet_dino_v2 import *

@@ -35,7 +35,7 @@ VAL_DIR = DATA_ROOT / "data_fmo03/val/crops_512"
 MODELS = {
     "ConvNeXt_clean": "best_models/fmo03_new_clean_convnext/best_model.pth",
     "ConvNeXt_full": "best_models/fmo03_new_full_convnext/best_model.pth",
-    "ConvNeXt_objcrop_e15": "output/fmo03_new_objcrop_e15_convnext/2026-04-08/05-31-14/best_model.pth",
+    "ConvNeXt_objcrop_e15": "best_models/fmo03_new_objcrop_e15_convnext/best_model.pth",
     "ConvNeXt_augplus": "best_models/fmo03_new_objcrop_augplus_convnext/best_model.pth",
     "ConvNeXt_finetune": "best_models/fmo03_new_objcrop_finetune_convnext/best_model.pth",
     "Hybrid_clean": "best_models/fmo03_new_clean_hybrid/best_model.pth",

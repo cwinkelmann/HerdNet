@@ -169,9 +169,11 @@ class Metrics:
     
         self._sum_absolute_error = self._init_attr()
         self._sum_squared_error = self._init_attr()
+        self._sum_error = self._init_attr()
         self._n_calls = self._init_attr()
         self._agg_sum_absolute_error = 0
         self._agg_sum_squared_error = 0
+        self._agg_sum_error = 0
         self._total_calls = 0
         self._total_count = self._init_attr()
 
@@ -194,6 +196,7 @@ class Metrics:
         self.tp = [int(self._confusion_matrix.sum())]
         self._sum_absolute_error = [self._agg_sum_absolute_error]
         self._sum_squared_error = [self._agg_sum_squared_error]
+        self._sum_error = [self._agg_sum_error]
         self._n_calls = [self._total_calls]
         self._ap_tables = [[[1,*x[1:]] for x in sum(self._ap_tables, [])]]
         self._confusion_matrix = numpy.array([[1.]])

@@ -114,6 +114,11 @@ class LossWrapper(torch.nn.Module):
         self.model = model
         self.losses = losses
         self.output_mode = mode
+
+        # Pass model reference to any loss that needs it (e.g. P2PLossAdapter)
+        for dic in losses:
+            if hasattr(dic['loss'], 'set_model'):
+                dic['loss'].set_model(model)
   
     def forward(
         self, 
@@ -148,6 +153,10 @@ class LossWrapper(torch.nn.Module):
                 j = dic['idy']
                 reg = dic['lambda']
                 loss_module = dic['loss']
+                # Skip losses whose output index exceeds available outputs
+                # (e.g. auxiliary heads only produce outputs during training)
+                if i >= len(output_used) or j >= len(target):
+                    continue
                 loss = loss_module(output_used[i], target[j])
                 output_dict.update({dic['name'] : reg * loss})
 
