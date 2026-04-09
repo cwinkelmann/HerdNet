@@ -45,17 +45,49 @@ def _set_species_labels(cls_dict: dict, df: pandas.DataFrame) -> None:
     assert df['labels'].isnull().any() == False
 
 
+def _load_single_albu_transform(name: str, kwargs: dict):
+    """Instantiate a single albumentations or custom transform by name."""
+    try:
+        return A.__dict__[name](**kwargs)
+    except KeyError:
+        from animaloc.utils import augmentations as ca
+        return ca.__dict__[name](**kwargs)
+
+
 def _load_albu_transforms(tr_cfg: dict) -> list:
+    """Load albumentations transforms from a Hydra config dict.
+
+    Supports flat transforms and container transforms (OneOf, SomeOf).
+    Container transforms are detected by having a dict value that contains
+    a 'transforms' key listing child transforms, plus an optional 'p' key.
+
+    YAML example::
+
+        albu_transforms:
+          HorizontalFlip:
+            p: 0.5
+          OneOf:
+            transforms:
+              GaussNoise:
+                std_range: [0.02, 0.06]
+                p: 1.0
+              ISONoise:
+                color_shift: [0.01, 0.03]
+                intensity: [0.1, 0.3]
+                p: 1.0
+            p: 0.2
+    """
+    CONTAINERS = {'OneOf', 'SomeOf'}
     transforms = []
     for name, kwargs in tr_cfg.items():
-        try:
-            transforms.append(A.__dict__[name](**kwargs))
-        except KeyError as e:
-
-            from animaloc.utils import augmentations as ca
-            transforms.append(ca.__dict__.get(name, None)(**kwargs))
-
-
+        # Strip suffixes like "OneOf_noise" or "SomeOf_2" to allow duplicate keys in YAML
+        base_name = name.split('_')[0] if '_' in name and name.split('_')[0] in CONTAINERS else name
+        if base_name in CONTAINERS and hasattr(kwargs, 'keys') and 'transforms' in kwargs:
+            children = _load_albu_transforms(kwargs['transforms'])
+            container_kwargs = {k: v for k, v in kwargs.items() if k != 'transforms'}
+            transforms.append(A.__dict__[base_name](children, **container_kwargs))
+        else:
+            transforms.append(_load_single_albu_transform(name, kwargs))
     return transforms
 
 
@@ -148,11 +180,16 @@ def _load_losses(cfg: DictConfig) -> tuple:
                 elif 'weight' in kwargs.keys():
                     kwargs['weight'] = torch.Tensor(kwargs['weight']).to(torch.device(cfg.device_name))
 
+            # Strip suffix for lookup (e.g. FocalLoss_aux_p3 -> FocalLoss)
+            loss_name = loss.split('_')[0] if '_' in loss and loss.split('_')[0] in (
+                set(torch.nn.__dict__.keys()) | set(animaloc.train.losses.__dict__.keys())
+            ) else loss
+
             crit_dict = {}
             if args.from_torch:
-                crit_dict.update({'loss': torch.nn.__dict__[loss](**kwargs)})
+                crit_dict.update({'loss': torch.nn.__dict__[loss_name](**kwargs)})
             else:
-                crit_dict.update({'loss': animaloc.train.losses.__dict__[loss](**kwargs)})
+                crit_dict.update({'loss': animaloc.train.losses.__dict__[loss_name](**kwargs)})
 
             crit_dict.update({
                 'idx': args.output_idx,
