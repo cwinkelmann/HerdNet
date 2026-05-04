@@ -181,6 +181,20 @@ class ObjectAwareRandomCrop(DualTransform):
     The crop position is chosen so the selected keypoint can land anywhere in the crop —
     including near edges — matching the distribution the model will see during tiled inference.
 
+    Why translation diversity matters: HerdNet runs inference in fixed 512x512 tiles at
+    stride=392. If training crops over-represent any sub-tile position (especially the
+    centre), the model learns a position prior tied to that location and at inference
+    only fires when the stitcher's grid happens to align an iguana there. With 80% drone
+    overlap, that grid alignment varies randomly across consecutive frames, producing
+    erratic detection patterns. See investigation in
+    `metashape_mosaicing/tests/center_bias_proof.png`.
+
+    With the recommended defaults (`min_edge_distance=0`, `translation_jitter=0`) the
+    selected keypoint is uniformly distributed in the crop — that's the right setting
+    for stitcher compatibility. Use `translation_jitter` to add extra position noise
+    on top, which is robust to subtle centre-bias paths in callers that pass
+    `min_edge_distance > 0`.
+
     Args:
         height (int): Height of the crop.
         width (int): Width of the crop.
@@ -195,6 +209,14 @@ class ObjectAwareRandomCrop(DualTransform):
         edge_zone (int): Width of the edge zone in pixels. Should match the stitcher overlap
             (e.g. 120px for overlap=120). Only used when edge_probability > 0. Default: 120.
         max_attempts (int): Maximum attempts to find a valid crop. Default: 10.
+        translation_jitter (int): After picking a crop position, perturb it by a uniform
+            integer in [-translation_jitter, +translation_jitter] on each axis. Clamped to
+            keep ≥1 keypoint inside the crop and the crop inside the image. Defaults to 0
+            (no extra jitter). Setting this to ~stride/2 of your inference stitcher
+            (e.g. 196 for the iguana config's stride=392) explicitly randomises the
+            sub-tile position so the model can't latch onto any particular position prior.
+            Recommended when min_edge_distance > 0 or when retraining a model that's
+            shown centre-fixation pathology at inference.
         always_apply (bool): Whether to always apply this transform. Default: False.
         p (float): Probability of applying the transform. Default: 1.0.
     """
@@ -208,6 +230,7 @@ class ObjectAwareRandomCrop(DualTransform):
             edge_probability: float = 0.0,
             edge_zone: int = 120,
             max_attempts: int = 10,
+            translation_jitter: int = 0,
             always_apply: bool = False,
             p: float = 1.0,
     ):
@@ -219,6 +242,13 @@ class ObjectAwareRandomCrop(DualTransform):
         self.edge_probability = edge_probability
         self.edge_zone = edge_zone
         self.max_attempts = max_attempts
+        # translation_jitter: after picking a crop position, perturb it by a
+        # uniform integer in [-translation_jitter, +translation_jitter] on
+        # each axis (still clamped so the keypoint stays in the crop).
+        # Set this to ~stride/2 of your inference stitcher (~196 for the
+        # iguana config) to break any residual centre-bias the model might
+        # otherwise learn from per-image position correlations.
+        self.translation_jitter = translation_jitter
 
         if self.min_edge_distance < 0:
             raise ValueError("min_edge_distance must be non-negative")
@@ -228,6 +258,8 @@ class ObjectAwareRandomCrop(DualTransform):
             raise ValueError("edge_probability must be between 0.0 and 1.0")
         if self.max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
+        if self.translation_jitter < 0:
+            raise ValueError("translation_jitter must be non-negative")
 
     def _is_keypoint_valid_for_crop(
             self,
@@ -434,10 +466,20 @@ class ObjectAwareRandomCrop(DualTransform):
                 if is_valid:
                     return crop_x, crop_y
 
-        # Best-effort: center on a random keypoint
+        # Best-effort fallback: pick a UNIFORM crop position that includes a
+        # random keypoint. Previously this centred the crop on the keypoint,
+        # which silently injected a strong "iguana ⇒ centre" prior into the
+        # model and broke translation equivariance at inference (the stitcher
+        # then only fires on iguanas that happen to land near a tile centre,
+        # producing erratic detection across consecutive overlapping drone
+        # frames). See investigation in metashape_mosaicing/tests/.
         target_x, target_y = random.choice(keypoint_coords)
-        crop_x = max(0, min(int(target_x - self.width // 2), image_width - self.width))
-        crop_y = max(0, min(int(target_y - self.height // 2), image_height - self.height))
+        x_min = max(0, int(target_x - self.width + 1))
+        x_max = min(image_width - self.width, int(target_x))
+        y_min = max(0, int(target_y - self.height + 1))
+        y_max = min(image_height - self.height, int(target_y))
+        crop_x = random.randint(x_min, x_max) if x_min <= x_max else max(0, min(int(target_x - self.width // 2), image_width - self.width))
+        crop_y = random.randint(y_min, y_max) if y_min <= y_max else max(0, min(int(target_y - self.height // 2), image_height - self.height))
 
         return crop_x, crop_y
 
@@ -487,6 +529,26 @@ class ObjectAwareRandomCrop(DualTransform):
                 keypoint_coords, image_height, image_width
             )
 
+        # Optional translation jitter: perturb the chosen crop position
+        # uniformly in [-J, J] on each axis. Keeps any keypoint that was
+        # inside the crop still inside (clamps if necessary), and never
+        # leaves the image. This is the explicit "break the centre bias"
+        # knob -- see CamouflageHerdNetConvNeXt centre-fixation analysis.
+        if self.translation_jitter > 0 and keypoint_coords and not create_empty_crop:
+            j = self.translation_jitter
+            dx = random.randint(-j, j)
+            dy = random.randint(-j, j)
+            new_x = max(0, min(crop_x + dx, image_width - self.width))
+            new_y = max(0, min(crop_y + dy, image_height - self.height))
+            # Make sure at least one keypoint is still inside the new crop;
+            # if jitter pushed all of them out, keep the original position.
+            kept = any(
+                new_x <= kx < new_x + self.width and new_y <= ky < new_y + self.height
+                for kx, ky in keypoint_coords
+            )
+            if kept:
+                crop_x, crop_y = new_x, new_y
+
         return {'crop_x': crop_x, 'crop_y': crop_y}
 
     def apply_to_keypoints(self, keypoints, crop_x=0, crop_y=0, **params):
@@ -494,8 +556,25 @@ class ObjectAwareRandomCrop(DualTransform):
         result = [self.apply_to_keypoint(kp, crop_x=crop_x, crop_y=crop_y, **params) for kp in keypoints]
         return np.array(result) if result else np.array([])
 
+    # ------------------------------------------------------------------
+    # Albumentations v1 backward-compatibility shim.
+    # The herdnet conda env ships albumentations 1.0.3, which calls
+    # `get_params_dependent_on_targets(params)` — NOT the v2 hook
+    # `get_params_dependent_on_data(params, data)`. Without these shims
+    # the transform silently became a no-op fixed-position crop on v1,
+    # meaning every batch saw the same crop. The shims forward to the
+    # v2 implementation so behaviour is identical across versions.
+    # ------------------------------------------------------------------
+    @property
+    def targets_as_params(self) -> List[str]:
+        return ['image', 'keypoints']
+
+    def get_params_dependent_on_targets(self, params: Dict) -> Dict:
+        return self.get_params_dependent_on_data(params, params)
+
     def get_transform_init_args_names(self) -> Tuple[str, ...]:
-        return ('height', 'width', 'min_edge_distance', 'empty_probability', 'edge_probability', 'edge_zone', 'max_attempts')
+        return ('height', 'width', 'min_edge_distance', 'empty_probability',
+                'edge_probability', 'edge_zone', 'max_attempts', 'translation_jitter')
 
 # class ObjectAwareRandomCrop(DualTransform):
 #     """
