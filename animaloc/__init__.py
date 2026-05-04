@@ -14,6 +14,27 @@ __license__ = "MIT License"
 __version__ = "0.2.1"
 
 
+# Silence two benign, high-frequency UserWarnings that flood training logs:
+#   1. sklearn confusion_matrix complains when `labels` argument has a
+#      single value — intentional for our binary (iguana-only) detector,
+#      see animaloc/eval/metrics.py.
+#   2. albumentations warns that the val/test Compose has KeypointParams
+#      configured but no keypoint-processing transform. Keypoints pass
+#      through Normalize unchanged on purpose.
+import warnings as _warnings
+_warnings.filterwarnings(
+    "ignore",
+    message=r"A single label was found in 'y_true' and 'y_pred'\.",
+    category=UserWarning,
+)
+_warnings.filterwarnings(
+    "ignore",
+    message=r"Got processor for keypoints, but no transform to process it\.",
+    category=UserWarning,
+)
+del _warnings
+
+
 from animaloc import data
 from animaloc import datasets
 from animaloc import eval
