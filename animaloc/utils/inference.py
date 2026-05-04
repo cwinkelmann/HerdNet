@@ -267,7 +267,8 @@ def inference(cfg: DictConfig, plain_inference=False, vis_detections=False) -> p
             pr_curve.feed(rec, pre, label=cls_dict[c])
         try:
             pr_curve.save(plots_path / 'precision_recall_curve.png')
-            wandb.log({"precision_recall_curve": wandb.Image(pr_curve.fig)})
+            if cfg.wandb_flag:
+                wandb.log({"precision_recall_curve": wandb.Image(pr_curve.fig)})
         except IndexError:
             logger.error('Weird index error, skipping PR curve plot')
 
