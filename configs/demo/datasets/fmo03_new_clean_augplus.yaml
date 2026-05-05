@@ -1,0 +1,158 @@
+# FMO03 — pre-cropped 512x512 patches with the same augplus pipeline as
+# fmo03_new_objcrop_augplus.yaml, minus ObjectAwareRandomCrop (no crop needed —
+# the patches are already 512x512). Used to head-to-head against
+# full-size+ObjectAwareRandomCrop training under identical augmentation budgets.
+#
+# Train: 1430 annotated 512x512 crops, 2682 iguana annotations
+# Val (per-epoch):  pre-cropped 512x512 patches (cheap)
+# Test (final):     full-size val images via stitcher (matches the full arm)
+
+img_size: [512, 512]
+anno_type: 'point'
+num_classes: 2
+collate_fn: null
+
+class_def:
+  1: 'iguana'
+
+train:
+  name: 'CSVDataset'
+  csv_file: '/home/christian/hnee/HerdNet/data_fmo03/train/herdnet_format_512_250_crops.csv'
+  root_dir: '/home/christian/hnee/HerdNet/data_fmo03/train/crops_512'
+  sampler: null
+  augmentation_multiplier: 1
+
+  albu_transforms:
+    # --- Geometric ---
+    HorizontalFlip:
+      p: 0.5
+    VerticalFlip:
+      p: 0.5
+    RandomRotate90:
+      p: 0.5
+    ShiftScaleRotate:
+      shift_limit: 0.0625
+      scale_limit: 0.15
+      rotate_limit: 45
+      p: 0.5
+    Perspective:
+      scale: 0.05
+      p: 0.2
+
+    # --- Resolution / altitude simulation ---
+    OneOf:
+      transforms:
+        Downscale:
+          scale_range: [0.5, 0.9]
+          p: 1.0
+        GaussianBlur:
+          blur_limit: [3, 7]
+          p: 1.0
+        Sharpen:
+          alpha: [0.2, 0.5]
+          lightness: [0.5, 1.0]
+          p: 1.0
+      p: 0.3
+
+    # --- Lighting & shadows ---
+    RandomBrightnessContrast:
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      p: 0.3
+    RandomGamma:
+      gamma_limit: [80, 120]
+      p: 0.2
+    SomeOf:
+      transforms:
+        PlasmaShadow:
+          p: 1.0
+        RandomShadow:
+          num_shadows_limit: [1, 2]
+          shadow_dimension: 5
+          p: 1.0
+      n: 1
+      p: 0.2
+
+    # --- Color ---
+    HueSaturationValue:
+      hue_shift_limit: 10
+      sat_shift_limit: 20
+      val_shift_limit: 15
+      p: 0.3
+    RGBShift:
+      r_shift_limit: 10
+      g_shift_limit: 10
+      b_shift_limit: 10
+      p: 0.2
+    CLAHE:
+      clip_limit: 4.0
+      p: 0.2
+
+    # --- Noise & compression ---
+    SomeOf_noise:
+      transforms:
+        GaussNoise:
+          std_range: [0.02, 0.06]
+          p: 1.0
+        ISONoise:
+          color_shift: [0.01, 0.03]
+          intensity: [0.1, 0.3]
+          p: 1.0
+        ImageCompression:
+          quality_range: [60, 90]
+          p: 1.0
+      n: 1
+      p: 0.2
+
+    # --- Occlusion ---
+    CoarseDropout:
+      num_holes_range: [3, 8]
+      hole_height_range: [8, 25]
+      hole_width_range: [8, 25]
+      p: 0.15
+
+    # --- Normalize (always last) ---
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    MultiTransformsWrapper:
+      FIDT:
+        num_classes: ${datasets.num_classes}
+        down_ratio: ${model.kwargs.down_ratio}
+        radius: 2
+      PointsToMask:
+        radius: 2
+        num_classes: ${datasets.num_classes}
+        squeeze: true
+        down_ratio: 32
+
+validate:
+  name: 'CSVDataset'
+  csv_file: '/home/christian/hnee/HerdNet/data_fmo03/val/herdnet_format_512_0_crops.csv'
+  root_dir: '/home/christian/hnee/HerdNet/data_fmo03/val/crops_512'
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
+
+# Full-size validation — used by tools/infer.py --evaluate after training.
+# Identical to the full-arm config so results are head-to-head comparable.
+test:
+  name: 'CSVDataset'
+  csv_file: '/home/christian/hnee/HerdNet/data_fmo03/val/herdnet_format.csv'
+  root_dir: '/home/christian/hnee/HerdNet/data_fmo03/val/Default'
+
+  albu_transforms:
+    Normalize:
+      p: 1.0
+
+  end_transforms:
+    DownSample:
+      down_ratio: ${model.kwargs.down_ratio}
+      anno_type: ${datasets.anno_type}
