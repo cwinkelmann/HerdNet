@@ -365,6 +365,11 @@ def main(cfg: DictConfig) -> Tuple[Path, dict]:
     if cfg.training_settings.vizual_fn is not None:
         vizual_fn = animaloc.vizual.plots.__dict__[cfg.training_settings.vizual_fn]
 
+    # Optional EMA: read from training_settings.ema_decay (None disables).
+    ema_decay = None
+    if hasattr(cfg.training_settings, "ema_decay") and cfg.training_settings.ema_decay is not None:
+        ema_decay = float(cfg.training_settings.ema_decay)
+
     trainer = animaloc.train.trainers.__dict__[cfg.training_settings.trainer](
         final_model,
         train_dataloader,
@@ -385,6 +390,7 @@ def main(cfg: DictConfig) -> Tuple[Path, dict]:
                                                                        "early_stopping") else False,
         patience=cfg.training_settings.early_stopping_patience if hasattr(cfg.training_settings,
                                                                           "early_stopping_patience") else False,
+        ema_decay=ema_decay,
     )
 
     if cfg.model.resume_from is not None:
@@ -417,7 +423,59 @@ def main(cfg: DictConfig) -> Tuple[Path, dict]:
             pth_file['classes'] = dict(cfg.datasets.class_def)
             pth_file['mean'] = list(norm_trans.mean)
             pth_file['std'] = list(norm_trans.std)
-            pth_file['config'] = cfg # TODO add the config into the pth
+            pth_file['config'] = cfg
+
+            # Store everything needed for standalone inference (no config file required)
+            pth_file['training_info'] = {
+                # Model
+                'model_name': cfg.model.name,
+                'model_kwargs': dict(cfg.model.kwargs) if cfg.model.kwargs else {},
+                'num_classes': cfg.datasets.num_classes,
+                # Normalization
+                'normalize_mean': list(norm_trans.mean),
+                'normalize_std': list(norm_trans.std),
+                # Detection
+                'down_ratio': cfg.model.kwargs.get('down_ratio', 4) if cfg.model.kwargs else 4,
+                'anno_type': cfg.datasets.anno_type,
+                'img_size': list(cfg.datasets.img_size) if hasattr(cfg.datasets, 'img_size') else [512, 512],
+                # Evaluator / stitcher settings
+                'evaluator_threshold': cfg.training_settings.evaluator.threshold
+                    if hasattr(cfg.training_settings, 'evaluator') and hasattr(cfg.training_settings.evaluator, 'threshold')
+                    else 100,
+                'evaluator_kwargs': dict(cfg.training_settings.evaluator.kwargs)
+                    if hasattr(cfg.training_settings, 'evaluator') and hasattr(cfg.training_settings.evaluator, 'kwargs')
+                    else {},
+                'stitcher_kwargs': dict(cfg.training_settings.stitcher.kwargs)
+                    if hasattr(cfg.training_settings, 'stitcher') and hasattr(cfg.training_settings.stitcher, 'kwargs')
+                    else {},
+                # Training metadata
+                'epochs': cfg.training_settings.epochs,
+                'lr': cfg.training_settings.lr,
+                'batch_size': cfg.training_settings.batch_size,
+                'seed': cfg.seed,
+                'dataset': cfg.datasets.train.csv_file if hasattr(cfg.datasets.train, 'csv_file') else '?',
+                'wandb_run': cfg.get('wandb_run', '?') if hasattr(cfg, 'wandb_run') else '?',
+                'wandb_project': cfg.get('wandb_project', '?') if hasattr(cfg, 'wandb_project') else '?',
+            }
+
+            # Store metrics in the pth file for tools/best_runs.py
+            if hasattr(trainer, 'evaluator') and trainer.evaluator is not None:
+                m = trainer.evaluator.metrics
+                pth_file['metrics'] = {
+                    'f1_score': m.fbeta_score(c=1, beta=1),
+                    'f2_score': m.fbeta_score(c=1, beta=2),
+                    'f5_score': m.fbeta_score(c=1, beta=5),
+                    'recall': m.recall(),
+                    'precision': m.precision(),
+                    'mae': m.mae(),
+                    'me': m.me(),
+                    'rmse': m.rmse(),
+                    'tp': sum(m.tp),
+                    'fn': sum(m.fn),
+                    'fp': sum(m.fp),
+                    'avg_score': m.avg_score(),
+                    'best_val': trainer.best_val,
+                }
 
             torch.save(pth_file, path)
             logger.info(f"Saved Model {pth_name} with added information in {path}")
@@ -441,6 +499,21 @@ def main(cfg: DictConfig) -> Tuple[Path, dict]:
         }
     metrics['best_val'] = trainer.best_val
 
+    # Log training summary for easy parsing by tools/best_runs.py
+    logger.info(
+        f'[SUMMARY] '
+        f'output_dir={current_directory} '
+        f'model={cfg.model.name} '
+        f'best_f1={metrics.get("f1_score", 0):.4f} '
+        f'best_f2={metrics.get("f2_score", 0):.4f} '
+        f'recall={metrics.get("recall", 0):.4f} '
+        f'precision={metrics.get("precision", 0):.4f} '
+        f'mae={metrics.get("mae", 0):.2f} '
+        f'rmse={metrics.get("rmse", 0):.2f} '
+        f'best_val={metrics.get("best_val", 0):.4f} '
+        f'epochs={cfg.training_settings.epochs} '
+        f'dataset={cfg.datasets.train.csv_file}'
+    )
     logger.info(f"Training complete. Output in {current_directory}")
     logger.remove(log_sink_id)
 

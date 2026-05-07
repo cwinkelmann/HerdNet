@@ -71,6 +71,7 @@ class Trainer:
         min_delta: float = 0.0,
         restore_best_weights: bool = True,
         wandb_artifact_upload: bool = False,
+        ema_decay: Optional[float] = None,
 
         ) -> None:
         '''
@@ -167,6 +168,17 @@ class Trainer:
         self.scaler = torch.amp.GradScaler('cuda', enabled=self.use_amp)
 
         self.model = model.to(self.device)
+
+        # Optional Exponential Moving Average of the model weights.
+        # When enabled, validation runs against the EMA copy and best_model.pth
+        # stores EMA state so downstream tools (infer, ensemble_infer) load it
+        # without code changes.
+        self.ema = None
+        if ema_decay is not None:
+            from animaloc.models.utils import ModelEMA
+            self.ema = ModelEMA(self.model, decay=float(ema_decay))
+            logger.info(f"EMA enabled (decay_max={float(ema_decay):.4f})")
+
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.val_loss_dataloader = val_loss_dataloader
@@ -333,6 +345,25 @@ class Trainer:
 
                     logger.info(f'{self.evaluator.header} {validate_on}: {val_output:.4f}')
 
+                    # Log aggregated validation metrics as a structured line for easy parsing
+                    _m = self.evaluator.metrics
+                    _tp = sum(_m.tp)
+                    _fn = sum(_m.fn)
+                    _fp = sum(_m.fp)
+                    logger.info(
+                        f'[METRICS] - Epoch: [{epoch}] '
+                        f'f1={_m.fbeta_score(c=1, beta=1):.4f} '
+                        f'f2={_m.fbeta_score(c=1, beta=2):.4f} '
+                        f'f5={_m.fbeta_score(c=1, beta=5):.4f} '
+                        f'recall={_m.recall():.4f} '
+                        f'precision={_m.precision():.4f} '
+                        f'mae={_m.mae():.2f} '
+                        f'me={_m.me():.2f} '
+                        f'rmse={_m.rmse():.2f} '
+                        f'tp={_tp} fn={_fn} fp={_fp} '
+                        f'avg_score={_m.avg_score():.4f}'
+                    )
+
                     if wandb_flag:
                         wandb.log({
                             validate_on: val_output,
@@ -447,6 +478,23 @@ class Trainer:
                     model_checkpoint_path = self._save_checkpoint(epoch, checkpoints)
                     logger.info(
                         f'Best model by End User Metric {validate_on} saved - Epoch {epoch} - Validation value: {val_output:.6f}, path: {model_checkpoint_path}')
+                    _m = self.evaluator.metrics
+                    _tp = sum(_m.tp)
+                    _fn = sum(_m.fn)
+                    _fp = sum(_m.fp)
+                    logger.info(
+                        f'[BEST_METRICS] - Epoch: [{epoch}] '
+                        f'f1={_m.fbeta_score(c=1, beta=1):.4f} '
+                        f'f2={_m.fbeta_score(c=1, beta=2):.4f} '
+                        f'f5={_m.fbeta_score(c=1, beta=5):.4f} '
+                        f'recall={_m.recall():.4f} '
+                        f'precision={_m.precision():.4f} '
+                        f'mae={_m.mae():.2f} '
+                        f'me={_m.me():.2f} '
+                        f'rmse={_m.rmse():.2f} '
+                        f'tp={_tp} fn={_fn} fp={_fp} '
+                        f'avg_score={_m.avg_score():.4f}'
+                    )
                     if self.wandb_artifact_upload:
                         artifact = wandb.Artifact(name=checkpoints, type="model")
                         artifact.add_file(model_checkpoint_path)  # Add a file
@@ -557,7 +605,10 @@ class Trainer:
                 self.best_val = current_val
                 self.wait = 0
                 if self.restore_best_weights:
-                    self.best_weights = self.model.state_dict().copy()
+                    # Snapshot EMA state when EMA is enabled — best_model.pth
+                    # should reflect the model used for validation.
+                    snapshot_src = self.ema.module if self.ema is not None else self.model
+                    self.best_weights = snapshot_src.state_dict().copy()
             else:
                 self.wait += 1
 
@@ -567,7 +618,10 @@ class Trainer:
                 self.best_val = current_val
                 self.wait = 0
                 if self.restore_best_weights:
-                    self.best_weights = self.model.state_dict().copy()
+                    # Snapshot EMA state when EMA is enabled — best_model.pth
+                    # should reflect the model used for validation.
+                    snapshot_src = self.ema.module if self.ema is not None else self.model
+                    self.best_weights = snapshot_src.state_dict().copy()
             else:
                 self.wait += 1
 
@@ -828,6 +882,10 @@ class Trainer:
             self.scaler.step(self.optimizer)
             self.scaler.update()
 
+            # Update EMA shadow weights after every successful optimizer step.
+            if self.ema is not None:
+                self.ema.update(self.model)
+
             if self.adaloss is not None:
                 self.adaloss.feed(self.losses)
 
@@ -876,7 +934,9 @@ class Trainer:
         ''' Evaluate the epoch model '''
 
         if self.evaluator is not None:
-            self.evaluator.model = self.model
+            # Use EMA shadow for validation when enabled — that's the model
+            # whose state we'll snapshot as best_model.pth.
+            self.evaluator.model = self.ema.module if self.ema is not None else self.model
             self.evaluator.logs_filename = filename
             self.evaluator.header = '[{}] - Epoch: [{}]'.format(filename.upper(),epoch)
             self.evaluator.current_epoch = epoch
@@ -924,9 +984,16 @@ class Trainer:
         else:
             raise ValueError("wrong mode, should be 'all', 'best', 'best_loss','latest'")
 
+        # When EMA is enabled, persist the shadow weights as the canonical
+        # checkpoint state — downstream tools load `model_state_dict` and
+        # should see the EMA snapshot, not the raw fast-tracking model.
+        save_state = (
+            self.ema.module.state_dict() if self.ema is not None
+            else self.model.state_dict()
+        )
         torch.save({
             'epoch': epoch,
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': save_state,
             'optimizer_state_dict': self.optimizer.state_dict(),
             'loss': self.losses ,
             'best_val': self.best_val,

@@ -14,12 +14,14 @@ __license__ = "MIT License"
 __version__ = "0.2.1"
 
 
+import copy
+
 import torch
 
 from typing import Union, Tuple, List, Optional
 from loguru import logger
 
-__all__ = ['load_model', 'count_parameters', 'LossWrapper']
+__all__ = ['load_model', 'count_parameters', 'LossWrapper', 'ModelEMA']
 
 def load_model(model: torch.nn.Module, pth_path: str, device: str = 'cuda') -> torch.nn.Module:
     ''' Load model parameters from a PTH file 
@@ -179,3 +181,44 @@ class LossWrapper(torch.nn.Module):
 
         else:
             raise ValueError(f'Unknown output mode: {self.output_mode}')
+
+class ModelEMA(torch.nn.Module):
+    """Exponential moving average of model weights with timm-style decay warmup.
+
+    Maintains a shadow copy of `model` whose state is updated after every
+    optimizer step as `ema = d * ema + (1 - d) * model`, where d ramps up
+    from ~0.1 at step 1 to `decay_max` over the first ~100 steps using the
+    schedule `d_t = min(decay_max, (1 + t) / (10 + t))`. Buffers (BatchNorm
+    running stats, integer-typed parameters) are copied directly.
+
+    Use:
+        ema = ModelEMA(model, decay=0.9999)
+        # ... after each optimizer.step():
+        ema.update(model)
+        # Use ema.module for inference / evaluation.
+    """
+
+    def __init__(self, model: torch.nn.Module, decay: float = 0.9999) -> None:
+        super().__init__()
+        self.module = copy.deepcopy(model).eval()
+        self.decay_max = float(decay)
+        self.step = 0
+        for p in self.module.parameters():
+            p.requires_grad_(False)
+
+    @torch.no_grad()
+    def update(self, model: torch.nn.Module) -> None:
+        self.step += 1
+        d = min(self.decay_max, (1.0 + self.step) / (10.0 + self.step))
+        msd = model.state_dict()
+        for k, v in self.module.state_dict().items():
+            if k not in msd:
+                continue
+            mv = msd[k].detach()
+            if v.is_floating_point():
+                v.mul_(d).add_(mv, alpha=1.0 - d)
+            else:
+                v.copy_(mv)
+
+    def forward(self, *args, **kwargs):  # delegate to shadow model
+        return self.module(*args, **kwargs)

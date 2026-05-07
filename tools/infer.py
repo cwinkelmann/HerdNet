@@ -43,6 +43,9 @@ def parse_args():
         help='Output directory for results (overrides config)')
     parser.add_argument('--vis', action='store_true',
         help='Visualize detections')
+    parser.add_argument('--evaluate', action='store_true',
+        help='Evaluate against ground truth (reads cfg.datasets.test.csv_file). '
+             'Without this flag, just emits raw detections.')
     parser.add_argument('--overrides', nargs='*', default=[],
         help='Additional Hydra-style overrides, e.g., "inference.patch_size=512"')
 
@@ -83,8 +86,10 @@ def main():
     print(OmegaConf.to_yaml(cfg))
     print("=" * 50)
 
-    # Run inference
-    detections = inference(cfg, plain_inference=True, vis_detections=args.vis)
+    # Run inference. plain_inference=False enables ground-truth evaluation
+    # (reads cfg.datasets.test.csv_file and writes metrics_results.csv,
+    # confusion_matrix.csv, plus a precision/recall plot).
+    detections = inference(cfg, plain_inference=not args.evaluate, vis_detections=args.vis)
 
     print(f"\nDetections: {len(detections)} total")
     print(detections.head())
