@@ -1,5 +1,7 @@
 # Phase 3 — backbone comparison + threshold tuning
 
+> ⚠️ **Seed-sensitivity caveat (added retrospectively, updated 3 seeds in)**: [Phase 5](phase5_seed_replication.md) ran 2 additional seeds (123, 7). The best-F1 ranking changes at every seed: seed=42 has B4>B3, seed=123 has B3>B4, seed=7 has L2≈B4_native>B4>B3. **Across 3 seeds, B3 / B4 / B4_native / L2 are practically tied (mean F1 within 0.02).** **B4 keeps the best mean MAE (0.89) across all 3 seeds**, so for counting use cases B4 remains the production pick. B5's MAE 0.83 at seed=42 was anomalously low (1.58 / 1.17 at seeds 123 / 7) — don't trust EfficientViT single-seed numbers.
+
 **Run date**: 2026-05-05 (training 09:28 → ~14:35, sweep finished ~15:20).
 **Branch**: `convnext_extension` @ `48575f0`.
 **Hardware**: single RTX 4080 SUPER.

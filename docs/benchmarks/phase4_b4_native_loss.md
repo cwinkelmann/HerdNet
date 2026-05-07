@@ -1,5 +1,7 @@
 # Phase 4 — B4 with native `density_aware_fmo03_aux` loss
 
+> ⚠️ **Seed-sensitivity caveat (added retrospectively after 3-seed replication)**: The "native loss is worse" conclusion below is based on seed=42, where the override beat native by F1 +0.015 / MAE +0.42. At seed=123 the gap shrank (F1 +0.012 / MAE +0.17). At seed=7 the override actually *lost* on both metrics (F1 −0.009 / MAE +0.33). **Across 3 seeds, mean F1 is 0.945 (override) vs 0.939 (native) — within noise.** Mean MAE still favours override (0.89 vs 0.97), so the production counting recommendation holds, but the F1 conclusion below should be read as "native is approximately equal to override on F1" rather than "native is worse". See [Phase 5](phase5_seed_replication.md) for the full 3-seed picture.
+
 **Run date**: 2026-05-05 (training 16:29 → 18:23, sweep 18:23 → 18:42).
 **Branch**: `convnext_extension` @ `69589bb`.
 **Hardware**: single RTX 4080 SUPER.

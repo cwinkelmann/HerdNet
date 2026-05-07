@@ -1,5 +1,7 @@
 # Phase 2 — loss-function ablation
 
+> ⚠️ **Seed-sensitivity caveat (added retrospectively, updated 3 seeds in)**: [Phase 5](phase5_seed_replication.md) ran 2 additional seeds (123, 7). Across 3 seeds, **L2's mean tuned F1 is 0.924 vs L1's 0.930 — within noise**. The original "L1 clearly beats L2" claim was a seed-42 artifact. At seed=7, L2 actually has the highest single-seed F1 of any variant (0.948). The Phase 2b finding that DensityAware needs threshold tuning is reinforced; the operating-point ranking below should be read as "L1 and tuned-L2 are practically tied" rather than a strict win.
+
 **Run date**: 2026-05-05 (training 07:31 → 09:13).
 **Branch**: `convnext_extension` @ `48575f0`.
 **Hardware**: single RTX 4080 SUPER.
