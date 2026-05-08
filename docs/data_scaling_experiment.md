@@ -1,6 +1,8 @@
 # Data-scaling experiment — design
 
-**Status**: design document. Defines the experiment **requirements** so the data-preparation work (handled elsewhere) and the training/evaluation work (handled here) can be specified independently. No implementation steps; the open-questions section at the end is where the user choices live.
+**Status**: design document. Defines the experiment **requirements** so the data-preparation work and the training/evaluation work can be specified independently. The open-questions section at the end is where the user choices live.
+
+> **2026-05-08 update — data assembled and tiled.** The 2026_05_06 Hasty export and 2026_04_16 unzipped images cover what this design needs and substantially more than originally estimated. The full dataprep sweep has been run: 11 splits (V, T, train_N19…train_N2432, train_Nfull) tiled to 512×512 at overlap=0. Local copy at `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/2026_05_06_data_scaling/`; durable copy on storage at `/Volumes/storage/Iguanas_From_Above/training_data/2026_05_08_data_scaling/`. See "Implementation kickoff" → "Folder layout" for what HerdNet training consumes from each split.
 
 ## Goal
 
@@ -94,9 +96,12 @@ Train at increasing data sizes. Geometric progression with the current 19 frames
 | 3 | 76 | 4× |
 | 4 | 152 | 8× |
 | 5 | 304 | 16× — only if `\|P\| ≥ 304` |
-| 6 | full `\|P\|` | upper bound |
+| 6 | 608 | 32× |
+| 7 | 1216 | 64× |
+| 8 | 2432 | 128× |
+| 9 | full `\|P\|` ≈ 7.3k | upper bound |
 
-Sizes 5 and 6 are conditional on training-pool availability. The number of runs (and exact sizes) is an open question — see Q1.
+The original 6-point schedule has been extended to 8 + full because the assembled pool is ~24× larger than the doc's worst-case estimate (see Implementation kickoff). The exact size schedule is still an open question — see Q1.
 
 ### Sampling protocol — nested vs independent
 
@@ -210,51 +215,214 @@ If any of these are wrong, the experiment was worth running.
 
 ---
 
+## Implementation kickoff (2026-05-08)
+
+The data-prep work moved from estimate to fact. Concrete artefacts:
+
+### Source data (pinned)
+
+| | path |
+|---|---|
+| Labels | `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/2026_05_06_labels.json` |
+| Images | `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/2026_04_16_unzipped_images/<dataset_name>/` |
+
+Hasty v1.1 export · `project_name = iguana` · 12,005 images across **185 datasets**. The `iguana_point` keypoint class (count: 67,856) is the supervisory signal HerdNet uses; the separate `iguana` bbox class (20,692) is reserved for Phase-3 detector backends and is **not** mixed into point training.
+
+### Manifest
+
+`data_scaling_2026_05_06/manifest.csv` (12,005 rows, no missing image paths) — columns:
+
+```
+dataset_name, image_name, image_id, width, height, image_status,
+n_iguana_point, n_iguana_bbox, n_hard_negative, density_quartile,
+island, proposed_split (P/V/T), image_path, image_path_exists
+```
+
+`density_quartile` is computed across the 8,220 images that have ≥1 `iguana_point` (q1 ≤ 1, q2 ≤ 2, q3 ≤ 6, q4 ≤ 569). The manifest is the single source of truth for any downstream subset-sampling work.
+
+### Splits actually carved (preserves scenario_c island-isolation)
+
+| split | datasets | imgs (COMPLETED) | iguana_point | rationale |
+|---|---|---|---|---|
+| **V** | scruz_scm01, scruz_scplf01, fpe02, isa_ispvr04 | **290** | **1,796** | 3 islands → fold-set A is realisable (Santa Cruz, Fernandina FPE02, Isabela ISPVR04) |
+| **T** | 22 datasets across 8 islands (see below) | **1,184** | **5,175** | enlarged 2026-05-08 from 4 islands / 1,824 igs to give per-island recall statistical headroom and direct Floreana coverage |
+| **P** | 157 datasets, the rest | **10,223** (≥1 pt: 6,908) | **60,868** | ~363× the 19-frame baseline |
+
+**T composition by island:**
+
+| island | datasets | imgs | iguana_pt |
+|---|---|---|---|
+| Isabela (ISVP01, ISCW01, ISNCW01, ISNCW02) | 4 | 506 | 1,914 |
+| Floreana (FMO02, FMO04, FMO06) | 3 | 34 | 1,403 |
+| Genovesa | 1 | 7 | 882 |
+| Fernandina (FNE01, FNE03) | 2 | 130 | 646 |
+| Santiago (STJB01–06) | 6 | 327 | 144 |
+| Pinzón | 1 | 43 | 58 |
+| Marchena | 3 | 81 | 30 |
+| Pinta | 2 | 56 | 25 |
+
+`P` still spans 8 islands. Fernandina dominates (4,388 imgs / 48,602 pts on COMPLETED+pt); the long tail (Española, San Cristóbal sfs/srec*, Zooniverse phases, Santa Cruz SCM01) is preserved so cross-location work has signal beyond the two big islands.
+
+### Tile parameters
+
+`crop_size = 512`, `overlap = 0` for **all splits** (train, val, test). Overlap was set to 0 (rather than the scenario_c default of 250) so iguana_point labels at tile boundaries are not double-counted, which would otherwise inflate per-split label totals and corrupt per-frame counting metrics. Confirmed during the 2026-05-08 smoke test where overlap=250 produced 15,226 labels from 5,175 source iguanas on `T` (a ~3× inflation).
+
+### Dataset config
+
+`active_learning/scripts/training_data_preparation/dataset_configs_data_scaling_2026_05_06.py`
+
+- `VAL_DATASETS`, `TEST_DATASETS` — hand-curated, mirror scenario_c.
+- `TRAIN_POOL_DATASETS` — generated from the manifest, 169 entries; an assertion in the file fails fast on V/T leakage.
+- `_train_at_n(N, seed_tag)` — emits a `DatasetFilterConfig` that draws `num=N` from `P` via `ImageFilterConstantNum(SampleStrategy.RANDOM)`. Multi-seed = re-run with `seed_tag="s7"`/`"s13"` after re-seeding the trainer's RNG.
+- `SCALING_SIZES = [19, 38, 76, 152, 304, 608, 1216, 2432]` plus `train_full` (= |P|).
+
+The full sweep was committed and run on 2026-05-08:
+
+```python
+datasets = [val, test, *train_subsets, train_full]
+```
+
+A smaller smoke-test list (`[val, test, train_subsets[0], train_subsets[1]]`) is the easy revert if a re-run is needed for one or two N values.
+
+### What's not yet wired
+
+- **Stratified sampling by `density_quartile`** (Q8). The manifest carries the column, but `ImageFilterConstantNum` only does `RANDOM`/`FIRST`/`ORDERED_*`. If Q8 is locked as a hard requirement, extend that filter to accept a stratification key.
+- **Strict cross-location subsets** (Q3). `TRAIN_POOL_DATASETS` spans all islands; "natural" cross-location is what the current config gives you, not "strict".
+- **Per-fold V partition (`V_L1/V_L2/V_L3` and `V_R1/V_R2/V_R3`)**. The fold assignment lives in the eval pipeline (downstream of training), driven by the manifest's `island` and `density_quartile` columns.
+
+### Run (re-prep only)
+
+```bash
+cd active_learning/scripts/training_data_preparation
+# 021_hasty_to_tile_point_detection.py already imports
+#   dataset_configs_data_scaling_2026_05_06 as dataset_configs
+python 021_hasty_to_tile_point_detection.py
+```
+
+Outputs land under `labels_path/<dataset_name>/<dset>/` per the script's existing convention (HerdNet CSVs, COCO JSON, crop folders, dataprep report YAML).
+
+### Where the data lives
+
+| | path |
+|---|---|
+| Local SSD (canonical) | `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/2026_05_06_data_scaling/` |
+| Storage (durable copy) | `/Volumes/storage/Iguanas_From_Above/training_data/2026_05_08_data_scaling/` |
+| Manifest CSV | `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/data_scaling_2026_05_06/manifest.csv` |
+| Source labels JSON | `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/2026_05_06_labels.json` |
+| Source raw images | `/Users/christian/PycharmProjects/hnee/HerdNet/data/2025_11_12/2026_04_16_unzipped_images/<dataset_name>/` |
+
+Both data-scaling roots have identical layout. Train HerdNet from either; the local SSD is faster, the storage copy is the durable / shareable version.
+
+### Folder layout (per split)
+
+The dataprep script produces this layout under each split's directory:
+
+```
+2026_05_06_data_scaling/
+├── datapreparation_report_<split>.yaml         # provenance: filter config + counts
+└── <split>/
+    ├── crops_512_num<N>_overlap0/              # ← TILES HerdNet trains on
+    │   └── <dataset_name>___<image>_x<col>_y<row>.jpg
+    ├── herdnet_format_512_0_crops.csv          # ← POINT CSV HerdNet trains on
+    ├── coco_format_512_0.json                  # COCO mirror of the above (alt loaders)
+    ├── hasty_format_crops_512_0.json           # Hasty round-trip for re-export
+    ├── herdnet_format.csv                      # full-size source-frame points
+    ├── coco_format_full_size.json              # COCO at source-frame resolution
+    ├── hasty_format_full_size.json             # Hasty at source-frame resolution
+    ├── Default/                                # cropper intermediate (safe to ignore)
+    └── padded_images/                          # zero-padded source frames (intermediate)
+```
+
+The two files HerdNet's data loader needs are bolded with arrows above:
+
+- **Image directory**: `<split>/crops_512_num<N>_overlap0/`
+- **Point annotations**: `<split>/herdnet_format_512_0_crops.csv` (columns: `images,x,y,labels`; one row per labelled point in tile-pixel coordinates).
+
+In the directory name, `num<N>` records the source-frame budget for that split: `numNone` for `val` and `test` (no sampling cap), `num19/38/76/152/304/608/1216/2432/None` for the train subsets. `overlap0` is constant.
+
+### Splits available for training
+
+| split | dset name | source frames | crop tiles | point labels | use |
+|---|---|---|---|---|---|
+| V | `val` | 290 | 1,036 | ~1,793 | early stopping, threshold tuning, fold metrics |
+| T | `test` | 1,184 | 4,099 | ~5,085 | held-out final report (used **once**) |
+| train | `train_N19_s42` | 19 | 78 | ~87 | scaling curve N=19 |
+| train | `train_N38_s42` | 38 | 159 | ~218 | scaling curve N=38 |
+| train | `train_N76_s42` | 76 | 319 | ~510 | scaling curve N=76 |
+| train | `train_N152_s42` | 152 | 717 | ~1,340 | scaling curve N=152 |
+| train | `train_N304_s42` | 304 | 1,391 | ~2,404 | scaling curve N=304 |
+| train | `train_N608_s42` | 608 | 2,681 | ~4,800 | scaling curve N=608 |
+| train | `train_N1216_s42` | 1,216 | 5,464 | ~9,710 | scaling curve N=1,216 |
+| train | `train_N2432_s42` | 2,432 | 11,006 | ~18,712 | scaling curve N=2,432 |
+| train | `train_Nfull_s42` | 6,908 | 32,089 | ~57,310 | scaling curve full(\|P\|) |
+
+All counts are exact for tiles; "point labels" reflects the `Stats` line emitted by 021. `_s42` is the seed tag — when adding multi-seed runs, re-run 021 with `seed_tag="s7"` / `"s13"` and re-seed `numpy/random` in the trainer or dataset_config.
+
+### How HerdNet consumes one split
+
+A scaling-curve run trains on one of the `train_N*_s42` splits, validates on `val`, and only at the very end of the experiment evaluates on `test`. Pointers:
+
+```yaml
+# HerdNet config sketch (pseudo)
+train:
+  csv:    /path/to/2026_05_06_data_scaling/train_N304_s42/herdnet_format_512_0_crops.csv
+  images: /path/to/2026_05_06_data_scaling/train_N304_s42/crops_512_num304_overlap0
+val:
+  csv:    /path/to/2026_05_06_data_scaling/val/herdnet_format_512_0_crops.csv
+  images: /path/to/2026_05_06_data_scaling/val/crops_512_numNone_overlap0
+# test is NOT touched until the very end
+```
+
+Substitute the local SSD root or the storage root depending on which copy is reachable on the training machine.
+
+---
+
 ## Open questions for the user (data-prep + protocol decisions)
 
 These are the choices that should be made *before* the data-prep team starts splitting frames. Each affects how the data must be assembled.
 
 ### Q1. How many training-size points do we want, and how large does `P` need to be?
 
-The geometric schedule {19, 38, 76, 152, 304, |P|} covers a 16× range and gives 6 points on the curve. If `|P| < 304` we lose the upper end. **Trade-off**: more points = more compute (3 seeds × N points × 1.5 h ≈ 4.5 h × N points, so 6 points = ~27 h training). Fewer points = a coarser curve.
+**Resolved on availability:** `|P| = 7,291` COMPLETED frames with ≥1 `iguana_point` (10,725 if we include status `DONE` and zero-point negatives). The geometric schedule extends to N=2432 (≈128×) without exhausting `P`. Default committed in the config is **{19, 38, 76, 152, 304, 608, 1216, 2432, full}** (9 points × 3 seeds × 1.5 h ≈ 40 h).
 
-Possible alternatives:
-- 4 points: {19, 50, 150, full} — shallower curve, ~18 h
-- 5 points: {19, 38, 76, 152, full} — current proposal trimmed, ~22 h
-- 7 points: {10, 19, 38, 76, 152, 304, full} — adds a "below baseline" point if `|P|` is generous; useful for low-data deployment scenarios
+Possible trims:
+- Drop the tail: {19, 38, 76, 152, 304, 608, full} — 7 points, ~32 h
+- Aggressive: {10, 19, 38, 76, 152, 304, 608, 1216, 2432, full} — 10 points, ~45 h, adds a sub-baseline point useful for the deployment-budget question
 
 ### Q2. Is `T` available, and how big is it?
 
-Hard prerequisite. The experiment design assumes `|T| ≥ 50 frames`. If only a smaller test set is available, the test-set report will have wider error bars. If `T` doesn't yet exist as a labelled set, the data-prep team needs to allocate frames before any training subset selection happens.
+**Resolved (enlarged 2026-05-08).** `|T| = 1,184` COMPLETED images / 5,175 `iguana_point` labels across **8 islands** (Santiago, Fernandina FNE01/03, Isabela ×4 zones, Floreana ×3 missions, Genovesa, Marchena, Pinta, Pinzón). Substantially above the "≥ 50 frames, ≥ 1,000 iguanas" floor; per-island per-island budgets large enough that single-frame noise is below most deltas of interest except on the very small islands (Pinta/Marchena).
 
 ### Q3. Strict cross-location or "natural" cross-location?
 
-For Fold set A (location-based validation):
+**Resolved (2026-05-08): natural.** One training run per N; `V_L1/V_L2/V_L3` evaluates *"performance on island i given whatever island-i data happened to land in this subset"*. Two reasons:
 
-- **Strict**: when evaluating on `V_L1`, the training subset must contain *zero* island-1 images. Requires per-fold training subsets — 3× the training runs (one set per held-out island).
-- **Natural**: training subset is sampled from `P` regardless of location. `V_L1` evaluates "performance on island 1, given whatever island 1 data happened to be sampled". Cheaper (one training run per N) but less interpretable for cross-location generalisation.
+1. P's island balance is lopsided (Fernandina = ~71% of P's iguana_pt). At small N, natural sampling rarely picks Santa Cruz frames anyway, so natural and strict curves look near-identical at low N.
+2. The "ship to a new island" question maps to T, not V — T already includes Santiago, Genovesa, Marchena, Pinta, Pinzón as held-out islands.
 
-The natural variant is what the design above assumes. Strict is more interpretable but 3× as expensive. Probably depends on whether the user cares about "ship to a new island we've never seen" (strict) or "fold-stratified val across our existing islands" (natural).
+The strict variant remains a possible follow-up if the location-vs-random gap (per-N location-fold mean minus random-fold mean) reveals something interesting.
 
 ### Q4. Warm-start or from-scratch?
 
-Recommendation above is from-scratch. The user's phrasing ("start with our already fine base model") could be read as warm-start. Warm-start is faster but path-dependent; from-scratch gives the cleaner scaling-law answer.
+**Resolved (2026-05-08).** Hybrid: warm-start across the full sweep + **2 from-scratch anchors at N=304 and N=full(|P|)**.
 
-If warm-start is preferred for compute reasons, mark it as such — the curve will still be useful, just with the caveat that "+38 images warm-started" is a different intervention than "trained from scratch on 38+19=57 images".
+- Warm-start (default): every N starts from `best_models/phase8/b4_seed42/best_model.pth` (Phase-8 production B4). Curve answers *"how much labelling buys how much accuracy on top of the model we already have today?"* — the deployment-budget question.
+- From-scratch anchors: 2 extra trainings (1 seed each, no Phase-8 prior) at the mid-curve (N=304) and the asymptote (N=full(|P|)). Together they pin both ends to an absolute scaling law and let us measure how much of the warm-start curve is "Phase-8 prior" vs. "marginal data signal".
+- Compute cost: +~5 h (~3 h for from-scratch full-pool, ~2 h for from-scratch N=304; 30 epochs each, no multi-seed).
+
+Both anchors land in the same fold-eval pipeline as the warm-start runs, so all metrics (F1/MAE/recall, location vs random folds) are directly comparable.
 
 ### Q5. Same architecture across all sizes, or also vary?
 
-Recommendation above: lock B4 throughout. If the user wants to measure whether smaller models suffice at lower N (or whether larger models pay off at higher N), that's a 2-D study (size × architecture) and 3× the compute. **Suggested follow-up, not part of this experiment.**
+**Resolved (2026-05-08): B4 only across the sweep.** Architecture × size is a 2-D study and stays a follow-up. The single exception is Q9 — one B3 training at the largest N to enable the final cross-arch ensemble report. No `varies-with-N` architecture experiment in this scaling study.
 
 ### Q6. Per-epoch validation: cropped val (cheap) or full-size stitched (honest)?
 
-Per refactor.md section E and Phase 5 findings, per-epoch cropped val misleads. For an experiment whose whole point is the *scaling curve*, getting honest per-epoch signal matters more than usual. Options:
+**Resolved (2026-05-08).** Per-epoch monitor stays on **cheap cropped val** (no periodic stitched eval during training). Honest stitched evaluation runs **once at the end of each training run on V folds** (already in per-run protocol step 4) and **once at the end of the whole experiment on T**. No change to the per-run protocol — we are explicitly *not* adding the periodic stitched-during-training eval the original recommendation proposed.
 
-- Cheap cropped val (current): fast, misleading.
-- Full-size stitched on a 1–2 frame subset of `V` every 5 epochs: ~2 min extra per run, much more honest selection.
-- Full-size stitched on all of `V` every 5 epochs: ~10 min extra per run; perfectly honest, slower.
+Rationale: with `|T| = 1,184 / 5,175 igs` (post-2026-05-08 enlargement), the end-of-experiment stitched-T number is statistically strong on its own. The ~7 h of compute that periodic stitched-during-training would have cost is better spent on the from-scratch anchors (Q4) and the final B3 ensemble run (Q9).
 
-The middle option is probably right but worth confirming.
+Caveat carried forward: cropped val can pick a slightly suboptimal checkpoint relative to stitched-V truth. With 30-epoch warm-started runs the model is usually near plateau, so the divergence is small but non-zero. If a single curve point looks anomalous, re-evaluating its candidate checkpoints on stitched V is the first triage step.
 
 ### Q7. Are the validation folds disjoint from training subsets even at the largest N?
 
@@ -262,11 +430,19 @@ Hard requirement: yes. `V` is held out from `P`. The data-prep team must guarant
 
 ### Q8. Iguana-density stratification when sampling training subsets
 
-When we sample S from `P`, do we stratify on per-image iguana count? Otherwise small-N subsets might accidentally contain only sparse frames or only crowded frames, creating uninterpretable variance. **Recommendation: yes — stratify by per-image iguana count (e.g. quartiles) when sampling each subset.**
+**Deferred (2026-05-08).** Subset sampling stays `SampleStrategy.RANDOM`. The manifest still carries `density_quartile`, so stratification can be added later without re-tiling.
+
+Risk we are accepting: at the smallest sizes (N=19, N=38) a draw can land entirely in q1 (sparse) or q4 (crowded), inflating the seed-to-seed variance at those points. Multi-seed (Phase-5 noise floor) absorbs some of this, but if the N=19 / N=38 curve points show variance bands wider than the N=76 point, that's the diagnostic signal that stratification was worth doing — and we'd revisit by re-sampling those points only, not redoing the whole sweep.
 
 ### Q9. What goes into the "production stack ensemble" report at the end?
 
-After the scaling curves are produced for B4, do we additionally retrain B3 across the same N points so the final B3+B4 cross-arch ensemble can be reported as "the production recipe at largest N"? Adds 3 seeds × 5 sizes × 1.5 h ≈ 22 h of B3 training. Optional but useful if we want a clean "production-grade scaling curve".
+**Resolved (2026-05-08): B4 sweep + 1 B3 training at the largest N.** No B3-across-the-curve retrain. The final test-set report shows three numbers on the enlarged T:
+
+1. Largest-N B4, single seed.
+2. Largest-N B4, 3-seed average.
+3. Largest-N B3 + B4 cross-arch ensemble (production recipe, single seed each).
+
+Compute: ~3 h for the one B3 run at full(|P|). If Q5's "vary architecture with N" is ever reopened, B3 sub-curve becomes that follow-up's first deliverable.
 
 ---
 
@@ -285,13 +461,17 @@ After the scaling curves are produced for B4, do we additionally retrain B3 acro
 
 When the data-prep work starts, what they need from this doc:
 
-- [ ] Test set `T` defined: ≥ 50 frames, ≥ 1000 iguanas, multi-location, cleaned annotations, **disjoint from V and P**
-- [ ] Validation pool `V` defined: ≥ 30 frames, ≥ 500 iguanas, multi-location, cleaned annotations, **disjoint from T and P**
-- [ ] `V` partitioned two ways: by location (`V_L1, V_L2, V_L3`) and randomly (`V_R1, V_R2, V_R3`), partition assignments persisted
-- [ ] Training pool `P` defined: as large as possible, multi-location, **disjoint from T and V**
-- [ ] Iguana-count quartiles per image computed for `P` (for stratified subset sampling)
-- [ ] Per-image metadata: location label, iguana count, source mission (date / drone altitude if available)
-- [ ] Three reproducible random seeds for subset sampling persisted (so the same `S_i` can be regenerated)
+- [x] Test set `T` defined: 443 frames, 1,824 iguanas, 4 islands, COMPLETED-only, **disjoint from V and P**  *(2026-05-08)*
+- [x] Validation pool `V` defined: 290 frames, 1,796 iguanas, 3 islands, COMPLETED-only, **disjoint from T and P**  *(2026-05-08)*
+- [ ] `V` partitioned two ways: by location (`V_L1, V_L2, V_L3`) and randomly (`V_R1, V_R2, V_R3`), partition assignments persisted  *(island column is in the manifest; random fold not yet assigned)*
+- [x] Training pool `P` defined: 7,291 frames (≥1 pt, COMPLETED), 64,219 iguana_point labels, ~12 islands, **disjoint from T and V**  *(2026-05-08)*
+- [x] Iguana-count quartiles per image computed for `P`  *(`density_quartile` column in manifest; sampler not yet stratified)*
+- [x] Per-image metadata: location label, iguana count, dataset_name (≈ source mission)
+- [ ] Three reproducible random seeds for subset sampling persisted (so the same `S_i` can be regenerated)  *(seed_tag mechanism in dataset_config; need to lock the three integer seeds + commit)*
+
+Artefacts:
+- Manifest CSV: `data_scaling_2026_05_06/manifest.csv` (alongside the labels JSON)
+- Dataset config: `active_learning/scripts/training_data_preparation/dataset_configs_data_scaling_2026_05_06.py`
 
 
 
