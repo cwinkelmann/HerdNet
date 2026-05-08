@@ -242,14 +242,71 @@ These all need attention eventually, but the produce/decode/score split is the c
 
 
 
-### TODO, others
-* add full image inference, conifugrable intervall, i.e. every 10 epochs and at the end
-* ensure, that a simple herdnet/animaloc install gives a fully usable package: tiling, training, etc
-* simple http API
-* Drop Albumentations because of license and speed issues.
-* Optimise the ObjectAwareRandomCrop by creating these preemptively and maybe on GPU using a different library than Albumentations
-* Add analysis functions and plotting so writing a paper with this would 
-* Add error functions which take more into consideration how many animals are, a percentage error is a good start
-* Allow for simple ssh sync deployments
-* enable multi GPU training
-* Describe a RunPod.io recipe to allow for very quick cloud training with a) container build and machine startup, b) data sync and c) training start d) model download and machine down spin
+## Other TODOs (graded)
+
+A pragmatic punch list of additional improvements, with an honest take on each: what it buys, what to watch out for, and roughly where it sits relative to the produce/decode/score work above. Active learning is intentionally not in this list — it's handled in a separate model-agnostic repo and shouldn't get reimplemented here.
+
+### Tier 1 — biggest leverage, do first
+
+- **Full-size inference at a configurable interval during training, plus at end.** The single highest-leverage item. Per-epoch validation on the cropped val set has caused multiple wrong calls across Phases 1–5 (this doc, section E, and `phase5_seed_replication.md`). Wire it behind a `cfg.training_settings.full_size_val_every` knob (default 10), running on a small (1–2 frame) subset for cheap honesty plus full `V` at the end. Cost ~10 % of training wall-clock, immediate impact on every experiment afterwards.
+- **Promote the Phase 9 / 11 / 12 analysis scripts into a real `animaloc.analysis` module.** Currently they're one-shot scripts in `/tmp`. Functions worth extracting:
+  - `extract_errors(detections, gt, radius)` → FN/FP record list
+  - `crop_errors(image_dir, errors, patch=256)` → annotated image patches
+  - `plot_pr_curve(sweep_csv, ax=None)` and friends from `tools/plot_metrics.py`
+  - `compare_runs(run_a, run_b)` → diff report
+  Future error analysis becomes ~5 lines of code instead of 200. Big multiplier for any paper writing.
+- **Better error metrics for counting.** Current MAE = 0.50 is great; per-frame % bias on small-N frames is misleading (`phase12_metrics_plots.md` shows DJI_0270 with GT=2, predicted=3 as "+50 %"). Add:
+  - **SAPE** = `|pred − gt| / max(pred, gt)`, symmetric, bounded [0, 1]
+  - **Density-stratified MAE** — bucket frames by GT count (e.g. quartiles), report per-bucket. Tells the user *"strong on dense frames, weak on sparse"*, which a plain MAE hides.
+  - Skip naive per-frame % unless paired with the GT count — that one really does mislead.
+
+### Tier 2 — speed up training so future experiments are cheaper
+
+- **Drop Albumentations for Kornia.** The license claim is shaky (Albumentations is MIT, fine for commercial use), but the **speed argument is solid**: Phase-5 GPU was at 0 % util while CPU did augmentation. Kornia is GPU-native, MIT, and drop-in for most transforms we use; a few uncommon ones (`PlasmaShadow`, `ISONoise`) need shims or removal. `torchvision.transforms.v2` is a lighter alternative if Kornia's surface area feels too big. NVIDIA DALI is faster still but a heavy dependency that's hard to debug; skip unless throughput becomes the explicit bottleneck.
+- **Optimise `ObjectAwareRandomCrop` — disambiguate two things first.** The TODO conflates:
+  - *"Compute crops preemptively"* — only valid if you cache a *set* of valid crop coordinates per image (not the actual crops, which would lock in a fixed crop set and kill the diversity that makes the transform work). Move keypoint-constraint computation offline, sample coordinates at training time.
+  - *"On GPU"* — straightforward with Kornia: do the actual tile slicing on the device. Pairs with the previous item.
+  Combine both: precomputed coordinate cache + Kornia GPU slicing. Together they remove most of the CPU bottleneck.
+- **Multi-GPU training.** Conditional value. Single 4080 + 33 M-param B4 currently runs fine. Pays off when:
+  - Backbones grow (ConvNeXt-Base/Large)
+  - Resolution training increases (down_ratio 4 → 2 to attack the Phase-11 hard-camouflage FN bucket)
+  - Datasets grow past ~1000 frames (per the data-scaling experiment)
+  Use `torch.nn.parallel.DistributedDataParallel` directly — ~30 lines of boilerplate. **Resist** introducing PyTorch Lightning just for this; it's a 200KLOC dependency for a 30-line problem. **Cheaper interim**: gradient accumulation for larger effective batch on a single GPU.
+
+### Tier 3 — make it deployable for partners
+
+These four are cousins; design once, share infrastructure.
+
+- **`pip install herdnet` → fully usable package.** Scope it carefully: target *inference + light fine-tuning*, **not** training-from-scratch (training has too many local-environment assumptions — data layout, CUDA, wandb). Concretely needs: standalone inference path with no `data_fmo03/` references; canonical CLI; sample data + sample model auto-pulled from HF on first call; docs that don't reference repo paths.
+- **Simple HTTP API.** Useful for ecologist partners and demos. Risk: if it grows beyond one `/predict` endpoint, it pulls in real ops work (auth, async, rate limits, observability). Decide upfront whether this is "research demo" (FastAPI + one route, done in a day) or "deployment service" (different beast). Also: **PyTorch Wildlife** already provides a similar service for wildlife detection — check if you can plug into theirs rather than building one.
+- **Simple ssh-sync deployments.** Probably one helper script wrapping `rsync`: configs + data → server, weights/results → back. Don't over-engineer with state machines. Subsumes into the RunPod recipe below.
+- **RunPod.io recipe.** Concrete pieces: a `Dockerfile` for the env (CUDA + PyTorch + animaloc), a `runpod_train.sh` doing pod startup → rsync data in → train → rsync results out → pod shutdown, and a spot-pod variant with checkpoint resume for cheaper preemptible training. Pairs with ssh-sync — the same script template covers both.
+
+### Tier 4 — nice-to-have hygiene, easy wins
+
+These are invisible improvements that pay off quietly the next time something goes wrong.
+
+- **Reproducibility manifest per run.** Emit a `manifest.yaml` with `{git_commit, dataset_hash, hparams, seed, env_lock}` alongside `best_model.pth`. Bit-exact reruns on demand. Cheap to build (one hook); the next time someone asks "what produced this number?", you have an answer in five seconds.
+- **Dataset versioning.** Annotations evolve (the FMO03 missing-iguana finds; cleaning passes for Phase 13's test set `T`). Hash the dataset CSV at training time, embed in checkpoint metadata, refuse to evaluate on a mismatching dataset version unless `--force`. Prevents silent train/eval-on-different-data mistakes.
+- **Calibrated uncertainty / conformal prediction.** Field users want intervals (*"between 10 and 14 iguanas, 90 % CI"*), not point estimates with `adapt_ts` knobs. Conformal prediction needs one calibration set and is model-agnostic — ~50 lines on top of the existing ensemble. Turns the model output from a number into a decision-support signal that ecologists can actually act on.
+- **Continuous evaluation / drift detection.** Once deployed in the Galapagos, track mean detection density per frame, confidence-distribution shape, tile-coverage stats. Alert when these drift from training-time baseline. Order of magnitude less work than usual drift detection because the existing 6-model ensemble disagreement is a free uncertainty signal.
+- **Open-source the Phase-8 stack on HuggingFace.** README already references HF for the original Delplanque model. Push the 6-checkpoint production ensemble + a load-and-run snippet. Other wildlife groups working on small-object aerial detection benefit, and citations climb. Cost: an afternoon.
+
+### Skip / explicitly not doing
+
+- **Active learning.** Handled in a separate, model-agnostic repo on purpose; reimplementing here would create maintenance overhead and divergence. The data-scaling experiment uses random sampling intentionally for that reason.
+- **Mobile / TFLite / on-device inference.** Tempting but premature — drone partners overwhelmingly do batch processing back at base, not real-time onboard. Don't optimise for an unconfirmed use case. Revisit only if a partner specifically asks.
+- **PyTorch Lightning.** Resist. It's a large, opinionated dependency that buys very little for our specific shape (one architecture family, few callbacks, custom validation). Multi-GPU is solvable in 30 lines of DDP without it.
+
+### Suggested order of work
+
+If we were sequencing the TODOs against the produce/decode/score refactor:
+
+1. **Validation alignment** (Tier 1, full-size every N epochs) — do *before* any new experiments to stop bad-signal selection.
+2. **Analysis library** (Tier 1) and **better error metrics** (Tier 1) — multiplier for everything afterwards.
+3. **The produce/decode/score split** itself (the body of this doc) — unblocks everything else.
+4. **Albumentations → Kornia** (Tier 2) and **GPU ObjectAwareRandomCrop** (Tier 2) — landed together, cuts training time materially. Best done after the dataset-overhaul becomes part of the refactor.
+5. **Reproducibility manifest** (Tier 4) and **dataset versioning** (Tier 4) — invisible but high-leverage hygiene; small enough to slip into any of the above PRs.
+6. **Deployment track** (Tier 3 — pip-package, HTTP API, ssh-sync, RunPod) — group into one focused sprint when partners actually need it.
+7. **Multi-GPU** (Tier 2) — defer until experiments grow to need it.
+8. **Calibrated intervals**, **drift detection**, **HF release** (Tier 4) — pick up opportunistically as partners ask for production-grade artefacts.
