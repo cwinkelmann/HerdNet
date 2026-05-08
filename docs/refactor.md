@@ -239,3 +239,17 @@ These are decisions you'll need to make. None are obvious; many trade off effort
 - The loss-system overhaul. `LossWrapper` with `output_idx`/`target_idx` dispatch is clever but fragile. Probably wants to become per-architecture loss bundles that know what their producer emits.
 
 These all need attention eventually, but the produce/decode/score split is the cut that unblocks everything else. Once those boundaries exist, refactoring the training loop or the dataset layer is a much smaller surgery because the connecting interfaces are stable.
+
+
+
+### TODO, others
+* add full image inference, conifugrable intervall, i.e. every 10 epochs and at the end
+* ensure, that a simple herdnet/animaloc install gives a fully usable package: tiling, training, etc
+* simple http API
+* Drop Albumentations because of license and speed issues.
+* Optimise the ObjectAwareRandomCrop by creating these preemptively and maybe on GPU using a different library than Albumentations
+* Add analysis functions and plotting so writing a paper with this would 
+* Add error functions which take more into consideration how many animals are, a percentage error is a good start
+* Allow for simple ssh sync deployments
+* enable multi GPU training
+* Describe a RunPod.io recipe to allow for very quick cloud training with a) container build and machine startup, b) data sync and c) training start d) model download and machine down spin
