@@ -29,6 +29,9 @@ pytest tests/test_inference.py::TestInference::test_inference_runs -v  # Single 
 
 Tests use Hydra configs from `configs/demo/` and require clearing Hydra global state between runs (handled by the `clear_hydra` autouse fixture).
 
+- **Training tests** download sample data from `karisu/General_Dataset` on HuggingFace and cache it in `tests/.cache/` (no re-download on subsequent runs).
+- **Inference tests** use local drone images from `tests/data/single_images/`.
+
 ## Training & Inference CLI
 
 ```bash
