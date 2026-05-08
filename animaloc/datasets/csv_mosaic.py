@@ -485,27 +485,34 @@ class CSVDataset(Dataset):
 
             # Points
             elif self.anno_type == 'Point':
+                has_keypoint_transforms = any(
+                    'keypoints' in getattr(t, 'targets', set())
+                    for t in self.albu_transforms
+                )
                 transform_pipeline = albumentations.Compose(
                     self.albu_transforms,
-                    keypoint_params=albumentations.KeypointParams(
+                    **(dict(keypoint_params=albumentations.KeypointParams(
                         format='xy',
                         label_fields=list(label_fields.keys())
-                    )
+                    )) if has_keypoint_transforms else {})
                 )
 
+                call_kwargs = {'image': numpy.array(image)}
+                if has_keypoint_transforms:
+                    call_kwargs['keypoints'] = target['annos']
+                    call_kwargs.update(label_fields)
 
-
-                transformed = transform_pipeline(
-                    image=numpy.array(image),
-                    keypoints=target['annos'],
-                    **label_fields
-                )
+                transformed = transform_pipeline(**call_kwargs)
 
                 tr_image = numpy.asarray(transformed['image'])
                 transformed.pop('image')
 
-                transformed['points'] = transformed['keypoints']
-                transformed.pop('keypoints')
+                if has_keypoint_transforms:
+                    transformed['points'] = transformed['keypoints']
+                    transformed.pop('keypoints')
+                else:
+                    transformed['points'] = target['annos']
+                    transformed.update(label_fields)
 
                 for key in ['image_id', 'image_name', 'original_image_name', 'augmentation_id']:
                     if key in target:
