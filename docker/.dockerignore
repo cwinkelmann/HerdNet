@@ -1,0 +1,40 @@
+# Only used when running `docker build` directly with the repo as context
+# (which we discourage — use docker/build.sh, which stages a clean tmpdir).
+# Listed for safety in case someone does it anyway.
+
+.git
+.gitignore
+.github
+.idea
+.vscode
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+
+# Notebook / playground artefacts
+notebooks
+playground
+.ipynb_checkpoints
+
+# Existing training outputs (large)
+output
+outputs
+trained_models
+latest_model.pth
+best_model.pth
+
+# Tests
+tests
+20220413_HerdNet_General_dataset_2022.pth
+
+# Logs scattered at repo root
+20260*.log
+20250*.log
+
+# Tooling that doesn't belong in the image
+docker/build.sh
+benchmark_results
+.claude

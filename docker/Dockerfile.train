@@ -1,0 +1,70 @@
+# HerdNet Phase 13 — self-contained training container.
+#
+# Base image: PyTorch + CUDA from pytorch.org's official runtime image.
+# CUDA 12.4 / cuDNN 9. Sized at ~6 GiB before our layers.
+FROM pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
+
+LABEL maintainer="christian.winkelmann@gmail.com"
+LABEL description="HerdNet Phase-13 data-scaling training container with warm-start + wandb upload"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    LC_NUMERIC=C \
+    DEBIAN_FRONTEND=noninteractive
+
+# Minimal system deps: OpenCV needs libgl/libglib at runtime; git for
+# any pip install -e -style installs that probe .git; tini for clean
+# PID-1 signal handling so docker stop is graceful.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        tini \
+        libgl1 \
+        libglib2.0-0 \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ---- Code ----
+# Copy package definition first so layer caches when pyproject.toml is unchanged.
+COPY pyproject.toml /app/
+RUN pip install --upgrade pip setuptools wheel
+
+# Pull in the animaloc package plus its optional tracking extra (wandb).
+# Source files are copied after deps so dep layer caches across rebuilds.
+COPY animaloc /app/animaloc/
+RUN pip install -e ".[tracking]"
+
+# Copy the rest of the code and resources.
+COPY configs /app/configs/
+COPY tools   /app/tools/
+COPY run_phase13.sh /app/
+
+# ---- Warm-start checkpoint ----
+# The Phase-8 b4_seed42 checkpoint (~400 MB), real file (not symlink).
+COPY best_models /app/best_models/
+
+# ---- Dataset (val + test + one training subset) ----
+# The build context script (docker/build.sh) stages the chosen N's train
+# directory under data/train, plus val and test from the canonical
+# scaling dataset. Inside the image: /app/data/{train,val,test}/.
+COPY data /app/data/
+
+# ---- Entrypoint ----
+COPY docker/train_entrypoint.sh docker/upload_model.py /app/docker/
+RUN chmod +x /app/docker/train_entrypoint.sh
+
+# Defaults overridable at `docker run -e`.
+ENV TRAIN_N=152 \
+    SEED=42 \
+    WANDB_PROJECT=hn_phase13_data_scaling \
+    WANDB_FLAG=True \
+    AUG_MULT="" \
+    UPLOAD_MODEL=1 \
+    ARTIFACT_NAME=phase13_best_model
+
+# Tini handles SIGTERM cleanly so `docker stop` triggers graceful shutdown
+# instead of an unceremonious SIGKILL after 10 s.
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker/train_entrypoint.sh"]
