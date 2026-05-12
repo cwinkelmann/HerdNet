@@ -1,11 +1,17 @@
 """
-Post-training: open one wandb run for this training, log the final
-training-summary metrics, and attach best_model.pth as an artifact.
+Post-training: attach best_model.pth as a wandb Artifact to the training
+run that just finished.
 
-This is the ONLY wandb push for the whole training. Training itself runs
-with wandb_flag=False (no per-epoch chatter) — see train_entrypoint.sh.
-You get exactly one row per training in the wandb UI, with the final
-metrics in `run.summary` and the model attached as an Artifact.
+Training pushes per-epoch metrics to wandb live (see train_entrypoint.sh),
+so the run already exists when this script runs. We resume that exact
+run by ID — wandb writes a `wandb/run-<timestamp>-<id>/` directory under
+the training's working directory, and we read the ID from there. Result:
+one wandb run per training, with the per-epoch curves AND the final model
+attached to it.
+
+If we can't find the wandb run ID for any reason (e.g. wandb ran offline),
+we fall back to creating a sidecar run with the same name suffixed by
+`_model` so the artifact upload still happens.
 
 Reads everything from environment variables — meant to be invoked from
 train_entrypoint.sh after training succeeds.
@@ -14,8 +20,11 @@ Required env vars:
   WANDB_PROJECT, WANDB_API_KEY, ARTIFACT_NAME, RUN_NAME, MODEL_PATH
 
 Optional env vars:
-  TRAIN_LOG  : path to the training log to extract the final SUMMARY line
-  TRAIN_N    : training-set size tag (recorded as artifact metadata)
+  OUT_DIR    : training run's hydra.run.dir; we look for wandb/run-*
+               under here to recover the run ID
+  TRAIN_LOG  : path to the training log; final SUMMARY line is parsed
+               and attached as artifact metadata
+  TRAIN_N    : training-set size tag (artifact metadata)
   SEED       : training seed (artifact metadata)
 """
 
@@ -30,10 +39,10 @@ import wandb
 
 
 def _parse_summary(log_path: str) -> dict:
-    """Extract the final SUMMARY line emitted by animaloc.utils.train (line ~503).
+    """Extract the final SUMMARY line emitted by animaloc.utils.train.
 
-    Looks for: best_f1=, best_f2=, recall=, precision=, mae=, rmse=, best_val=,
-               epochs=, model=
+    Pattern matches: best_f1, best_f2, recall, precision, mae, rmse,
+    best_val, epochs, model — the keys logged near line ~503 of train.py.
     """
     if not log_path or not os.path.exists(log_path):
         return {}
@@ -44,7 +53,6 @@ def _parse_summary(log_path: str) -> dict:
     )
     summary = {}
     try:
-        # SUMMARY line is near the end of the log
         with open(log_path, "r") as f:
             content = f.read()
         for m in re.finditer(pattern, content):
@@ -64,20 +72,49 @@ def _parse_summary(log_path: str) -> dict:
     return summary
 
 
+def _find_training_run_id(out_dir: str) -> str | None:
+    """Recover the wandb run ID from the training's wandb cache directory.
+
+    During training, wandb (when `wandb_flag=True`) writes its state to
+    `<cwd>/wandb/run-<YYYYMMDD>_<HHMMSS>-<id>/`. With Hydra's
+    `hydra.run.dir=<out_dir>`, the cwd is <out_dir>, so we look there.
+
+    Returns None if no wandb directory or no run-* sub-directory exists
+    (e.g. wandb was offline or disabled).
+    """
+    if not out_dir:
+        return None
+    wandb_dir = Path(out_dir) / "wandb"
+    if not wandb_dir.is_dir():
+        return None
+    runs = sorted(
+        (p for p in wandb_dir.glob("run-*") if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if not runs:
+        return None
+    name = runs[-1].name  # e.g. "run-20260512_091500-abc12def"
+    # Trailing hyphen-separated chunk is the run ID.
+    parts = name.rsplit("-", 1)
+    if len(parts) != 2:
+        return None
+    return parts[1] or None
+
+
 def main() -> int:
     model_path = os.environ.get("MODEL_PATH")
     project = os.environ.get("WANDB_PROJECT", "phase13-docker")
     artifact_name = os.environ.get("ARTIFACT_NAME", "phase13_best_model")
     run_name = os.environ.get("RUN_NAME", "phase13-docker-run")
+    out_dir = os.environ.get("OUT_DIR", "")
     train_log = os.environ.get("TRAIN_LOG", "")
     train_n = os.environ.get("TRAIN_N", "unknown")
     seed = os.environ.get("SEED", "unknown")
 
     if not model_path or not Path(model_path).is_file():
-        print(f"ERROR: MODEL_PATH not set or missing: {model_path!r}", file=sys.stderr)
+        print(f"ERROR: MODEL_PATH not set or missing: {model_path!r}",
+              file=sys.stderr)
         return 1
-
-    # WANDB_API_KEY check (let wandb itself complain if missing).
     if not os.environ.get("WANDB_API_KEY"):
         print("ERROR: WANDB_API_KEY not set — cannot upload artifact.",
               file=sys.stderr)
@@ -85,33 +122,47 @@ def main() -> int:
 
     summary = _parse_summary(train_log)
     if summary:
-        print(f"  parsed final SUMMARY: best_f1={summary.get('best_f1'):.4f} "
-              f"mae={summary.get('mae'):.2f} epochs={summary.get('epochs')}")
+        print(f"  parsed final SUMMARY: best_f1={summary['best_f1']:.4f} "
+              f"mae={summary['mae']:.2f} epochs={summary['epochs']}")
     else:
         print("  (no SUMMARY line found in training log)")
 
-    # Open the single wandb run for this whole training. Training itself
-    # ran with wandb_flag=False, so this run is fresh and contains only
-    # the final summary metrics + the model artifact (no per-epoch
-    # history). Exactly one row per training in the wandb UI.
-    run = wandb.init(
-        project=project,
-        name=run_name,
-        tags=["phase13", "data_scaling", "docker", f"N{train_n}"],
-        notes=(
-            f"Phase-13 training, N={train_n}, seed={seed}. "
-            f"Warm-started from best_models/phase8/b4_seed42. "
-            f"Training metrics were not streamed per-epoch — the final "
-            f"summary + model artifact are submitted here at the end."
-        ),
-        reinit=True,
-    )
+    # Try to resume the training run so the artifact lands on the same
+    # wandb row as the per-epoch curves. Fall back to a sidecar run if
+    # the ID can't be recovered.
+    training_run_id = _find_training_run_id(out_dir)
+    if training_run_id:
+        print(f"  found training wandb run id: {training_run_id} — "
+              f"resuming to attach artifact")
+        run = wandb.init(
+            project=project,
+            id=training_run_id,
+            resume="must",
+        )
+    else:
+        sidecar_name = f"{run_name}_model"
+        print(f"  no training wandb run id found under {out_dir!r} — "
+              f"creating sidecar run '{sidecar_name}'")
+        run = wandb.init(
+            project=project,
+            name=sidecar_name,
+            tags=["phase13", "data_scaling", "docker", f"N{train_n}",
+                  "model_artifact_sidecar"],
+            notes=(
+                f"Sidecar artifact upload for {run_name} (N={train_n}, "
+                f"seed={seed}). Created because the training run's wandb "
+                f"ID could not be recovered (training was probably offline)."
+            ),
+            reinit=True,
+        )
 
     metadata = {
         "train_n": train_n,
         "seed": seed,
         "model_path_in_container": model_path,
-        "model_file_size_mb": round(Path(model_path).stat().st_size / (1024 ** 2), 1),
+        "model_file_size_mb": round(
+            Path(model_path).stat().st_size / (1024 ** 2), 1
+        ),
         **summary,
     }
 
@@ -120,22 +171,23 @@ def main() -> int:
         type="model",
         description=(
             f"HerdNet Phase-13 best_model.pth, N={train_n}, seed={seed}. "
-            f"Warm-started from best_models/phase8/b4_seed42 and fine-tuned on "
-            f"the Phase-13 train_N{train_n}_s{seed} split."
+            f"Warm-started from best_models/phase8/b4_seed42 and fine-tuned "
+            f"on Phase-13 train_N{train_n}_s{seed} for {summary.get('epochs', '?')} epochs."
         ),
         metadata=metadata,
     )
     artifact.add_file(model_path)
 
-    # Also log the final summary as run metrics so the artifact run has
-    # context in the wandb dashboard.
+    # Refresh run.summary with the final metrics (the per-epoch run does
+    # this internally too, but doing it here ensures the artifact run has
+    # the same headline numbers visible in the run header).
     if summary:
         for k, v in summary.items():
             if isinstance(v, (int, float)):
                 wandb.summary[k] = v
         wandb.summary["model_file_size_mb"] = metadata["model_file_size_mb"]
 
-    print(f"  uploading {model_path} as wandb artifact "
+    print(f"  uploading {model_path} as wandb Artifact "
           f"'{artifact_name}' in project '{project}' ...")
     run.log_artifact(artifact)
     run.finish()

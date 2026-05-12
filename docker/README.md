@@ -63,9 +63,9 @@ Best model lands at `output/phase13_N152_s42_docker/<date>/<time>/best_model.pth
 
 | Var | Default | Purpose |
 |---|---|---|
-| `WANDB_API_KEY` | unset | **Required** for the end-of-training wandb upload; if unset, training still runs and saves locally, but the upload is skipped |
-| `WANDB_PROJECT` | `hn_phase13_data_scaling` | wandb project for the final model + summary upload |
-| `WANDB_FLAG` | `True` | Set `False` to skip wandb entirely (no upload at end). Training itself never uses wandb regardless. |
+| `WANDB_API_KEY` | unset | **Required** for wandb integration (per-epoch metrics + end-of-training model upload). If unset, wandb runs in offline mode and the artifact upload is skipped |
+| `WANDB_PROJECT` | `hn_phase13_data_scaling` | wandb project for per-epoch metrics and the final model artifact |
+| `WANDB_FLAG` | `True` | Set `False` to disable wandb entirely (no per-epoch curves, no artifact upload) |
 | `TRAIN_N` | `152` (build-time default; used for naming only) | Training-set tag; data is already baked in |
 | `SEED` | `42` | Random seed |
 | `AUG_MULT` | unset (config default 75) | Override `augmentation_multiplier`; set to `1` for big-N runs to save compute |
@@ -95,15 +95,21 @@ The volume mounts mask `/app/data/{train,val,test}` from the baked image, so the
 
 ## What gets uploaded to wandb
 
-**One push at the end of training, never per-epoch.** Training runs with `wandb_flag=False`, so no metric chatter is streamed during the long fine-tune. At the end, the entrypoint:
+**Per-epoch metric curves stream live during training (same observability you have locally). The model checkpoint is the only thing held for the end — uploaded once, to save wandb storage.**
 
-1. Parses the final `SUMMARY` line from the training log: `best_f1`, `best_f2`, `recall`, `precision`, `mae`, `rmse`, `best_val`, `epochs`.
-2. Opens **one** wandb run named `phase13_N<N>_s<seed>_docker` in `WANDB_PROJECT`.
-3. Attaches `best_model.pth` as a wandb `Artifact` named `phase13_best_model` with metadata `{train_n, seed, best_f1, mae, best_val, epochs, model_file_size_mb}`.
-4. Writes the parsed summary to `run.summary` so the metrics are visible at a glance in the wandb UI.
+Step by step:
+
+1. Training pushes per-epoch metrics to wandb as usual: losses, validation F1 / MAE / precision / recall, learning rate, etc. The run is named `phase13_N<N>_s<seed>_docker` in `WANDB_PROJECT`, tagged `[phase13, data_scaling, docker, N<N>]`.
+2. After training finishes, `upload_model.py` reads the wandb run ID from `<OUT_DIR>/wandb/run-*` and **resumes the same run** (`wandb.init(id=..., resume="must")`) so the artifact lands on the row with the per-epoch curves — one row per training, not two.
+3. Attaches `best_model.pth` as a wandb `Artifact` named `phase13_best_model` with metadata `{train_n, seed, best_f1, mae, best_val, epochs, model_file_size_mb}` parsed from the final `SUMMARY` log line.
+4. Refreshes `run.summary` so the headline metrics show in the run header.
 5. Calls `run.finish()`.
 
-Net result: exactly one row per training in the wandb UI, with the model artifact and final metrics in `run.summary`. No per-epoch curves. Set `UPLOAD_MODEL=0` to skip the upload entirely (training still runs and saves locally).
+**Storage cost**: one ~400 MB artifact per training. Per-epoch scalar metrics are tiny.
+
+**Fallback**: if the wandb run ID can't be recovered from the training cache (e.g. training was forced offline), the artifact uploads to a sidecar run named `<run>_model` instead. You'll see two rows in that case — flagged with the `model_artifact_sidecar` tag.
+
+Set `UPLOAD_MODEL=0` to skip the artifact upload (training metrics still stream as normal).
 
 ## Caveats
 
