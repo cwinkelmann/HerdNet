@@ -36,12 +36,14 @@ echo "  AUG_MULT:       ${AUG_MULT:-(config default)}"
 echo "  UPLOAD_MODEL:   ${UPLOAD_MODEL}"
 echo "============================================================"
 
-# wandb sanity: if WANDB_FLAG=True, WANDB_API_KEY must be set.
+# wandb sanity: WANDB_FLAG controls only the END-OF-TRAINING upload.
+# Training itself never pushes to wandb (no per-epoch chatter); we only
+# submit one bundle at the end. If WANDB_FLAG=True but WANDB_API_KEY is
+# unset, the upload will be skipped — training still runs locally.
 if [ "${WANDB_FLAG}" = "True" ] && [ -z "${WANDB_API_KEY}" ]; then
   echo ""
   echo "WARNING: WANDB_FLAG=True but WANDB_API_KEY is unset."
-  echo "         wandb will run in offline mode and the upload will be skipped."
-  export WANDB_MODE=offline
+  echo "         the end-of-training wandb upload will be skipped."
 fi
 
 # Dataset paths inside the image.
@@ -77,8 +79,15 @@ if [ -n "${AUG_MULT}" ]; then
 fi
 
 # ---- Train ----
+# IMPORTANT: wandb_flag is hardcoded False here. Training metrics are NOT
+# pushed per-epoch — they only land in the local training log. The single
+# wandb submission happens AFTER training in upload_model.py, where the
+# final SUMMARY line is parsed and attached together with the model
+# artifact. This keeps a long training run from spamming wandb on every
+# validation cycle and gives you exactly one row per training in the UI.
 echo "============================================================"
 echo "  Training (output → ${OUT_DIR})"
+echo "  wandb_flag during training: False (final upload at end)"
 echo "============================================================"
 python tools/train.py \
   --config-path /app/configs/demo \
@@ -91,10 +100,7 @@ python tools/train.py \
   "datasets.test.csv_file=${VAL_FULL_CSV}" \
   "datasets.test.root_dir=${VAL_FULL_ROOT}" \
   "model.load_from=${WARM_START}" \
-  "wandb_flag=${WANDB_FLAG}" \
-  "wandb_project=${WANDB_PROJECT}" \
-  "wandb_run=${RUN_NAME}" \
-  "+wandb_tags=[phase13,data_scaling,docker,N${TRAIN_N}]" \
+  "wandb_flag=False" \
   "${TRAIN_EXTRA[@]}" \
   "hydra.run.dir=${OUT_DIR}" \
   2>&1 | tee "$TRAIN_LOG"

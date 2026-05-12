@@ -1,6 +1,11 @@
 """
-Post-training: upload best_model.pth as a wandb artifact and attach the
-training-summary metrics so the run is fully self-describing.
+Post-training: open one wandb run for this training, log the final
+training-summary metrics, and attach best_model.pth as an artifact.
+
+This is the ONLY wandb push for the whole training. Training itself runs
+with wandb_flag=False (no per-epoch chatter) — see train_entrypoint.sh.
+You get exactly one row per training in the wandb UI, with the final
+metrics in `run.summary` and the model attached as an Artifact.
 
 Reads everything from environment variables — meant to be invoked from
 train_entrypoint.sh after training succeeds.
@@ -85,14 +90,20 @@ def main() -> int:
     else:
         print("  (no SUMMARY line found in training log)")
 
-    # Initialise a fresh wandb run dedicated to artifact upload.
-    # Tagged so it's discoverable alongside the training-metrics run.
+    # Open the single wandb run for this whole training. Training itself
+    # ran with wandb_flag=False, so this run is fresh and contains only
+    # the final summary metrics + the model artifact (no per-epoch
+    # history). Exactly one row per training in the wandb UI.
     run = wandb.init(
         project=project,
-        name=f"{run_name}_artifact",
-        tags=["phase13", "data_scaling", "docker", f"N{train_n}", "model_artifact"],
-        notes=f"Final model artifact for {run_name} "
-              f"(N={train_n}, seed={seed}).",
+        name=run_name,
+        tags=["phase13", "data_scaling", "docker", f"N{train_n}"],
+        notes=(
+            f"Phase-13 training, N={train_n}, seed={seed}. "
+            f"Warm-started from best_models/phase8/b4_seed42. "
+            f"Training metrics were not streamed per-epoch — the final "
+            f"summary + model artifact are submitted here at the end."
+        ),
         reinit=True,
     )
 

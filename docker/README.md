@@ -63,9 +63,9 @@ Best model lands at `output/phase13_N152_s42_docker/<date>/<time>/best_model.pth
 
 | Var | Default | Purpose |
 |---|---|---|
-| `WANDB_API_KEY` | unset | **Required** for wandb upload; if unset, the run drops to wandb offline mode and the artifact upload is skipped |
-| `WANDB_PROJECT` | `hn_phase13_data_scaling` | wandb project for training metrics |
-| `WANDB_FLAG` | `True` | Set `False` to disable wandb entirely |
+| `WANDB_API_KEY` | unset | **Required** for the end-of-training wandb upload; if unset, training still runs and saves locally, but the upload is skipped |
+| `WANDB_PROJECT` | `hn_phase13_data_scaling` | wandb project for the final model + summary upload |
+| `WANDB_FLAG` | `True` | Set `False` to skip wandb entirely (no upload at end). Training itself never uses wandb regardless. |
 | `TRAIN_N` | `152` (build-time default; used for naming only) | Training-set tag; data is already baked in |
 | `SEED` | `42` | Random seed |
 | `AUG_MULT` | unset (config default 75) | Override `augmentation_multiplier`; set to `1` for big-N runs to save compute |
@@ -95,12 +95,15 @@ The volume mounts mask `/app/data/{train,val,test}` from the baked image, so the
 
 ## What gets uploaded to wandb
 
-If `UPLOAD_MODEL=1` and `WANDB_API_KEY` is set, the entrypoint:
+**One push at the end of training, never per-epoch.** Training runs with `wandb_flag=False`, so no metric chatter is streamed during the long fine-tune. At the end, the entrypoint:
 
-1. Runs training; per-epoch metrics + final SUMMARY go to `WANDB_PROJECT` (the training run is named `phase13_N<N>_s<seed>_docker`).
-2. After training, opens a second wandb run named `<run>_artifact` and uploads `best_model.pth` as a wandb `Artifact` with metadata `{train_n, seed, best_f1, mae, best_val, epochs, ...}` parsed from the final SUMMARY log line.
+1. Parses the final `SUMMARY` line from the training log: `best_f1`, `best_f2`, `recall`, `precision`, `mae`, `rmse`, `best_val`, `epochs`.
+2. Opens **one** wandb run named `phase13_N<N>_s<seed>_docker` in `WANDB_PROJECT`.
+3. Attaches `best_model.pth` as a wandb `Artifact` named `phase13_best_model` with metadata `{train_n, seed, best_f1, mae, best_val, epochs, model_file_size_mb}`.
+4. Writes the parsed summary to `run.summary` so the metrics are visible at a glance in the wandb UI.
+5. Calls `run.finish()`.
 
-Two runs (one for training metrics, one for the model artifact) instead of one is intentional — keeps the artifact upload from interfering with the training run's metric history.
+Net result: exactly one row per training in the wandb UI, with the model artifact and final metrics in `run.summary`. No per-epoch curves. Set `UPLOAD_MODEL=0` to skip the upload entirely (training still runs and saves locally).
 
 ## Caveats
 
